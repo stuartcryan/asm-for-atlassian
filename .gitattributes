@@ -1,1 +1,4 @@
 * text=auto !eol
+/.project -text svneol=unset#text/plain
+/COPYING -text
+/atlassianSuiteManager.sh -text
