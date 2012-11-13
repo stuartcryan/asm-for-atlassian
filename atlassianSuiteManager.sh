@@ -36,10 +36,26 @@ clear
 
 
 ########################################
-#Example Function Stanza               #
+#Test system for required Binaries     #
 ########################################
-exampleFunction(){
-    
+checkRequiredBinaries(){
+BINARIES="wget rpm zip unzip tar"
+BINARIESCHECK=""
+
+for i in $BINARIES
+do
+   type -P $i &>/dev/null  && continue  || { echo "$i command not found."; BINARIESCHECK="FAIL"; }
+done
+
+if [[ $BINARIESCHECK == "FAIL" ]] ; then
+   echo ""
+   echo "Some required components are missing therfore this script cannot be run. Please install the aforementioned"
+   echo "components and then run this script again."
+   echo ""
+   echo ""
+   exit 1
+fi
+
 }
 
 if [[ $1 == "--someinput" ]] ; then
