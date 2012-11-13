@@ -58,6 +58,19 @@ fi
 
 }
 
+########################################
+#Test for script running as root       #
+########################################
+checkForRootAccess(){
+BINARIES="wget rpm zip unzip tar"
+BINARIESCHECK=""
+
+if [[ $EUID -ne 0 ]]; then
+   echo "This script must be run as root" 1>&2
+   exit 1
+fi
+}
+
 if [[ $1 == "--someinput" ]] ; then
    echo "Placeholder for testing input parameters "
 else
