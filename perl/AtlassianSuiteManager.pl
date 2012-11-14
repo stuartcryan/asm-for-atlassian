@@ -134,6 +134,63 @@ sub getLatestDownloadURL {
 	}
 }
 
+########################################
+#Get specific version URL to download  #
+########################################
+sub getVersionDownloadURL {
+	my $product;
+	my $architecture;
+	my $filename;
+	my $fileExt;
+	my $version;
+
+	$product      = $_[0];
+	$architecture = $_[1];
+	$version      = $_[2];
+
+	my $versionurl =
+	  "http://www.atlassian.com/software/" . $product . "/downloads/binary";
+	my $searchString;
+
+	if ( $product eq "confluence" ) {
+		$fileExt = "bin";
+		$filename =
+		    "atlassian-confluence-" 
+		  . $version . "-x"
+		  . $architecture . "."
+		  . $fileExt;
+	}
+	elsif ( $product eq "jira" ) {
+		$fileExt = "bin";
+		$filename =
+		  "atlassian-jira-" . $version . "-x" . $architecture . "." . $fileExt;
+	}
+	elsif ( $product eq "stash" ) {
+		$fileExt  = "tar.gz";
+		$filename = "atlassian-stash-" . $version . "." . $fileExt;
+	}
+	elsif ( $product eq "fisheye" ) {
+		$fileExt  = "zip";
+		$filename = "fisheye-" . $version . "." . $fileExt;
+	}
+	elsif ( $product eq "crowd" ) {
+		$fileExt  = "tar.gz";
+		$filename = "atlassian-crowd-" . $version . "." . $fileExt;
+	}
+	elsif ( $product eq "bamboo" ) {
+		$fileExt  = "tar.gz";
+		$filename = "atlassian-bamboo-" . $version . "." . $fileExt;
+	}
+	else {
+		print
+"That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
+		exit 2;
+	}
+	$ua->show_progress(1);
+	getstore( $versionurl . "/" . $filename,
+		$globalConfig->param("general.rootInstallDir") . "/" . $filename );
+}
+
 sub getBooleanInput {
 	my $LOOP = 1;
 	my $input;
@@ -426,6 +483,9 @@ sub downloadAtlassianInstaller {
 	if ( $type eq "LATEST" ) {
 		$downloadURL = getLatestDownloadURL( $product, $architecture );
 	}
+	else {
+
+	}
 
 	$parsedURL = URI->new($downloadURL);
 	my @bits = $parsedURL->path_segments();
@@ -716,7 +776,5 @@ END_TXT
 loadSuiteConfig();
 
 #generateSuiteConfig();
-downloadLatestAtlassianSuite(
-	whichApplicationArchitecture()
-);
+getVersionDownloadURL( "confluence", whichApplicationArchitecture(), "4.2.7" );
 
