@@ -30,8 +30,10 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 use LWP::Simple;               # From CPAN
+use LWP::Simple qw($ua getstore);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
+use URI;                       # From CPAN
 use Data::Dumper;              # Perl core module
 use Config::Simple;            # From CPAN
 use strict;                    # Good practice
@@ -55,29 +57,51 @@ sub testOSArchitecture {
 }
 
 ########################################
+#WhichApplicationArchitecture          #
+########################################
+sub whichApplicationArchitecture {
+	if (testOSArchitecture() eq "64") {
+		if ( $globalConfig->param("general.force32Bit") eq "TRUE" ) {
+			return "32";
+		} else {
+			return "64";
+		}
+	}
+	else {
+		return "64";
+	}
+}
+
+########################################
 #Get the latest URL to download XXX    #
 ########################################
 sub getLatestDownloadURL {
+	my $product;
+	my $architecture;
+	
+	$product = $_[0];
+	$architecture = $_[1];
+	
 	my $versionurl =
-	  "https://my.atlassian.com/download/feeds/current/" . $ARGV[0] . ".json";
+	  "https://my.atlassian.com/download/feeds/current/" . $product . ".json";
 	my $searchString;
 
-	if ( $ARGV[0] eq "confluence" ) {
-		$searchString = ".*Linux.*$ARGV[1].*";
+	if ( $product eq "confluence" ) {
+		$searchString = ".*Linux.*$architecture.*";
 	}
-	elsif ( $ARGV[0] eq "jira" ) {
-		$searchString = ".*Linux.*$ARGV[1].*";
+	elsif ( $product eq "jira" ) {
+		$searchString = ".*Linux.*$architecture.*";
 	}
-	elsif ( $ARGV[0] eq "stash" ) {
+	elsif ( $product eq "stash" ) {
 		$searchString = ".*TAR.*";
 	}
-	elsif ( $ARGV[0] eq "fisheye" ) {
+	elsif ( $product eq "fisheye" ) {
 		$searchString = ".*FishEye.*";
 	}
-	elsif ( $ARGV[0] eq "crowd" ) {
+	elsif ( $product eq "crowd" ) {
 		$searchString = ".*TAR.*";
 	}
-	elsif ( $ARGV[0] eq "bamboo" ) {
+	elsif ( $product eq "bamboo" ) {
 		$searchString = ".*TAR\.GZ.*";
 	}
 	else {
@@ -86,7 +110,7 @@ sub getLatestDownloadURL {
 		exit 2;
 	}
 
-	my $json = get $versionurl ;
+	my $json = get($versionurl);
 
 	die "Could not get $versionurl!" unless defined $json;
 
@@ -103,7 +127,7 @@ sub getLatestDownloadURL {
 
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
-				print $item->{zipUrl} . "\n";
+				return $item->{zipUrl};
 			}
 		}
 	}
@@ -281,6 +305,38 @@ sub generateConfluenceConfig {
     genConfigItem($mode, $cfg, "confluence.connectorPort", "Please enter the Connector port Confluence will run on (note this is the port you will access in the browser).", "8090");
 	genConfigItem($mode, $cfg, "confluence.serverPort", "Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).", "8000");
 	genConfigItem($mode, $cfg, "confluence.javaParams", "Enter any additional paramaters you would like to add to the Java RUN_OPTS.", "");
+
+
+}
+
+########################################
+#Download Atlassian Installer          #
+########################################
+sub downloadAtlassianInstaller{
+	my $type;
+	my $product;
+    my $version;
+    my $downloadURL;
+    my $architecture;
+    my $parsedURL;
+    my $i;
+    
+    
+    $type = $_[0];
+    $product = $_[1];
+    $version = $_[2];
+    $architecture = $_[3];
+	
+	if ($type eq "LATEST"){
+		$downloadURL = getLatestDownloadURL($product, $architecture);
+	}
+
+
+    $parsedURL = URI->new($downloadURL);
+    my @bits = $parsedURL->path_segments();
+    $ua->show_progress(1);
+
+	getstore($downloadURL, $globalConfig->param("general.rootInstallDir") . "/" . $bits[@bits-1]);
 
 
 }
@@ -538,4 +594,5 @@ END_TXT
 	}
 }
 loadSuiteConfig();
-generateSuiteConfig();
+#generateSuiteConfig();
+downloadAtlassianInstaller("LATEST", "confluence", "", whichApplicationArchitecture());
