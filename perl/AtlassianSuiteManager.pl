@@ -81,7 +81,8 @@ sub getLatestDownloadURL {
 		$searchString = ".*TAR\.GZ.*";
 	}
 	else {
-		print "That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
+		print
+"That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
 		exit 2;
 	}
 
@@ -111,15 +112,13 @@ sub getLatestDownloadURL {
 sub getBooleanInput {
 	my $LOOP = 1;
 	my $input;
-	
+
 	while ( $LOOP == 1 ) {
 
-		$input= <STDIN>;
+		$input = <STDIN>;
 		chomp $input;
-		
-		
-		if (   
-			( lc $input ) eq "yes"
+
+		if (   ( lc $input ) eq "yes"
 			|| ( lc $input ) eq "y" )
 		{
 			$LOOP = 0;
@@ -128,23 +127,85 @@ sub getBooleanInput {
 		elsif ( ( lc $input ) eq "no" || ( lc $input ) eq "n" ) {
 			$LOOP = 0;
 			return "no";
-		} elsif ($input eq ""){
+		}
+		elsif ( $input eq "" ) {
 			$LOOP = 0;
 			return "default";
 		}
 		else {
-			print "Your input '" . $input ."'was not recognised. Please try again and write yes or no\n\n";
+			print "Your input '" . $input
+			  . "'was not recognised. Please try again and write yes or no.\n";
 		}
 	}
 }
 
+sub getDirectoryInput {
+	my $input;
+
+	$input = <STDIN>;
+	chomp $input;
+
+	if ( $input eq "" ) {
+		return "default";
+	}
+	else {
+		return $input;
+	}
+}
+
 ########################################
-#GenerateSuiteConfig                   #
+#LoadSuiteConfig                       #
 ########################################
 sub loadSuiteConfig {
-	if (-e "new.cfg"){
-		 $globalConfig = new Config::Simple('new.cfg');
+	if ( -e "new.cfg" ) {
+		$globalConfig = new Config::Simple('new.cfg');
 	}
+}
+
+########################################
+#GenerateJiraConfig                    #
+########################################
+sub generateJiraConfig {
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
+
+}
+
+########################################
+#GenerateCrowdConfig                   #
+########################################
+sub generateCrowdConfig {
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
+
+	#crowd . home = /var/ atlassian /application-data/crowd
+
+}
+
+########################################
+#GenerateFisheyeConfig                 #
+########################################
+sub generateFisheyeConfig {
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
+
+}
+
+########################################
+#GenerateConfluenceConfig              #
+########################################
+sub generateConfluenceConfig {
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
+
 }
 
 ########################################
@@ -156,100 +217,191 @@ sub generateSuiteConfig {
 	my $input;
 	my $defaultValue;
 
-	if ($globalConfig){
-		 $mode = "UPDATE";
-		 $cfg = $globalConfig;
-	} else {
+	if ($globalConfig) {
+		$mode = "UPDATE";
+		$cfg  = $globalConfig;
+	}
+	else {
 		$mode = "NEW";
 		$cfg = new Config::Simple( syntax => 'ini' );
 	}
-	
-	print "This will guide you through the generation of the config required for the management of the Atlassian suite.\n\n";
+
+	print
+"This will guide you through the generation of the config required for the management of the Atlassian suite.";
 
 	if ( testOSArchitecture() eq "64" ) {
-		print "Your operating system architecture has been detected as "
+		if ( $mode eq "UPDATE" ) {
+			if ( $globalConfig->param("general.force32Bit") ne "TRUE" ) {
+				$defaultValue = "no";
+			}
+			else {
+				$defaultValue = "yes";
+			}
+		}
+		else {
+			$defaultValue = "no";
+		}
+		print "\n\nYour operating system architecture has been detected as "
 		  . testOSArchitecture()
-		  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)?";
+		  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no ["
+		  . $defaultValue . "]: ";
+
+		$input = getBooleanInput();
+		if ( $input eq "yes"
+			|| ( $input eq "default" && $defaultValue eq "yes" ) )
+		{
+			$cfg->param( "general.force32Bit", "TRUE" );
+		}
+		elsif ( $input eq "no"
+			|| ( $input eq "default" && $defaultValue eq "no" ) )
+		{
+			$cfg->param( "general.force32Bit", "FALSE" );
+		}
+
 	}
 
-    if ($mode eq "UPDATE"){
-    	if ($globalConfig->param("crowd.enable") ne "ENABLED" ){
-    		$defaultValue = "no";
-    	} else {
-    		$defaultValue = "yes";
-    	}
-    } else {
-    	$defaultValue = "yes";
-    }
-    
-	print "\n\nDo you wish to install/manage Crowd? yes/no [". $defaultValue ."]";
-	$input = getBooleanInput();
-	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
-	{
-		$cfg->param( "crowd.enable", "ENABLED" );
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("general.rootInstallDir") ) {
+			$defaultValue = $globalConfig->param("general.rootInstallDir");
+		}
+		else {
+			$defaultValue = "/opt/atlassian";
+		}
 	}
-	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
-		$cfg->param( "crowd.enable", "DISABLED" );
+	else {
+		$defaultValue = "/opt/atlassian";
+	}
+	print "\n\nPlease enter the root directory the suite will be installed into. ["
+	  . $defaultValue . "]: ";
+
+	$input = getDirectoryInput();
+	if ( $input eq "default" )
+	{
+		$cfg->param( "general.rootInstallDir", $defaultValue );
+	}
+	else
+	{
+		$cfg->param( "general.rootInstallDir", $input );
+	}
+	
+		if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("general.rootDataDir") ) {
+			$defaultValue = $globalConfig->param("general.rootDataDir");
+		}
+		else {
+			$defaultValue = "/var/atlassian/application-data";
+		}
+	}
+	else {
+		$defaultValue = "/var/atlassian/application-data";
+	}
+	print "\n\nPlease enter the root directory the suite data/home directories will be stored. ["
+	  . $defaultValue . "]: ";
+
+	$input = getDirectoryInput();
+	if ( $input eq "default" )
+	{
+		$cfg->param( "general.rootDataDir", $defaultValue );
+	}
+	else
+	{
+		$cfg->param( "general.rootDataDir", $input );
 	}
 
-    if ($mode eq "UPDATE"){
-    	if ($globalConfig->param("jira.enable") ne "ENABLED" ){
-    		$defaultValue = "no";
-    	} else {
-    		$defaultValue = "yes";
-    	}
-    } else {
-    	$defaultValue = "yes";
-    }
-    
-	print "\n\nDo you wish to install/manage JIRA? yes/no [". $defaultValue ."]";
-	$input = getBooleanInput();
-	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
-	{
-		$cfg->param( "jira.enable", "ENABLED" );
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("crowd.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
 	}
-	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
-		$cfg->param( "jira.enable", "DISABLED" );
+	else {
+		$defaultValue = "yes";
 	}
 
-    if ($mode eq "UPDATE"){
-    	if ($globalConfig->param("confluence.enable") ne "ENABLED" ){
-    		$defaultValue = "no";
-    	} else {
-    		$defaultValue = "yes";
-    	}
-    } else {
-    	$defaultValue = "yes";
-    }
-    
-	print "\n\nDo you wish to install/manage Confluence? yes/no [". $defaultValue ."]";
+	print "\n\nDo you wish to install/manage Crowd? yes/no ["
+	  . $defaultValue . "]: ";
 	$input = getBooleanInput();
-	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
+	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
-		$cfg->param( "confluence.enable", "ENABLED" );
+		$cfg->param( "crowd.enable", "TRUE" );
 	}
-	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
-		$cfg->param( "confluence.enable", "DISABLED" );
+	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "crowd.enable", "FALSE" );
 	}
 
-    if ($mode eq "UPDATE"){
-    	if ($globalConfig->param("fisheye.enable") ne "ENABLED" ){
-    		$defaultValue = "no";
-    	} else {
-    		$defaultValue = "yes";
-    	}
-    } else {
-    	$defaultValue = "yes";
-    }
-    
-	print "\n\nDo you wish to install/manage Fisheye? yes/no [". $defaultValue ."]";
-	$input = getBooleanInput();
-	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
-	{
-		$cfg->param( "fisheye.enable", "ENABLED" );
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("jira.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
 	}
-	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
-		$cfg->param( "fisheye.enable", "DISABLED" );
+	else {
+		$defaultValue = "yes";
+	}
+
+	print "\n\nDo you wish to install/manage JIRA? yes/no ["
+	  . $defaultValue . "]: ";
+	$input = getBooleanInput();
+	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( "jira.enable", "TRUE" );
+	}
+	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "jira.enable", "FALSE" );
+	}
+
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("confluence.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
+	}
+	else {
+		$defaultValue = "yes";
+	}
+
+	print "\n\nDo you wish to install/manage Confluence? yes/no ["
+	  . $defaultValue . "]: ";
+	$input = getBooleanInput();
+	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( "confluence.enable", "TRUE" );
+	}
+	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "confluence.enable", "FALSE" );
+	}
+
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("fisheye.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
+	}
+	else {
+		$defaultValue = "yes";
+	}
+
+	print "\n\nDo you wish to install/manage Fisheye? yes/no ["
+	  . $defaultValue . "]: ";
+	$input = getBooleanInput();
+	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( "fisheye.enable", "TRUE" );
+	}
+	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "fisheye.enable", "FALSE" );
 	}
 	$cfg->write("new.cfg");
 	loadSuiteConfig();
