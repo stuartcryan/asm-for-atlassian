@@ -139,7 +139,7 @@ sub getBooleanInput {
 	}
 }
 
-sub getDirectoryInput {
+sub getGenericInput {
 	my $input;
 
 	$input = <STDIN>;
@@ -151,6 +151,48 @@ sub getDirectoryInput {
 	else {
 		return $input;
 	}
+}
+
+sub genConfigItem{
+	my $mode;
+	my $cfg;
+	my $configParam;
+	my $messageText;
+	my $defaultInputValue;
+	my $defaultValue;
+	my $input;
+	
+	$mode = $_[0];
+    $cfg = $_[1];
+    $configParam = $_[2];
+    $messageText = $_[3];
+    $defaultInputValue = $_[4];
+    
+    
+	if ( $mode eq "UPDATE" ) {
+		if ( $cfg->param($configParam) ) {
+			$defaultValue = $cfg->param($configParam);
+		}
+		else {
+			$defaultValue = $defaultInputValue;
+		}
+	}
+	else {
+		$defaultValue = $defaultInputValue;;
+	}
+	print "\n\n". $messageText ." ["
+	  . $defaultValue . "]: ";
+
+	$input = getGenericInput();
+	if ( $input eq "default" )
+	{
+		$cfg->param( $configParam, $defaultValue );
+	}
+	else
+	{
+		$cfg->param( $configParam, $input );
+	}
+	
 }
 
 ########################################
@@ -170,6 +212,15 @@ sub generateJiraConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+    
+    $mode = $_[0];
+    $cfg = $_[1];
+	
+	genConfigItem($mode, $cfg, "jira.installDir", "Please enter the directory Jira will be installed into.", $cfg->param("general.rootInstallDir") . "/jira");
+	genConfigItem($mode, $cfg, "jira.dataDir", "Please enter the directory Jira's data will be stored in.", $cfg->param("general.rootDataDir") . "/jira");
+    genConfigItem($mode, $cfg, "jira.connectorPort", "Please enter the Connector port Jira will run on (note this is the port you will access in the browser).", "8080");
+	genConfigItem($mode, $cfg, "jira.serverPort", "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).", "8000");
+	genConfigItem($mode, $cfg, "jira.javaParams", "Enter any additional paramaters you would like to add to the Java RUN_OPTS.", "");
 
 }
 
@@ -181,8 +232,15 @@ sub generateCrowdConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
-
-	#crowd . home = /var/ atlassian /application-data/crowd
+    
+    $mode = $_[0];
+    $cfg = $_[1];
+	
+	genConfigItem($mode, $cfg, "crowd.installDir", "Please enter the directory Crowd will be installed into.", $cfg->param("general.rootInstallDir") . "/crowd");
+	genConfigItem($mode, $cfg, "crowd.dataDir", "Please enter the directory Crowd's data will be stored in.", $cfg->param("general.rootDataDir") . "/crowd");
+    genConfigItem($mode, $cfg, "crowd.connectorPort", "Please enter the Connector port Crowd will run on (note this is the port you will access in the browser).", "8095");
+	genConfigItem($mode, $cfg, "crowd.serverPort", "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).", "8000");
+	genConfigItem($mode, $cfg, "crowd.javaParams", "Enter any additional paramaters you would like to add to the Java RUN_OPTS.", "");
 
 }
 
@@ -194,6 +252,15 @@ sub generateFisheyeConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+    
+    $mode = $_[0];
+    $cfg = $_[1];
+	
+	genConfigItem($mode, $cfg, "fisheye.installDir", "Please enter the directory Fisheye will be installed into.", $cfg->param("general.rootInstallDir") . "/fisheye");
+	genConfigItem($mode, $cfg, "fisheye.dataDir", "Please enter the directory Fisheye's data will be stored in.", $cfg->param("general.rootDataDir") . "/fisheye");
+	genConfigItem($mode, $cfg, "fisheye.serverPort", "Please enter the SERVER port Fisheye will run on.", "8060");
+	genConfigItem($mode, $cfg, "fisheye.javaParams", "Enter any additional paramaters you would like to add to the Java RUN_OPTS.", "");
+
 
 }
 
@@ -205,6 +272,16 @@ sub generateConfluenceConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+    
+    $mode = $_[0];
+    $cfg = $_[1];
+	
+	genConfigItem($mode, $cfg, "confluence.installDir", "Please enter the directory Confluence will be installed into.", $cfg->param("general.rootInstallDir") . "/confluence");
+	genConfigItem($mode, $cfg, "confluence.dataDir", "Please enter the directory Confluence's data will be stored in.", $cfg->param("general.rootDataDir") . "/confluence");
+    genConfigItem($mode, $cfg, "confluence.connectorPort", "Please enter the Connector port Confluence will run on (note this is the port you will access in the browser).", "8090");
+	genConfigItem($mode, $cfg, "confluence.serverPort", "Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).", "8000");
+	genConfigItem($mode, $cfg, "confluence.javaParams", "Enter any additional paramaters you would like to add to the Java RUN_OPTS.", "");
+
 
 }
 
@@ -274,7 +351,7 @@ sub generateSuiteConfig {
 	print "\n\nPlease enter the root directory the suite will be installed into. ["
 	  . $defaultValue . "]: ";
 
-	$input = getDirectoryInput();
+	$input = getGenericInput();
 	if ( $input eq "default" )
 	{
 		$cfg->param( "general.rootInstallDir", $defaultValue );
@@ -298,7 +375,7 @@ sub generateSuiteConfig {
 	print "\n\nPlease enter the root directory the suite data/home directories will be stored. ["
 	  . $defaultValue . "]: ";
 
-	$input = getDirectoryInput();
+	$input = getGenericInput();
 	if ( $input eq "default" )
 	{
 		$cfg->param( "general.rootDataDir", $defaultValue );
@@ -326,6 +403,7 @@ sub generateSuiteConfig {
 	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "crowd.enable", "TRUE" );
+		generateCrowdConfig($mode, $cfg);
 	}
 	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
 	{
@@ -350,6 +428,7 @@ sub generateSuiteConfig {
 	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "jira.enable", "TRUE" );
+		generateJiraConfig($mode, $cfg);
 	}
 	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
 	{
@@ -374,6 +453,7 @@ sub generateSuiteConfig {
 	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "confluence.enable", "TRUE" );
+		generateConfluenceConfig($mode, $cfg);
 	}
 	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
 	{
@@ -398,6 +478,7 @@ sub generateSuiteConfig {
 	if ( $input eq "yes" || ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "fisheye.enable", "TRUE" );
+		generateFisheyeConfig($mode, $cfg);
 	}
 	elsif ( $input eq "no" || ( $input eq "default" && $defaultValue eq "no" ) )
 	{
