@@ -33,12 +33,14 @@ use LWP::Simple;               # From CPAN
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
 use Data::Dumper;              # Perl core module
+use Config::Simple;            # From CPAN
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
 ########################################
 #Set Up Variables                      #
 ########################################
+my $globalConfig;
 
 ########################################
 #TestOSArchitecture                    #
@@ -79,8 +81,7 @@ sub getLatestDownloadURL {
 		$searchString = ".*TAR\.GZ.*";
 	}
 	else {
-		print
-"That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
+		print "That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
 		exit 2;
 	}
 
@@ -105,6 +106,153 @@ sub getLatestDownloadURL {
 			}
 		}
 	}
+}
+
+sub getBooleanInput {
+	my $LOOP = 1;
+	my $input;
+	
+	while ( $LOOP == 1 ) {
+
+		$input= <STDIN>;
+		chomp $input;
+		
+		
+		if (   
+			( lc $input ) eq "yes"
+			|| ( lc $input ) eq "y" )
+		{
+			$LOOP = 0;
+			return "yes";
+		}
+		elsif ( ( lc $input ) eq "no" || ( lc $input ) eq "n" ) {
+			$LOOP = 0;
+			return "no";
+		} elsif ($input eq ""){
+			$LOOP = 0;
+			return "default";
+		}
+		else {
+			print "Your input '" . $input ."'was not recognised. Please try again and write yes or no\n\n";
+		}
+	}
+}
+
+########################################
+#GenerateSuiteConfig                   #
+########################################
+sub loadSuiteConfig {
+	if (-e "new.cfg"){
+		 $globalConfig = new Config::Simple('new.cfg');
+	}
+}
+
+########################################
+#GenerateSuiteConfig                   #
+########################################
+sub generateSuiteConfig {
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
+
+	if ($globalConfig){
+		 $mode = "UPDATE";
+		 $cfg = $globalConfig;
+	} else {
+		$mode = "NEW";
+		$cfg = new Config::Simple( syntax => 'ini' );
+	}
+	
+	print "This will guide you through the generation of the config required for the management of the Atlassian suite.\n\n";
+
+	if ( testOSArchitecture() eq "64" ) {
+		print "Your operating system architecture has been detected as "
+		  . testOSArchitecture()
+		  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)?";
+	}
+
+    if ($mode eq "UPDATE"){
+    	if ($globalConfig->param("crowd.enable") ne "ENABLED" ){
+    		$defaultValue = "no";
+    	} else {
+    		$defaultValue = "yes";
+    	}
+    } else {
+    	$defaultValue = "yes";
+    }
+    
+	print "\n\nDo you wish to install/manage Crowd? yes/no [". $defaultValue ."]";
+	$input = getBooleanInput();
+	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
+	{
+		$cfg->param( "crowd.enable", "ENABLED" );
+	}
+	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
+		$cfg->param( "crowd.enable", "DISABLED" );
+	}
+
+    if ($mode eq "UPDATE"){
+    	if ($globalConfig->param("jira.enable") ne "ENABLED" ){
+    		$defaultValue = "no";
+    	} else {
+    		$defaultValue = "yes";
+    	}
+    } else {
+    	$defaultValue = "yes";
+    }
+    
+	print "\n\nDo you wish to install/manage JIRA? yes/no [". $defaultValue ."]";
+	$input = getBooleanInput();
+	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
+	{
+		$cfg->param( "jira.enable", "ENABLED" );
+	}
+	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
+		$cfg->param( "jira.enable", "DISABLED" );
+	}
+
+    if ($mode eq "UPDATE"){
+    	if ($globalConfig->param("confluence.enable") ne "ENABLED" ){
+    		$defaultValue = "no";
+    	} else {
+    		$defaultValue = "yes";
+    	}
+    } else {
+    	$defaultValue = "yes";
+    }
+    
+	print "\n\nDo you wish to install/manage Confluence? yes/no [". $defaultValue ."]";
+	$input = getBooleanInput();
+	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
+	{
+		$cfg->param( "confluence.enable", "ENABLED" );
+	}
+	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
+		$cfg->param( "confluence.enable", "DISABLED" );
+	}
+
+    if ($mode eq "UPDATE"){
+    	if ($globalConfig->param("fisheye.enable") ne "ENABLED" ){
+    		$defaultValue = "no";
+    	} else {
+    		$defaultValue = "yes";
+    	}
+    } else {
+    	$defaultValue = "yes";
+    }
+    
+	print "\n\nDo you wish to install/manage Fisheye? yes/no [". $defaultValue ."]";
+	$input = getBooleanInput();
+	if ( $input eq "yes" || ($input eq "default" && $defaultValue eq "yes"))
+	{
+		$cfg->param( "fisheye.enable", "ENABLED" );
+	}
+	elsif ( $input eq "no" || ($input eq "default" && $defaultValue eq "no")) {
+		$cfg->param( "fisheye.enable", "DISABLED" );
+	}
+	$cfg->write("new.cfg");
+	loadSuiteConfig();
 }
 
 ########################################
@@ -156,4 +304,5 @@ END_TXT
 		}
 	}
 }
-displayMenu();
+loadSuiteConfig();
+generateSuiteConfig();
