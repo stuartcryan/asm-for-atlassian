@@ -30,9 +30,6 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 clear
-########################################
-#Set Up Variables                      #
-########################################
 
 
 ########################################
@@ -81,17 +78,6 @@ fi
 
 }
 
-########################################
-#TestOSArchitecture                    #
-########################################
-testOSArchitecture(){
-    if [[ `uname -m | grep -i "x86_64"` ]]; then 
-       IS64BIT=1
-    else
-       IS64BIT=0
-    fi
-}
-
 
 
 ########################################
@@ -105,80 +91,10 @@ if [[ $EUID -ne 0 ]]; then
 fi
 }
 
-########################################
-#Get the latest URL to download XXX    #
-########################################
-getLatestDownloadURL(){
-# Must Be Called with VARIABLE=$(getLatestDownloadURL("application","32|64"))
-PACKAGE=$1
-ARCHITECTURE=$2
 
-DOWNLOADURL=$(perl perl/getLatestDownloadURL.pl $PACKAGE $ARCHITECTURE)
+checkForRootAccess
+checkRequiredBinaries
+checkPerlModules
+perl perl/AtlassianSuiteManager.pl
 
-echo $DOWNLOADURL
-}
-
-if [[ $1 == "--someinput" ]] ; then
-   echo "Placeholder for testing input parameters "
-else
-########################################
-#Display Install Menu                  #
-########################################
-   AUTOMODE="none"
-   LOG=$INSTALLLOG
-   
-   LOOP=1
-   while [ $LOOP == "1" ]
-   do
-      clear
-      echo "Welcome to the Atlassian Suite Manager Script"
-      echo ""
-      echo ""
-      echo "AtlassianSuiteManager Copyright (C) 2012  Stuart Ryan"
-      echo "This program comes with ABSOLUTELY NO WARRANTY;"
-      echo "This is free software, and you are welcome to redistribute it"
-      echo "under certain conditions; read the COPYING file included for details."
-#      if [ $SCRIPTUPDATE -eq 1 ] ; then
-#         echo ""
-#         echo ""
-#         echo "*******************************************************************"
-#         echo "*             Please be aware this script is out of date          *"
-#         echo "*               Please obtain the latest version from:            *"
-#         echo "*    *"
-#         echo "*******************************************************************"
-#      fi
-      echo ""
-      echo ""
-      echo "Please select from the following options:"
-      echo "1. Menu Item Example"
-      echo "Q. Quit"
-      echo ""
-      echo ""
-
-      echo "Enter the number/letter of your selection then press enter"
-
-      read -e MODE
-      echo "MODE SELECTED IS $MODE" >> $INSTALLEDDIR/$LOG
-      ########################################
-      #       Menu - Option 1    #
-      ########################################
-      if [ $MODE == "1" ] ; then
-         echo "mode 1"
-      ##############################################
-      #  Menu - Option 2  #
-      ##############################################
-      elif [ $MODE == "2" ] ; then
-         echo "mode 12"
-      ##############################################
-      #   Menu - Quit and/or detect invalid input  #
-      ##############################################
-      elif [ $MODE == "q" ] || [ $MODE == "Q" ] ; then
-         LOOP=0
-         exit 0
-         else
-         echo "\""$MODE"\" is not a valid selection please press Enter to continue and try again"
-         read -e NULLINPUT
-      fi
-   done
-fi
 exit 0

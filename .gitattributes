@@ -1,6 +1,5 @@
 * text=auto !eol
 /.project -text svneol=unset#text/plain
-/AtlassianSuiteManager.pl -text svneol=unset#text/plain
 /COPYING -text
 /atlassianSuiteManager.sh -text
-perl/getLatestDownloadURL.pl -text svneol=unset#text/plain
+perl/AtlassianSuiteManager.pl -text svneol=unset#text/plain
