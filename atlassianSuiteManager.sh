@@ -71,6 +71,19 @@ if [[ $EUID -ne 0 ]]; then
 fi
 }
 
+########################################
+#Get the latest URL to download XXX    #
+########################################
+getLatestDownloadURL(){
+# Must Be Called with VARIABLE=$(getLatestDownloadURL("application","32|64"))
+PACKAGE=$1
+ARCHITECTURE=$2
+
+DOWNLOADURL=$(perl perl/getLatestDownloadURL.pl $PACKAGE $ARCHITECTURE)
+
+echo $DOWNLOADURL
+}
+
 if [[ $1 == "--someinput" ]] ; then
    echo "Placeholder for testing input parameters "
 else

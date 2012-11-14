@@ -2,3 +2,4 @@
 /.project -text svneol=unset#text/plain
 /COPYING -text
 /atlassianSuiteManager.sh -text
+perl/getLatestDownloadURL.pl -text svneol=unset#text/plain
