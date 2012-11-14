@@ -40,7 +40,6 @@ use warnings;                  # Good practice
 #Set Up Variables                      #
 ########################################
 
-
 ########################################
 #TestOSArchitecture                    #
 ########################################
@@ -80,7 +79,8 @@ sub getLatestDownloadURL {
 		$searchString = ".*TAR\.GZ.*";
 	}
 	else {
-		print "That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
+		print
+"That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
 		exit 2;
 	}
 
@@ -88,7 +88,7 @@ sub getLatestDownloadURL {
 
 	die "Could not get $versionurl!" unless defined $json;
 
-	#We have to rework the string slightly as Atlassian is not returning valid JSON
+ #We have to rework the string slightly as Atlassian is not returning valid JSON
 	$json = substr( $json, 10, -1 );
 	$json = '{ "downloads": ' . $json . '}';
 
@@ -110,4 +110,50 @@ sub getLatestDownloadURL {
 ########################################
 #Display Install Menu                  #
 ########################################
-testOSArchitecture();
+sub displayMenu {
+	my $choice;
+	my $main_menu;
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$main_menu = <<'END_TXT';
+
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012  Stuart Ryan
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+
+      Please select from the following options:
+
+      1) server1
+      2) server5
+      3) server7
+      4) server8
+      Q) Quit
+
+END_TXT
+
+		# print the main menu
+		system 'clear';
+		print $main_menu;
+
+		# prompt for user's choice
+		printf( "%s", "enter selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			$LOOP = 0;
+			exit 0;
+		}
+	}
+}
+displayMenu();
