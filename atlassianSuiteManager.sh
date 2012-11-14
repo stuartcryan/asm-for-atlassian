@@ -62,7 +62,7 @@ fi
 #Test system for required PERL Modules #
 ########################################
 checkPerlModules(){
-MODULES="LWP::Simple JSON Data::Dumper"
+MODULES="LWP::Simple JSON Data::Dumper Config::Simple"
 BINARIESCHECK=""
 
 for i in $MODULES
