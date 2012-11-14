@@ -39,7 +39,7 @@ clear
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget rpm zip unzip tar"
+BINARIES="wget rpm zip unzip tar perl"
 BINARIESCHECK=""
 
 for i in $BINARIES
@@ -59,11 +59,34 @@ fi
 }
 
 ########################################
+#Test system for required PERL Modules #
+########################################
+checkPerlModules(){
+MODULES="LWP::Simple JSON Data::Dumper"
+BINARIESCHECK=""
+
+for i in $MODULES
+do
+   perl -e "use $i" &>/dev/null  && continue  || { echo "$i PERL module not found."; BINARIESCHECK="FAIL"; }
+done
+
+if [[ $BINARIESCHECK == "FAIL" ]] ; then
+   echo ""
+   echo "Some PERL modules are missing therfore this script cannot be run. Please install the aforementioned"
+   echo "modules and then run this script again."
+   echo ""
+   echo ""
+   exit 1
+fi
+
+}
+
+
+
+########################################
 #Test for script running as root       #
 ########################################
 checkForRootAccess(){
-BINARIES="wget rpm zip unzip tar"
-BINARIESCHECK=""
 
 if [[ $EUID -ne 0 ]]; then
    echo "This script must be run as root" 1>&2
