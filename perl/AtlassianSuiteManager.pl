@@ -274,6 +274,32 @@ sub genConfigItem {
 }
 
 ########################################
+#updateXMLAttribute                    #
+########################################
+sub updateXMLAttribute {
+
+	#options in format option="something"
+	my $xmlFile;    #Must Be Absolute Path
+	my $searchString;
+	my $referenceAttribute;
+	my $attributeValue;
+
+	$xmlFile            = $_[0];
+	$searchString       = $_[1];
+	$referenceAttribute = $_[2];
+	$attributeValue     = $_[3];
+
+	my $twig = new XML::Twig( pretty_print => 'indented', );
+	$twig->parsefile($serverXMLFile);
+
+	for my $node ( $twig->findnodes($searchString) ) {
+		$node->set_att( $referenceAttribute => $attributeValue );
+	}
+	$twig->print_to_file($xmlFile);
+
+}
+
+########################################
 #LoadSuiteConfig                       #
 ########################################
 sub loadSuiteConfig {
