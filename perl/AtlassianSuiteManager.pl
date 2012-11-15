@@ -79,6 +79,7 @@ sub whichApplicationArchitecture {
 sub getLatestDownloadURL {
 	my $product;
 	my $architecture;
+	my @returnArray;
 
 	$product      = $_[0];
 	$architecture = $_[1];
@@ -128,7 +129,9 @@ sub getLatestDownloadURL {
 
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
-				return $item->{zipUrl};
+				@returnArray($item->{zipUrl},$item->{zipUrl});
+				return @returnArray;
+				
 			}
 		}
 	}
@@ -418,7 +421,11 @@ $supported = 1;
 			}
 		}
 
-		print $supported . "\n";
+		if ($supported == 1){
+			return "yes";
+		}else {
+			return "no";
+		}
 
 }
 
