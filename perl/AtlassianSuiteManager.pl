@@ -453,8 +453,74 @@ sub backupFile {
 	$inputDir  = $_[0];
 	$outputDir = $_[1];
 	$inputFile = $_[2];
+
+	copy( $inputDir . "/" . $inputFile,
+		$outputDir . "/" . $inputFile . "_" . $date )
+	  or die "Copy failed: $!";
+}
+
+########################################
+#GenerateInitD                         #
+########################################
+sub generateInitD {
+	my $product;
+	my $runUser;
+	my $baseDir;
+	my $startCmd;
+	my $stopCmd;
+	my @initFile;
+
+	$product  = $_[0];
+	$runUser  = $_[1];
+	$baseDir  = $_[2];
+	$startCmd = $_[3];
+	$stopCmd  = $_[4];
+
+	@initFile = (
+		"#!/bin/sh -e\n",
+		"# " . $product . "startup script\n",
+		"#chkconfig: 2345 80 05\n",
+		"#description: " . $product . "\n",
+		"\n",
+		"APP=" . $product . "\n",
+		"USER=" . $runUser . "\n",
+		"BASE=" . $baseDir . "\n",
+		"STARTCOMMAND=" . $startCmd . "\n",
+		"STOPCOMMAND=" . $stopCmd . "\n",
+		"\n",
+		'case "$1 " in' . "\n",
+		"  # Start command\n",
+		"  start)\n",
+		'    echo "Starting $APP"' . "\n",
+		'    /bin/su -m $USER -c "$BASE/$STARTCOMMAND &> /dev/null"' . "\n",
+		"    ;;\n",
+		"  # Stop command\n",
+		"  stop)\n",
+		'    echo "Stopping $APP"' . "\n",
+		'    /bin/su -m $USER -c "$BASE/$STOPCOMMAND &> /dev/null"' . "\n",
+		'    echo "$APP stopped successfully"' . "\n",
+		"    ;;\n",
+		"   # Restart command\n",
+		"   restart)\n",
+		"        $0 stop\n",
+		"        sleep 5\n",
+		"        $0 start\n",
+		"        ;;\n",
+		"  *)\n",
+		'    echo "Usage: /etc/init.d/$APP {start|restart|stop}"' . "\n",
+		"    exit 1\n",
+		"    ;;\n",
+		"esac\n",
+		"\n",
+		"exit 0\n"
+	);
 	
-	copy($inputDir . "/" . $inputFile, $outputDir . "/" . $inputFile . "_" . $date) or die "Copy failed: $!";
+    open FILE, ">/etc/init.d/$product" or die $!;
+	print FILE @initFile;
+	close FILE;
+	
+	chmod 0755, "/etc/init.d/$product" or die "Couldn't chmod /etc/init.d/$product: $!";;
+
 }
 
 ########################################
@@ -995,4 +1061,7 @@ loadSuiteConfig();
 
 #isSupportedVersion( "confluence", "5.1.1" );
 
-backupFile("/opt/atlassian/confluence/bin","/opt/atlassian/confluence/bin","setenv.sh");
+#backupFile( "/opt/atlassian/confluence/bin",
+#	"/opt/atlassian/confluence/bin", "setenv.sh" );
+
+generateInitD("crowd","crowd",$globalConfig->param("confluence.installDir"),"start_crowd.sh","stop_crowd.sh");
