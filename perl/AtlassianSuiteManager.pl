@@ -38,6 +38,7 @@ use POSIX qw(strftime);
 use Data::Dumper;              # Perl core module
 use Config::Simple;            # From CPAN
 use File::Copy;
+use Archive::Extract;
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
@@ -247,6 +248,43 @@ sub getGenericInput {
 }
 
 ########################################
+#extractAndMoveDownload                #
+########################################
+sub extractAndMoveDownload {
+	my $inputFile;
+	my $initialFolderName;     #MustBeRelativePath
+	my $expectedFolderName;    #CanBeRelativeOrAbsolute
+	my $archiveType;
+	
+	$inputFile = $_[0];
+	$initialFolderName = $_[1];
+	$expectedFolderName = $_[2];
+	$archiveType = $_[3];
+
+	if ( $archiveType eq "targz" ) {
+		system( "cd "
+			  . $globalConfig->param("general.rootInstallDir")
+			  . " && tar -xzf $inputFile > /dev/null" );
+		system( "cd "
+			  . $globalConfig->param("general.rootInstallDir")
+			  . " && mv $initialFolderName $expectedFolderName" );
+
+	}
+	elsif ( $archiveType eq "zip" ) {
+		system( "cd "
+			  . $globalConfig->param("general.rootInstallDir")
+			  . " && unzip $inputFile > /dev/null" );
+		system( "cd "
+			  . $globalConfig->param("general.rootInstallDir")
+			  . " && mv $initialFolderName $expectedFolderName" );
+	}
+	else {
+		die "That archive type is not supported";
+	}
+
+}
+
+########################################
 #getConfigItem                         #
 ########################################
 sub genConfigItem {
@@ -423,9 +461,9 @@ sub updateLineInFile {
 		$data[$index1] = $newLine . "\n";
 	}
 
-open FILE, ">$inputFile" or die $!;
-print FILE @data;
-close FILE;
+	open FILE, ">$inputFile" or die $!;
+	print FILE @data;
+	close FILE;
 
 }
 
@@ -1121,5 +1159,8 @@ loadSuiteConfig();
 
 #generateInitD("crowd","crowd",$globalConfig->param("confluence.installDir"),"start_crowd.sh","stop_crowd.sh");
 
-updateLineInFile( "crowd.cfg", "crowd.home", "crowd.home=" . $globalConfig->param("crowd.dataDir"), "#crowd.home=/var/crowd-home");
+#updateLineInFile( "crowd.cfg", "crowd.home",
+#	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+#	"#crowd.home=/var/crowd-home" );
 
+extractAndMoveDownload("/opt/atlassian/software/atlassian-crowd-2.5.2.tar.gz", "atlassian-crowd-2.5.2", $globalConfig->param("crowd.installDir"),"targz");
