@@ -362,59 +362,118 @@ sub updateJavaOpts {
 }
 
 ########################################
+#isSupportedVersion                   #
+########################################
+sub isSupportedVersion {
+	my $product;    #Must Be Absolute Path
+	my $version;
+	my @splitVersion;
+	my @productArray;
+	my $count;
+
+	$product = $_[0];
+	$version = $_[1];
+
+	my @jiraSupportedVerHigh       = ( 5, 2 );
+	my @confluenceSupportedVerHigh = ( 4, 3, 2 );
+	my @crowdSupportedVerHigh      = ( 2, 5, 2 );
+	my @fisheyeSupportedVerHigh    = ( 2, 9, 0 );
+	my @bambooSupportedVerHigh     = ( 4, 3, 1 );
+	my @stashSupportedVerHigh      = ( 1, 3, 1 );
+
+	@splitVersion = split( /\./, $version );
+
+	if ( $product eq "confluence" ) {
+		@productArray = @confluenceSupportedVerHigh;
+	}
+	elsif ( $product eq "jira" ) {
+		@productArray = @jiraSupportedVerHigh;
+	}
+	elsif ( $product eq "stash" ) {
+		@productArray = @stashSupportedVerHigh;
+	}
+	elsif ( $product eq "fisheye" ) {
+		@productArray = @fisheyeSupportedVerHigh;
+	}
+	elsif ( $product eq "crowd" ) {
+		@productArray = @crowdSupportedVerHigh;
+	}
+	elsif ( $product eq "bamboo" ) {
+		@productArray = @bambooSupportedVerHigh;
+	}
+	else {
+		print
+"That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
+		exit 2;
+	}
+
+	my $supported;
+	for ( $count = 0 ; $count <= $#productArray ; $count++ ) {
+		if (
+			$splitVersion[$count] <=  $productArray[$count] ) {
+$supported = 1;
+			} else {
+				$supported = 0;
+				last;
+			}
+		}
+
+		print $supported . "\n";
+
+}
+
+########################################
 #LoadSuiteConfig                       #
 ########################################
 sub loadSuiteConfig {
-	  if ( -e "new.cfg" ) {
-		  $globalConfig = new Config::Simple('new.cfg');
-	  }
+	if ( -e "new.cfg" ) {
+		$globalConfig = new Config::Simple('new.cfg');
+	}
 }
 
 ########################################
 #GenerateJiraConfig                    #
 ########################################
 sub generateJiraConfig {
-	  my $cfg;
-	  my $mode;
-	  my $input;
-	  my $defaultValue;
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
 
-	  $mode = $_[0];
-	  $cfg  = $_[1];
+	$mode = $_[0];
+	$cfg  = $_[1];
 
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "jira.installDir",
-		  "Please enter the directory Jira will be installed into.",
-		  $cfg->param("general.rootInstallDir") . "/jira"
-	  );
-	  genConfigItem(
-		  $mode, $cfg, "jira.dataDir",
-		  "Please enter the directory Jira's data will be stored in.",
-		  $cfg->param("general.rootDataDir") . "/jira"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "jira.connectorPort",
+	genConfigItem(
+		$mode, $cfg, "jira.installDir",
+		"Please enter the directory Jira will be installed into.",
+		$cfg->param("general.rootInstallDir") . "/jira"
+	);
+	genConfigItem(
+		$mode, $cfg, "jira.dataDir",
+		"Please enter the directory Jira's data will be stored in.",
+		$cfg->param("general.rootDataDir") . "/jira"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.connectorPort",
 "Please enter the Connector port Jira will run on (note this is the port you will access in the browser).",
-		  "8080"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "jira.serverPort",
+		"8080"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.serverPort",
 "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).",
-		  "8000"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "jira.javaParams",
+		"8000"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		  ""
-	  );
+		""
+	);
 
 }
 
@@ -422,49 +481,47 @@ sub generateJiraConfig {
 #GenerateCrowdConfig                   #
 ########################################
 sub generateCrowdConfig {
-	  my $cfg;
-	  my $mode;
-	  my $input;
-	  my $defaultValue;
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
 
-	  $mode = $_[0];
-	  $cfg  = $_[1];
+	$mode = $_[0];
+	$cfg  = $_[1];
 
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "crowd.installDir",
-		  "Please enter the directory Crowd will be installed into.",
-		  $cfg->param("general.rootInstallDir") . "/crowd"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "crowd.dataDir",
-		  "Please enter the directory Crowd's data will be stored in.",
-		  $cfg->param("general.rootDataDir") . "/crowd"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "crowd.connectorPort",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.installDir",
+		"Please enter the directory Crowd will be installed into.",
+		$cfg->param("general.rootInstallDir") . "/crowd"
+	);
+	genConfigItem(
+		$mode, $cfg, "crowd.dataDir",
+		"Please enter the directory Crowd's data will be stored in.",
+		$cfg->param("general.rootDataDir") . "/crowd"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.connectorPort",
 "Please enter the Connector port Crowd will run on (note this is the port you will access in the browser).",
-		  "8095"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "crowd.serverPort",
+		"8095"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.serverPort",
 "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).",
-		  "8000"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "crowd.javaParams",
+		"8000"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		  ""
-	  );
+		""
+	);
 
 }
 
@@ -472,37 +529,37 @@ sub generateCrowdConfig {
 #GenerateFisheyeConfig                 #
 ########################################
 sub generateFisheyeConfig {
-	  my $cfg;
-	  my $mode;
-	  my $input;
-	  my $defaultValue;
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
 
-	  $mode = $_[0];
-	  $cfg  = $_[1];
+	$mode = $_[0];
+	$cfg  = $_[1];
 
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "fisheye.installDir",
-		  "Please enter the directory Fisheye will be installed into.",
-		  $cfg->param("general.rootInstallDir") . "/fisheye"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "fisheye.dataDir",
-		  "Please enter the directory Fisheye's data will be stored in.",
-		  $cfg->param("general.rootDataDir") . "/fisheye"
-	  );
-	  genConfigItem( $mode, $cfg, "fisheye.serverPort",
-		  "Please enter the SERVER port Fisheye will run on.", "8060" );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "fisheye.javaParams",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.installDir",
+		"Please enter the directory Fisheye will be installed into.",
+		$cfg->param("general.rootInstallDir") . "/fisheye"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.dataDir",
+		"Please enter the directory Fisheye's data will be stored in.",
+		$cfg->param("general.rootDataDir") . "/fisheye"
+	);
+	genConfigItem( $mode, $cfg, "fisheye.serverPort",
+		"Please enter the SERVER port Fisheye will run on.", "8060" );
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		  ""
-	  );
+		""
+	);
 
 }
 
@@ -510,49 +567,49 @@ sub generateFisheyeConfig {
 #GenerateConfluenceConfig              #
 ########################################
 sub generateConfluenceConfig {
-	  my $cfg;
-	  my $mode;
-	  my $input;
-	  my $defaultValue;
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
 
-	  $mode = $_[0];
-	  $cfg  = $_[1];
+	$mode = $_[0];
+	$cfg  = $_[1];
 
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "confluence.installDir",
-		  "Please enter the directory Confluence will be installed into.",
-		  $cfg->param("general.rootInstallDir") . "/confluence"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "confluence.dataDir",
-		  "Please enter the directory Confluence's data will be stored in.",
-		  $cfg->param("general.rootDataDir") . "/confluence"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "confluence.connectorPort",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.installDir",
+		"Please enter the directory Confluence will be installed into.",
+		$cfg->param("general.rootInstallDir") . "/confluence"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.dataDir",
+		"Please enter the directory Confluence's data will be stored in.",
+		$cfg->param("general.rootDataDir") . "/confluence"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.connectorPort",
 "Please enter the Connector port Confluence will run on (note this is the port you will access in the browser).",
-		  "8090"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "confluence.serverPort",
+		"8090"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.serverPort",
 "Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).",
-		  "8000"
-	  );
-	  genConfigItem(
-		  $mode,
-		  $cfg,
-		  "confluence.javaParams",
+		"8000"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		  ""
-	  );
+		""
+	);
 
 }
 
@@ -560,32 +617,32 @@ sub generateConfluenceConfig {
 #Download Atlassian Installer          #
 ########################################
 sub downloadAtlassianInstaller {
-	  my $type;
-	  my $product;
-	  my $version;
-	  my $downloadURL;
-	  my $architecture;
-	  my $parsedURL;
+	my $type;
+	my $product;
+	my $version;
+	my $downloadURL;
+	my $architecture;
+	my $parsedURL;
 
-	  $type         = $_[0];
-	  $product      = $_[1];
-	  $version      = $_[2];
-	  $architecture = $_[3];
+	$type         = $_[0];
+	$product      = $_[1];
+	$version      = $_[2];
+	$architecture = $_[3];
 
-	  if ( $type eq "LATEST" ) {
-		  $downloadURL = getLatestDownloadURL( $product, $architecture );
-	  }
-	  else {
+	if ( $type eq "LATEST" ) {
+		$downloadURL = getLatestDownloadURL( $product, $architecture );
+	}
+	else {
 
-	  }
+	}
 
-	  $parsedURL = URI->new($downloadURL);
-	  my @bits = $parsedURL->path_segments();
-	  $ua->show_progress(1);
+	$parsedURL = URI->new($downloadURL);
+	my @bits = $parsedURL->path_segments();
+	$ua->show_progress(1);
 
-	  getstore( $downloadURL,
-		      $globalConfig->param("general.rootInstallDir") . "/"
-			. $bits[ @bits - 1 ] );
+	getstore( $downloadURL,
+		    $globalConfig->param("general.rootInstallDir") . "/"
+		  . $bits[ @bits - 1 ] );
 
 }
 
@@ -593,25 +650,25 @@ sub downloadAtlassianInstaller {
 #Download Full Suite                   #
 ########################################
 sub downloadLatestAtlassianSuite {
-	  my $downloadURL;
-	  my $architecture;
-	  my $parsedURL;
-	  my @suiteProducts =
-		( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
+	my $downloadURL;
+	my $architecture;
+	my $parsedURL;
+	my @suiteProducts =
+	  ( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
 
-	  $architecture = $_[0];
+	$architecture = $_[0];
 
-	  foreach (@suiteProducts) {
-		  $downloadURL = getLatestDownloadURL( $_, $architecture );
+	foreach (@suiteProducts) {
+		$downloadURL = getLatestDownloadURL( $_, $architecture );
 
-		  $parsedURL = URI->new($downloadURL);
-		  my @bits = $parsedURL->path_segments();
-		  $ua->show_progress(1);
+		$parsedURL = URI->new($downloadURL);
+		my @bits = $parsedURL->path_segments();
+		$ua->show_progress(1);
 
-		  getstore( $downloadURL,
-			      $globalConfig->param("general.rootInstallDir") . "/"
-				. $bits[ @bits - 1 ] );
-	  }
+		getstore( $downloadURL,
+			    $globalConfig->param("general.rootInstallDir") . "/"
+			  . $bits[ @bits - 1 ] );
+	}
 
 }
 
@@ -619,223 +676,223 @@ sub downloadLatestAtlassianSuite {
 #GenerateSuiteConfig                   #
 ########################################
 sub generateSuiteConfig {
-	  my $cfg;
-	  my $mode;
-	  my $input;
-	  my $defaultValue;
+	my $cfg;
+	my $mode;
+	my $input;
+	my $defaultValue;
 
-	  if ($globalConfig) {
-		  $mode = "UPDATE";
-		  $cfg  = $globalConfig;
-	  }
-	  else {
-		  $mode = "NEW";
-		  $cfg = new Config::Simple( syntax => 'ini' );
-	  }
+	if ($globalConfig) {
+		$mode = "UPDATE";
+		$cfg  = $globalConfig;
+	}
+	else {
+		$mode = "NEW";
+		$cfg = new Config::Simple( syntax => 'ini' );
+	}
 
-	  print
+	print
 "This will guide you through the generation of the config required for the management of the Atlassian suite.";
 
-	  if ( testOSArchitecture() eq "64" ) {
-		  if ( $mode eq "UPDATE" ) {
-			  if ( $globalConfig->param("general.force32Bit") ne "TRUE" ) {
-				  $defaultValue = "no";
-			  }
-			  else {
-				  $defaultValue = "yes";
-			  }
-		  }
-		  else {
-			  $defaultValue = "no";
-		  }
-		  print "\n\nYour operating system architecture has been detected as "
-			. testOSArchitecture()
-			. "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no ["
-			. $defaultValue . "]: ";
+	if ( testOSArchitecture() eq "64" ) {
+		if ( $mode eq "UPDATE" ) {
+			if ( $globalConfig->param("general.force32Bit") ne "TRUE" ) {
+				$defaultValue = "no";
+			}
+			else {
+				$defaultValue = "yes";
+			}
+		}
+		else {
+			$defaultValue = "no";
+		}
+		print "\n\nYour operating system architecture has been detected as "
+		  . testOSArchitecture()
+		  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no ["
+		  . $defaultValue . "]: ";
 
-		  $input = getBooleanInput();
-		  if ( $input eq "yes"
-			  || ( $input eq "default" && $defaultValue eq "yes" ) )
-		  {
-			  $cfg->param( "general.force32Bit", "TRUE" );
-		  }
-		  elsif ( $input eq "no"
-			  || ( $input eq "default" && $defaultValue eq "no" ) )
-		  {
-			  $cfg->param( "general.force32Bit", "FALSE" );
-		  }
+		$input = getBooleanInput();
+		if ( $input eq "yes"
+			|| ( $input eq "default" && $defaultValue eq "yes" ) )
+		{
+			$cfg->param( "general.force32Bit", "TRUE" );
+		}
+		elsif ( $input eq "no"
+			|| ( $input eq "default" && $defaultValue eq "no" ) )
+		{
+			$cfg->param( "general.force32Bit", "FALSE" );
+		}
 
-	  }
+	}
 
-	  if ( $mode eq "UPDATE" ) {
-		  if ( $globalConfig->param("general.rootInstallDir") ) {
-			  $defaultValue = $globalConfig->param("general.rootInstallDir");
-		  }
-		  else {
-			  $defaultValue = "/opt/atlassian";
-		  }
-	  }
-	  else {
-		  $defaultValue = "/opt/atlassian";
-	  }
-	  print
-"\n\nPlease enter the root directory the suite will be installed into. ["
-		. $defaultValue . "]: ";
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("general.rootInstallDir") ) {
+			$defaultValue = $globalConfig->param("general.rootInstallDir");
+		}
+		else {
+			$defaultValue = "/opt/atlassian";
+		}
+	}
+	else {
+		$defaultValue = "/opt/atlassian";
+	}
+	print
+	  "\n\nPlease enter the root directory the suite will be installed into. ["
+	  . $defaultValue . "]: ";
 
-	  $input = getGenericInput();
-	  if ( $input eq "default" ) {
-		  $cfg->param( "general.rootInstallDir", $defaultValue );
-	  }
-	  else {
-		  $cfg->param( "general.rootInstallDir", $input );
-	  }
+	$input = getGenericInput();
+	if ( $input eq "default" ) {
+		$cfg->param( "general.rootInstallDir", $defaultValue );
+	}
+	else {
+		$cfg->param( "general.rootInstallDir", $input );
+	}
 
-	  if ( $mode eq "UPDATE" ) {
-		  if ( $globalConfig->param("general.rootDataDir") ) {
-			  $defaultValue = $globalConfig->param("general.rootDataDir");
-		  }
-		  else {
-			  $defaultValue = "/var/atlassian/application-data";
-		  }
-	  }
-	  else {
-		  $defaultValue = "/var/atlassian/application-data";
-	  }
-	  print
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("general.rootDataDir") ) {
+			$defaultValue = $globalConfig->param("general.rootDataDir");
+		}
+		else {
+			$defaultValue = "/var/atlassian/application-data";
+		}
+	}
+	else {
+		$defaultValue = "/var/atlassian/application-data";
+	}
+	print
 "\n\nPlease enter the root directory the suite data/home directories will be stored. ["
-		. $defaultValue . "]: ";
+	  . $defaultValue . "]: ";
 
-	  $input = getGenericInput();
-	  if ( $input eq "default" ) {
-		  $cfg->param( "general.rootDataDir", $defaultValue );
-	  }
-	  else {
-		  $cfg->param( "general.rootDataDir", $input );
-	  }
+	$input = getGenericInput();
+	if ( $input eq "default" ) {
+		$cfg->param( "general.rootDataDir", $defaultValue );
+	}
+	else {
+		$cfg->param( "general.rootDataDir", $input );
+	}
 
-	  if ( $mode eq "UPDATE" ) {
-		  if ( $globalConfig->param("crowd.enable") ne "TRUE" ) {
-			  $defaultValue = "no";
-		  }
-		  else {
-			  $defaultValue = "yes";
-		  }
-	  }
-	  else {
-		  $defaultValue = "yes";
-	  }
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("crowd.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
+	}
+	else {
+		$defaultValue = "yes";
+	}
 
-	  print "\n\nDo you wish to install/manage Crowd? yes/no ["
-		. $defaultValue . "]: ";
-	  $input = getBooleanInput();
-	  if ( $input eq "yes"
-		  || ( $input eq "default" && $defaultValue eq "yes" ) )
-	  {
-		  $cfg->param( "crowd.enable", "TRUE" );
-		  generateCrowdConfig( $mode, $cfg );
-	  }
-	  elsif ( $input eq "no"
-		  || ( $input eq "default" && $defaultValue eq "no" ) )
-	  {
-		  $cfg->param( "crowd.enable", "FALSE" );
-	  }
+	print "\n\nDo you wish to install/manage Crowd? yes/no ["
+	  . $defaultValue . "]: ";
+	$input = getBooleanInput();
+	if ( $input eq "yes"
+		|| ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( "crowd.enable", "TRUE" );
+		generateCrowdConfig( $mode, $cfg );
+	}
+	elsif ( $input eq "no"
+		|| ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "crowd.enable", "FALSE" );
+	}
 
-	  if ( $mode eq "UPDATE" ) {
-		  if ( $globalConfig->param("jira.enable") ne "TRUE" ) {
-			  $defaultValue = "no";
-		  }
-		  else {
-			  $defaultValue = "yes";
-		  }
-	  }
-	  else {
-		  $defaultValue = "yes";
-	  }
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("jira.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
+	}
+	else {
+		$defaultValue = "yes";
+	}
 
-	  print "\n\nDo you wish to install/manage JIRA? yes/no ["
-		. $defaultValue . "]: ";
-	  $input = getBooleanInput();
-	  if ( $input eq "yes"
-		  || ( $input eq "default" && $defaultValue eq "yes" ) )
-	  {
-		  $cfg->param( "jira.enable", "TRUE" );
-		  generateJiraConfig( $mode, $cfg );
-	  }
-	  elsif ( $input eq "no"
-		  || ( $input eq "default" && $defaultValue eq "no" ) )
-	  {
-		  $cfg->param( "jira.enable", "FALSE" );
-	  }
+	print "\n\nDo you wish to install/manage JIRA? yes/no ["
+	  . $defaultValue . "]: ";
+	$input = getBooleanInput();
+	if ( $input eq "yes"
+		|| ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( "jira.enable", "TRUE" );
+		generateJiraConfig( $mode, $cfg );
+	}
+	elsif ( $input eq "no"
+		|| ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "jira.enable", "FALSE" );
+	}
 
-	  if ( $mode eq "UPDATE" ) {
-		  if ( $globalConfig->param("confluence.enable") ne "TRUE" ) {
-			  $defaultValue = "no";
-		  }
-		  else {
-			  $defaultValue = "yes";
-		  }
-	  }
-	  else {
-		  $defaultValue = "yes";
-	  }
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("confluence.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
+	}
+	else {
+		$defaultValue = "yes";
+	}
 
-	  print "\n\nDo you wish to install/manage Confluence? yes/no ["
-		. $defaultValue . "]: ";
-	  $input = getBooleanInput();
-	  if ( $input eq "yes"
-		  || ( $input eq "default" && $defaultValue eq "yes" ) )
-	  {
-		  $cfg->param( "confluence.enable", "TRUE" );
-		  generateConfluenceConfig( $mode, $cfg );
-	  }
-	  elsif ( $input eq "no"
-		  || ( $input eq "default" && $defaultValue eq "no" ) )
-	  {
-		  $cfg->param( "confluence.enable", "FALSE" );
-	  }
+	print "\n\nDo you wish to install/manage Confluence? yes/no ["
+	  . $defaultValue . "]: ";
+	$input = getBooleanInput();
+	if ( $input eq "yes"
+		|| ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( "confluence.enable", "TRUE" );
+		generateConfluenceConfig( $mode, $cfg );
+	}
+	elsif ( $input eq "no"
+		|| ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "confluence.enable", "FALSE" );
+	}
 
-	  if ( $mode eq "UPDATE" ) {
-		  if ( $globalConfig->param("fisheye.enable") ne "TRUE" ) {
-			  $defaultValue = "no";
-		  }
-		  else {
-			  $defaultValue = "yes";
-		  }
-	  }
-	  else {
-		  $defaultValue = "yes";
-	  }
+	if ( $mode eq "UPDATE" ) {
+		if ( $globalConfig->param("fisheye.enable") ne "TRUE" ) {
+			$defaultValue = "no";
+		}
+		else {
+			$defaultValue = "yes";
+		}
+	}
+	else {
+		$defaultValue = "yes";
+	}
 
-	  print "\n\nDo you wish to install/manage Fisheye? yes/no ["
-		. $defaultValue . "]: ";
-	  $input = getBooleanInput();
-	  if ( $input eq "yes"
-		  || ( $input eq "default" && $defaultValue eq "yes" ) )
-	  {
-		  $cfg->param( "fisheye.enable", "TRUE" );
-		  generateFisheyeConfig( $mode, $cfg );
-	  }
-	  elsif ( $input eq "no"
-		  || ( $input eq "default" && $defaultValue eq "no" ) )
-	  {
-		  $cfg->param( "fisheye.enable", "FALSE" );
-	  }
-	  $cfg->write("new.cfg");
-	  loadSuiteConfig();
+	print "\n\nDo you wish to install/manage Fisheye? yes/no ["
+	  . $defaultValue . "]: ";
+	$input = getBooleanInput();
+	if ( $input eq "yes"
+		|| ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( "fisheye.enable", "TRUE" );
+		generateFisheyeConfig( $mode, $cfg );
+	}
+	elsif ( $input eq "no"
+		|| ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( "fisheye.enable", "FALSE" );
+	}
+	$cfg->write("new.cfg");
+	loadSuiteConfig();
 }
 
 ########################################
 #Display Install Menu                  #
 ########################################
 sub displayMenu {
-	  my $choice;
-	  my $main_menu;
+	my $choice;
+	my $main_menu;
 
-	  my $LOOP = 1;
-	  while ( $LOOP == 1 ) {
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
 
-		  # define the main menu as a multiline string
-		  $main_menu = <<'END_TXT';
+		# define the main menu as a multiline string
+		$main_menu = <<'END_TXT';
 
       Welcome to the Atlassian Suite Manager Script
 
@@ -855,27 +912,29 @@ sub displayMenu {
 
 END_TXT
 
-		  # print the main menu
-		  system 'clear';
-		  print $main_menu;
+		# print the main menu
+		system 'clear';
+		print $main_menu;
 
-		  # prompt for user's choice
-		  printf( "%s", "enter selection: " );
+		# prompt for user's choice
+		printf( "%s", "enter selection: " );
 
-		  # capture the choice
-		  $choice = <STDIN>;
+		# capture the choice
+		$choice = <STDIN>;
 
-		  # and finally print it
-		  #print "You entered: ",$choice;
-		  if ( $choice eq "Q\n" || $choice eq "q\n" ) {
-			  $LOOP = 0;
-			  exit 0;
-		  }
-	  }
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			$LOOP = 0;
+			exit 0;
+		}
+	}
 }
 loadSuiteConfig();
 
 #generateSuiteConfig();
 #getVersionDownloadURL( "confluence", whichApplicationArchitecture(), "4.2.7" );
 
-updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
+#updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
+
+isSupportedVersion( "confluence", "5.1.1" );
