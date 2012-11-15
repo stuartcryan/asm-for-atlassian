@@ -133,7 +133,7 @@ sub getLatestDownloadURL {
 
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
-				@returnArray = ( $item->{zipUrl}, $item->{zipUrl} );
+				@returnArray = ( $item->{zipUrl}, $item->{version} );
 				return @returnArray;
 
 			}
@@ -329,11 +329,11 @@ sub genConfigItem {
 	$configParam       = $_[2];
 	$messageText       = $_[3];
 	$defaultInputValue = $_[4];
-	
+
 	@parameterNull = $cfg->param($configParam);
 
 	if ( $mode eq "UPDATE" ) {
-		if ( defined($cfg->param($configParam)) & !$#parameterNull == -1) {
+		if ( defined( $cfg->param($configParam) ) & !($#parameterNull == -1 )) {
 			$defaultValue = $cfg->param($configParam);
 		}
 		else {
@@ -660,6 +660,11 @@ sub loadSuiteConfig {
 ########################################
 sub installCrowd {
 	my $input;
+	my $mode;
+	my $version;
+	my $application = "crowd";
+	my @downloadDetails;
+
 	print
 "\n\nWould you like to review the crowd config before installing? Yes/No [yes]: ";
 
@@ -668,6 +673,30 @@ sub installCrowd {
 		generateCrowdConfig( "UPDATE", $globalConfig );
 		$globalConfig->write("new.cfg");
 		loadSuiteConfig();
+	}
+
+	print "\n\nWould you like to install the latest version? yes/no [yes]: ";
+
+	$input = getGenericInput();
+	if ( $input eq "default" || $input eq "yes" ) {
+		$mode = "LATEST";
+	}
+	else {
+		$mode = "SPECIFIC";
+	}
+
+	if ( $mode eq "SPECIFIC" ) {
+		print
+		  "\n\nPlease enter the version number you would like. i.e. 4.2.2 []: ";
+
+		$version = <STDIN>;
+		chomp $input;
+	}
+
+	if ( $mode eq "LATEST" ) {
+		downloadAtlassianInstaller( $mode, $application, "",
+			whichApplicationArchitecture() );
+
 	}
 }
 
@@ -884,24 +913,25 @@ sub downloadAtlassianInstaller {
 	my $downloadURL;
 	my $architecture;
 	my $parsedURL;
+	my @downloadDetails;
 
 	$type         = $_[0];
 	$product      = $_[1];
 	$version      = $_[2];
 	$architecture = $_[3];
 
+    
 	if ( $type eq "LATEST" ) {
-		$downloadURL = getLatestDownloadURL( $product, $architecture );
+		@downloadDetails = getLatestDownloadURL( $product, $architecture );
 	}
 	else {
 
 	}
 
-	$parsedURL = URI->new($downloadURL);
+	$parsedURL = URI->new($downloadDetails[0]);
 	my @bits = $parsedURL->path_segments();
 	$ua->show_progress(1);
-
-	getstore( $downloadURL,
+	getstore( $downloadDetails[0],
 		    $globalConfig->param("general.rootInstallDir") . "/"
 		  . $bits[ @bits - 1 ] );
 
@@ -916,17 +946,18 @@ sub downloadLatestAtlassianSuite {
 	my $parsedURL;
 	my @suiteProducts =
 	  ( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
+	my @downloadDetails;
 
 	$architecture = $_[0];
 
 	foreach (@suiteProducts) {
-		$downloadURL = getLatestDownloadURL( $_, $architecture );
+		@downloadDetails =  getLatestDownloadURL( $_, $architecture );
 
-		$parsedURL = URI->new($downloadURL);
+		$parsedURL = URI->new($downloadDetails[0]);
 		my @bits = $parsedURL->path_segments();
 		$ua->show_progress(1);
 
-		getstore( $downloadURL,
+		getstore( $downloadDetails[0],
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ] );
 	}
