@@ -268,8 +268,9 @@ sub extractAndMoveDownload {
 		my $LOOP = 1;
 		my $input;
 
-		print
-"The destination directory '". $expectedFolderName . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
+		print "The destination directory '"
+		  . $expectedFolderName
+		  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
 		while ( $LOOP == 1 ) {
 
 			$input = <STDIN>;
@@ -280,11 +281,12 @@ sub extractAndMoveDownload {
 			{
 				$LOOP = 0;
 				move( $expectedFolderName, $expectedFolderName . $date );
-				print "\nFolder backed up to " . $expectedFolderName . $date . "\n\n";
+				print "\nFolder backed up to "
+				  . $expectedFolderName
+				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
 			}
-			elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" )
-			{
+			elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" ) {
 				$LOOP = 0;
 				rmtree( ["$expectedFolderName"] );
 				move( $ae->extract_path(), $expectedFolderName );
@@ -292,7 +294,9 @@ sub extractAndMoveDownload {
 			elsif ( $input eq "" ) {
 				$LOOP = 0;
 				move( $expectedFolderName, $expectedFolderName . $date );
-				print "\nFolder backed up to " . $expectedFolderName . $date . "\n\n";
+				print "\nFolder backed up to "
+				  . $expectedFolderName
+				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
 			}
 			else {
@@ -308,7 +312,7 @@ sub extractAndMoveDownload {
 }
 
 ########################################
-#getConfigItem                         #
+#genConfigItem                         #
 ########################################
 sub genConfigItem {
 	my $mode;
@@ -318,15 +322,18 @@ sub genConfigItem {
 	my $defaultInputValue;
 	my $defaultValue;
 	my $input;
+	my @parameterNull;
 
 	$mode              = $_[0];
 	$cfg               = $_[1];
 	$configParam       = $_[2];
 	$messageText       = $_[3];
 	$defaultInputValue = $_[4];
+	
+	@parameterNull = $cfg->param($configParam);
 
 	if ( $mode eq "UPDATE" ) {
-		if ( $cfg->param($configParam) ) {
+		if ( defined($cfg->param($configParam)) & !$#parameterNull == -1) {
 			$defaultValue = $cfg->param($configParam);
 		}
 		else {
@@ -649,6 +656,22 @@ sub loadSuiteConfig {
 }
 
 ########################################
+#InstallCrowd                          #
+########################################
+sub installCrowd {
+	my $input;
+	print
+"\n\nWould you like to review the crowd config before installing? Yes/No [yes]: ";
+
+	$input = getGenericInput();
+	if ( $input eq "default" || $input eq "yes" ) {
+		generateCrowdConfig( "UPDATE", $globalConfig );
+		$globalConfig->write("new.cfg");
+		loadSuiteConfig();
+	}
+}
+
+########################################
 #GenerateJiraConfig                    #
 ########################################
 sub generateJiraConfig {
@@ -730,7 +753,7 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.appContext",
 "Enter the context that Crowd should run under (i.e. /crowd or /login). Leave blank to keep default context.",
-		""
+		"/crowd"
 	);
 	genConfigItem(
 		$mode,
@@ -1189,5 +1212,7 @@ loadSuiteConfig();
 #extractAndMoveDownload( "/opt/atlassian/software/atlassian-crowd-2.5.2.tar.gz",
 #	$globalConfig->param("crowd.installDir") );
 
-extractAndMoveDownload( "/opt/atlassian/software/fisheye-2.9.0.zip",
-	$globalConfig->param("fisheye.installDir") );
+#extractAndMoveDownload(
+#	"/opt/atlassian/software/fisheye-2.9.0.zip",#	$globalConfig->param("fisheye.installDir")
+#);
+installCrowd();
