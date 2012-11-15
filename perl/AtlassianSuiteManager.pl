@@ -129,9 +129,9 @@ sub getLatestDownloadURL {
 
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
-				@returnArray($item->{zipUrl},$item->{zipUrl});
+				@returnArray( $item->{zipUrl}, $item->{zipUrl} );
 				return @returnArray;
-				
+
 			}
 		}
 	}
@@ -194,6 +194,9 @@ sub getVersionDownloadURL {
 		$globalConfig->param("general.rootInstallDir") . "/" . $filename );
 }
 
+########################################
+#GetBooleanInput                       #
+########################################
 sub getBooleanInput {
 	my $LOOP = 1;
 	my $input;
@@ -224,6 +227,9 @@ sub getBooleanInput {
 	}
 }
 
+########################################
+#getGenericInput                       #
+########################################
 sub getGenericInput {
 	my $input;
 
@@ -238,6 +244,9 @@ sub getGenericInput {
 	}
 }
 
+########################################
+#getConfigItem                         #
+########################################
 sub genConfigItem {
 	my $mode;
 	my $cfg;
@@ -412,20 +421,21 @@ sub isSupportedVersion {
 
 	my $supported;
 	for ( $count = 0 ; $count <= $#productArray ; $count++ ) {
-		if (
-			$splitVersion[$count] <=  $productArray[$count] ) {
-$supported = 1;
-			} else {
-				$supported = 0;
-				last;
-			}
+		if ( $splitVersion[$count] <= $productArray[$count] ) {
+			$supported = 1;
 		}
+		else {
+			$supported = 0;
+			last;
+		}
+	}
 
-		if ($supported == 1){
-			return "yes";
-		}else {
-			return "no";
-		}
+	if ( $supported == 1 ) {
+		return "yes";
+	}
+	else {
+		return "no";
+	}
 
 }
 
@@ -459,6 +469,14 @@ sub generateJiraConfig {
 		$mode, $cfg, "jira.dataDir",
 		"Please enter the directory Jira's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/jira"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.appContext",
+"Enter the context that Jira should run under (i.e. /jira or /bugtraq). Leave blank to keep default context."
+		,
+		""
 	);
 	genConfigItem(
 		$mode,
@@ -507,6 +525,13 @@ sub generateCrowdConfig {
 		$mode, $cfg, "crowd.dataDir",
 		"Please enter the directory Crowd's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/crowd"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.appContext",
+"Enter the context that Crowd should run under (i.e. /crowd or /login). Leave blank to keep default context.",
+		""
 	);
 	genConfigItem(
 		$mode,
@@ -595,6 +620,13 @@ sub generateConfluenceConfig {
 		"confluence.dataDir",
 		"Please enter the directory Confluence's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/confluence"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.appContext",
+"Enter the context that Confluence should run under (i.e. /wiki or /confluence). Leave blank to keep default context.",
+		""
 	);
 	genConfigItem(
 		$mode,
