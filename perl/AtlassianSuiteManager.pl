@@ -38,6 +38,7 @@ use POSIX qw(strftime);
 use Data::Dumper;              # Perl core module
 use Config::Simple;            # From CPAN
 use File::Copy;
+use File::Path;
 use Archive::Extract;
 use strict;                    # Good practice
 use warnings;                  # Good practice
@@ -252,34 +253,56 @@ sub getGenericInput {
 ########################################
 sub extractAndMoveDownload {
 	my $inputFile;
-	my $initialFolderName;     #MustBeRelativePath
-	my $expectedFolderName;    #CanBeRelativeOrAbsolute
-	my $archiveType;
-	
-	$inputFile = $_[0];
-	$initialFolderName = $_[1];
-	$expectedFolderName = $_[2];
-	$archiveType = $_[3];
+	my $expectedFolderName;    #MustBeAbsolute
+	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 
-	if ( $archiveType eq "targz" ) {
-		system( "cd "
-			  . $globalConfig->param("general.rootInstallDir")
-			  . " && tar -xzf $inputFile > /dev/null" );
-		system( "cd "
-			  . $globalConfig->param("general.rootInstallDir")
-			  . " && mv $initialFolderName $expectedFolderName" );
+	$inputFile          = $_[0];
+	$expectedFolderName = $_[1];
 
-	}
-	elsif ( $archiveType eq "zip" ) {
-		system( "cd "
-			  . $globalConfig->param("general.rootInstallDir")
-			  . " && unzip $inputFile > /dev/null" );
-		system( "cd "
-			  . $globalConfig->param("general.rootInstallDir")
-			  . " && mv $initialFolderName $expectedFolderName" );
+	my $ae = Archive::Extract->new( archive => $inputFile );
+	print "Please wait, extracting $inputFile.\n\n";
+	$ae->extract( to => $globalConfig->param("general.rootInstallDir") );
+	print "Extracting $inputFile has been completed.\n\n";
+
+	if ( -d $expectedFolderName ) {
+		my $LOOP = 1;
+		my $input;
+
+		print
+"The destination directory '". $expectedFolderName . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
+		while ( $LOOP == 1 ) {
+
+			$input = <STDIN>;
+			chomp $input;
+
+			if (   ( lc $input ) eq "backup"
+				|| ( lc $input ) eq "b" )
+			{
+				$LOOP = 0;
+				move( $expectedFolderName, $expectedFolderName . $date );
+				print "\nFolder backed up to " . $expectedFolderName . $date . "\n\n";
+				move( $ae->extract_path(), $expectedFolderName );
+			}
+			elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" )
+			{
+				$LOOP = 0;
+				rmtree( ["$expectedFolderName"] );
+				move( $ae->extract_path(), $expectedFolderName );
+			}
+			elsif ( $input eq "" ) {
+				$LOOP = 0;
+				move( $expectedFolderName, $expectedFolderName . $date );
+				print "\nFolder backed up to " . $expectedFolderName . $date . "\n\n";
+				move( $ae->extract_path(), $expectedFolderName );
+			}
+			else {
+				print "Your input '" . $input
+				  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n";
+			}
+		}
 	}
 	else {
-		die "That archive type is not supported";
+		move( $ae->extract_path(), $expectedFolderName );
 	}
 
 }
@@ -1163,4 +1186,8 @@ loadSuiteConfig();
 #	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
 #	"#crowd.home=/var/crowd-home" );
 
-extractAndMoveDownload("/opt/atlassian/software/atlassian-crowd-2.5.2.tar.gz", "atlassian-crowd-2.5.2", $globalConfig->param("crowd.installDir"),"targz");
+#extractAndMoveDownload( "/opt/atlassian/software/atlassian-crowd-2.5.2.tar.gz",
+#	$globalConfig->param("crowd.installDir") );
+
+extractAndMoveDownload( "/opt/atlassian/software/fisheye-2.9.0.zip",
+	$globalConfig->param("fisheye.installDir") );
