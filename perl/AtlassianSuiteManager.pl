@@ -150,6 +150,7 @@ sub getVersionDownloadURL {
 	my $filename;
 	my $fileExt;
 	my $version;
+	my @returnArray;
 
 	$product      = $_[0];
 	$architecture = $_[1];
@@ -193,9 +194,7 @@ sub getVersionDownloadURL {
 "That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
 		exit 2;
 	}
-	$ua->show_progress(1);
-	getstore( $versionurl . "/" . $filename,
-		$globalConfig->param("general.rootInstallDir") . "/" . $filename );
+	@returnArray = ( $versionurl . "/" . $filename, $version );
 }
 
 ########################################
@@ -333,7 +332,8 @@ sub genConfigItem {
 	@parameterNull = $cfg->param($configParam);
 
 	if ( $mode eq "UPDATE" ) {
-		if ( defined( $cfg->param($configParam) ) & !($#parameterNull == -1 )) {
+		if ( defined( $cfg->param($configParam) ) & !( $#parameterNull == -1 ) )
+		{
 			$defaultValue = $cfg->param($configParam);
 		}
 		else {
@@ -920,15 +920,15 @@ sub downloadAtlassianInstaller {
 	$version      = $_[2];
 	$architecture = $_[3];
 
-    
 	if ( $type eq "LATEST" ) {
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
 	}
 	else {
-
+		@downloadDetails =
+		  getVersionDownloadURL( $product, $architecture, $version );
 	}
 
-	$parsedURL = URI->new($downloadDetails[0]);
+	$parsedURL = URI->new( $downloadDetails[0] );
 	my @bits = $parsedURL->path_segments();
 	$ua->show_progress(1);
 	getstore( $downloadDetails[0],
@@ -951,9 +951,9 @@ sub downloadLatestAtlassianSuite {
 	$architecture = $_[0];
 
 	foreach (@suiteProducts) {
-		@downloadDetails =  getLatestDownloadURL( $_, $architecture );
+		@downloadDetails = getLatestDownloadURL( $_, $architecture );
 
-		$parsedURL = URI->new($downloadDetails[0]);
+		$parsedURL = URI->new( $downloadDetails[0] );
 		my @bits = $parsedURL->path_segments();
 		$ua->show_progress(1);
 
