@@ -34,8 +34,10 @@ use LWP::Simple qw($ua getstore);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
 use URI;                       # From CPAN
+use POSIX qw(strftime);
 use Data::Dumper;              # Perl core module
 use Config::Simple;            # From CPAN
+use File::Copy;
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
@@ -129,7 +131,7 @@ sub getLatestDownloadURL {
 
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
-				@returnArray( $item->{zipUrl}, $item->{zipUrl} );
+				@returnArray = ( $item->{zipUrl}, $item->{zipUrl} );
 				return @returnArray;
 
 			}
@@ -440,6 +442,22 @@ sub isSupportedVersion {
 }
 
 ########################################
+#backupFile                            #
+########################################
+sub backupFile {
+	my $inputDir;
+	my $outputDir;
+	my $inputFile;
+	my $date = strftime "%Y%m%d_%H%M%S", localtime;
+
+	$inputDir  = $_[0];
+	$outputDir = $_[1];
+	$inputFile = $_[2];
+	
+	copy($inputDir . "/" . $inputFile, $outputDir . "/" . $inputFile . "_" . $date) or die "Copy failed: $!";
+}
+
+########################################
 #LoadSuiteConfig                       #
 ########################################
 sub loadSuiteConfig {
@@ -474,8 +492,7 @@ sub generateJiraConfig {
 		$mode,
 		$cfg,
 		"jira.appContext",
-"Enter the context that Jira should run under (i.e. /jira or /bugtraq). Leave blank to keep default context."
-		,
+"Enter the context that Jira should run under (i.e. /jira or /bugtraq). Leave blank to keep default context.",
 		""
 	);
 	genConfigItem(
@@ -976,4 +993,6 @@ loadSuiteConfig();
 
 #updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
 
-isSupportedVersion( "confluence", "5.1.1" );
+#isSupportedVersion( "confluence", "5.1.1" );
+
+backupFile("/opt/atlassian/confluence/bin","/opt/atlassian/confluence/bin","setenv.sh");
