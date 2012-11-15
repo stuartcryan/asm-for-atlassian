@@ -376,6 +376,60 @@ sub updateJavaOpts {
 }
 
 ########################################
+#updateLineInFile                      #
+########################################
+sub updateLineInFile {
+	my $inputFile;    #Must Be Absolute Path
+	my $newLine;
+	my $lineReference;
+	my $searchFor;
+	my $lineReference2;
+	my @data;
+
+	$inputFile      = $_[0];
+	$lineReference  = $_[1];
+	$newLine        = $_[2];
+	$lineReference2 = $_[3];
+
+	open( FILE, $inputFile ) or die("Unable to open file");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+
+	if ( !defined($index1) ) {
+		if ( defined($lineReference2) ) {
+			my ($index1) =
+			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
+			if ( !defined($index1) ) {
+				die(
+"No line containing \"$lineReference\" found in file $inputFile"
+				);
+			}
+			else {
+				$data[$index1] = $newLine . "\n";
+			}
+		}
+		else {
+			die(
+				"No line containing \"$lineReference\" found in file $inputFile"
+			);
+		}
+	}
+	else {
+		$data[$index1] = $newLine . "\n";
+	}
+
+open FILE, ">$inputFile" or die $!;
+print FILE @data;
+close FILE;
+
+}
+
+########################################
 #isSupportedVersion                   #
 ########################################
 sub isSupportedVersion {
@@ -514,12 +568,13 @@ sub generateInitD {
 		"\n",
 		"exit 0\n"
 	);
-	
-    open FILE, ">/etc/init.d/$product" or die $!;
+
+	open FILE, ">/etc/init.d/$product" or die $!;
 	print FILE @initFile;
 	close FILE;
-	
-	chmod 0755, "/etc/init.d/$product" or die "Couldn't chmod /etc/init.d/$product: $!";;
+
+	chmod 0755, "/etc/init.d/$product"
+	  or die "Couldn't chmod /etc/init.d/$product: $!";
 
 }
 
@@ -1064,4 +1119,7 @@ loadSuiteConfig();
 #backupFile( "/opt/atlassian/confluence/bin",
 #	"/opt/atlassian/confluence/bin", "setenv.sh" );
 
-generateInitD("crowd","crowd",$globalConfig->param("confluence.installDir"),"start_crowd.sh","stop_crowd.sh");
+#generateInitD("crowd","crowd",$globalConfig->param("confluence.installDir"),"start_crowd.sh","stop_crowd.sh");
+
+updateLineInFile( "crowd.cfg", "crowd.home", "crowd.home=" . $globalConfig->param("crowd.dataDir"), "#crowd.home=/var/crowd-home");
+
