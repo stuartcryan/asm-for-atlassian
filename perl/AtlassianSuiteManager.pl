@@ -506,6 +506,8 @@ sub isSupportedVersion {
 	my @splitVersion;
 	my @productArray;
 	my $count;
+	my $majorVersionStatus;
+	my $midVersionStatus;
 
 	$product = $_[0];
 	$version = $_[1];
@@ -547,10 +549,46 @@ sub isSupportedVersion {
 	for ( $count = 0 ; $count <= $#productArray ; $count++ ) {
 		if ( $splitVersion[$count] <= $productArray[$count] ) {
 			$supported = 1;
+			if ( $count == 0 ) {
+				if ( $splitVersion[$count] < $productArray[$count] ) {
+					$majorVersionStatus = "LESS";
+				}
+				else {
+					$majorVersionStatus = "EQUAL";
+				}
+
+			}
+			elsif ( $count == 1 ) {
+				if ( $splitVersion[$count] < $productArray[$count] ) {
+					$midVersionStatus = "LESS";
+				}
+				else {
+					$midVersionStatus = "EQUAL";
+				}
+			}
 		}
 		else {
-			$supported = 0;
-			last;
+			if ( ( $count == 1 ) & ( $majorVersionStatus eq "LESS" ) ) {
+				$supported = 1;
+				last;
+			}
+			elsif ( ( $count == 2 ) & ( $majorVersionStatus eq "LESS" ) &
+				( $midVersionStatus eq "LESS" ) )
+			{
+				$supported = 1;
+				last;
+			}
+			elsif ( ( $count == 2 ) & ( $majorVersionStatus eq "EQ" ) &
+				( $midVersionStatus eq "LESS" ) )
+			{
+				$supported = 1;
+				last;
+			}
+			else {
+				$supported = 1;
+				last;
+			}
+
 		}
 	}
 
@@ -664,6 +702,7 @@ sub installCrowd {
 	my $version;
 	my $application = "crowd";
 	my @downloadDetails;
+	my $archiveLocation;
 
 	print
 "\n\nWould you like to review the crowd config before installing? Yes/No [yes]: ";
@@ -690,14 +729,41 @@ sub installCrowd {
 		  "\n\nPlease enter the version number you would like. i.e. 4.2.2 []: ";
 
 		$version = <STDIN>;
-		chomp $input;
+		chomp $version;
 	}
 
 	if ( $mode eq "LATEST" ) {
-		downloadAtlassianInstaller( $mode, $application, "",
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, "",
 			whichApplicationArchitecture() );
 
 	}
+	else {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, $version,
+			whichApplicationArchitecture() );
+	}
+
+	if ( isSupportedVersion( $application, $downloadDetails[1] ) eq "yes" ) {
+		extractAndMoveDownload( $downloadDetails[2],
+			$globalConfig->param("crowd.installDir") );
+	}
+	else {
+		print
+"\n\nThis version of $application ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
+
+		$input = getBooleanInput();
+		if (   $input eq "yes"
+			|| $input eq "default" )
+		{
+			extractAndMoveDownload( $downloadDetails[2],
+				$globalConfig->param("crowd.installDir") );
+		}
+		elsif ( $input eq "no" ) {
+			return;
+		}
+	}
+
 }
 
 ########################################
@@ -934,7 +1000,9 @@ sub downloadAtlassianInstaller {
 	getstore( $downloadDetails[0],
 		    $globalConfig->param("general.rootInstallDir") . "/"
 		  . $bits[ @bits - 1 ] );
-
+	$downloadDetails[2] =
+	  $globalConfig->param("general.rootInstallDir") . "/" . $bits[ @bits - 1 ];
+	return @downloadDetails;
 }
 
 ########################################
