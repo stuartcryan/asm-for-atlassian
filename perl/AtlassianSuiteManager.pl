@@ -550,6 +550,7 @@ sub isSupportedVersion {
 		if ( $splitVersion[$count] <= $productArray[$count] ) {
 			$supported = 1;
 			if ( $count == 0 ) {
+				print "we here";
 				if ( $splitVersion[$count] < $productArray[$count] ) {
 					$majorVersionStatus = "LESS";
 				}
@@ -568,7 +569,11 @@ sub isSupportedVersion {
 			}
 		}
 		else {
-			if ( ( $count == 1 ) & ( $majorVersionStatus eq "LESS" ) ) {
+			if ( $count == 0 ) {
+				$supported = 0;
+				last;
+			}
+			elsif ( ( $count == 1 ) & ( $majorVersionStatus eq "LESS" ) ) {
 				$supported = 1;
 				last;
 			}
@@ -585,7 +590,7 @@ sub isSupportedVersion {
 				last;
 			}
 			else {
-				$supported = 1;
+				$supported = 0;
 				last;
 			}
 
@@ -742,26 +747,6 @@ sub installCrowd {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, $version,
 			whichApplicationArchitecture() );
-	}
-
-	if ( isSupportedVersion( $application, $downloadDetails[1] ) eq "yes" ) {
-		extractAndMoveDownload( $downloadDetails[2],
-			$globalConfig->param("crowd.installDir") );
-	}
-	else {
-		print
-"\n\nThis version of $application ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
-
-		$input = getBooleanInput();
-		if (   $input eq "yes"
-			|| $input eq "default" )
-		{
-			extractAndMoveDownload( $downloadDetails[2],
-				$globalConfig->param("crowd.installDir") );
-		}
-		elsif ( $input eq "no" ) {
-			return;
-		}
 	}
 
 }
@@ -980,6 +965,7 @@ sub downloadAtlassianInstaller {
 	my $architecture;
 	my $parsedURL;
 	my @downloadDetails;
+	my $input;
 
 	$type         = $_[0];
 	$product      = $_[1];
@@ -994,15 +980,32 @@ sub downloadAtlassianInstaller {
 		  getVersionDownloadURL( $product, $architecture, $version );
 	}
 
-	$parsedURL = URI->new( $downloadDetails[0] );
-	my @bits = $parsedURL->path_segments();
-	$ua->show_progress(1);
-	getstore( $downloadDetails[0],
+	if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
+		print
+"\n\nThis version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
+
+		$input = getBooleanInput();
+		if ( $input eq "no" ) {
+			return;
+		}
+	}
+	if ( head( $downloadDetails[0] ) ) {
+		$parsedURL = URI->new( $downloadDetails[0] );
+		my @bits = $parsedURL->path_segments();
+		$ua->show_progress(1);
+		getstore( $downloadDetails[0],
+			    $globalConfig->param("general.rootInstallDir") . "/"
+			  . $bits[ @bits - 1 ] );
+		$downloadDetails[2] =
 		    $globalConfig->param("general.rootInstallDir") . "/"
-		  . $bits[ @bits - 1 ] );
-	$downloadDetails[2] =
-	  $globalConfig->param("general.rootInstallDir") . "/" . $bits[ @bits - 1 ];
-	return @downloadDetails;
+		  . $bits[ @bits - 1 ];
+		return @downloadDetails;
+	}
+	else {
+		die
+"No such version ($version) of Crowd seems to exist (could not resolve URL)"
+		  ;
+	}
 }
 
 ########################################
