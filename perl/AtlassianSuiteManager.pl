@@ -40,6 +40,7 @@ use Config::Simple;            # From CPAN
 use File::Copy;
 use File::Path;
 use Archive::Extract;
+use XML::Twig;
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
@@ -748,6 +749,20 @@ sub installCrowd {
 			whichApplicationArchitecture() );
 	}
 
+	extractAndMoveDownload( $downloadDetails[2],
+		$globalConfig->param("crowd.installDir") );
+
+	updateXMLAttribute(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
+	);
+	updateXMLAttribute(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		"/Server", "port", $globalConfig->param("crowd.serverPort")
+	);
+
 }
 
 ########################################
@@ -1002,8 +1017,7 @@ sub downloadAtlassianInstaller {
 	}
 	else {
 		die
-"No such version ($version) of Crowd seems to exist (could not resolve URL)"
-		  ;
+"No such version ($version) of Crowd seems to exist (could not resolve URL)";
 	}
 }
 
