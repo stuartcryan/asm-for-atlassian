@@ -550,7 +550,6 @@ sub isSupportedVersion {
 		if ( $splitVersion[$count] <= $productArray[$count] ) {
 			$supported = 1;
 			if ( $count == 0 ) {
-				print "we here";
 				if ( $splitVersion[$count] < $productArray[$count] ) {
 					$majorVersionStatus = "LESS";
 				}
