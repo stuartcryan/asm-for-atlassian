@@ -80,6 +80,40 @@ sub whichApplicationArchitecture {
 }
 
 ########################################
+#BootStrapper                          #
+########################################
+sub bootStrapper {
+	my @parameterNull;
+
+	loadSuiteConfig();
+
+	#If no config found, force generation
+	if ( !$globalConfig ) {
+		generateSuiteConfig();
+	}
+	else {
+		@parameterNull = $globalConfig->param("general.dbJDBCJar");
+		if (
+			(
+				   $globalConfig->param("general.targetDBType") eq "Oracle"
+				|| $globalConfig->param("general.targetDBType") eq "MSSQL"
+			) & (
+				( $#parameterNull == -1 )
+				  || $globalConfig->param("general.dbJDBCJar") eq ""
+			)
+		  )
+		{
+			print
+			  "In order to continue you must download the JDBC JAR file for "
+			  . $globalConfig->param("general.targetDBType")
+			  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.";
+			print "\n\nThis script will now exit.\n\n";
+		}
+	}
+
+}
+
+########################################
 #Get the latest URL to download XXX    #
 ########################################
 sub getLatestDownloadURL {
@@ -1343,20 +1377,22 @@ sub generateSuiteConfig {
 			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n";
 		}
 	}
-	if ( $cfg->param("general.targetDBType") ne
-		$oldConfig->param("general.targetDBType") )
-	{
+	if ( defined($oldConfig) ) {
+		if ( $cfg->param("general.targetDBType") ne
+			$oldConfig->param("general.targetDBType") )
+		{
 
 #Database selection has changed therefore NULL the dbJDBCJar config option to ensure it gets a new value appropriate to the new DB
-		$cfg->param( "general.dbJDBCJar", "" );
+			$cfg->param( "general.dbJDBCJar", "" );
+		}
 	}
 	@parameterNull = $cfg->param("general.dbJDBCJar");
 	if (
 		(
 			   $cfg->param("general.targetDBType") eq "Oracle"
 			|| $cfg->param("general.targetDBType") eq "MSSQL"
-		) & ( ( $#parameterNull == -1 )
-			  || $cfg->param("general.dbJDBCJar") eq "" )
+		) &
+		( ( $#parameterNull == -1 ) || $cfg->param("general.dbJDBCJar") eq "" )
 	  )
 	{
 
@@ -1436,8 +1472,7 @@ END_TXT
 		}
 	}
 }
-loadSuiteConfig();
-generateSuiteConfig();
+bootStrapper();
 
 #generateSuiteConfig();
 #getVersionDownloadURL( "confluence", whichApplicationArchitecture(), "4.2.7" );
