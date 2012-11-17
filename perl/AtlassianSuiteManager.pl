@@ -1253,22 +1253,106 @@ sub generateSuiteConfig {
 	{
 		$cfg->param( "fisheye.enable", "FALSE" );
 	}
-	$cfg->write("new.cfg");
-	loadSuiteConfig();
-}
 
-########################################
-#Display Install Menu                  #
-########################################
-sub displayMenu {
-	my $choice;
-	my $main_menu;
+	my @parameterNull = $cfg->param("general.targetDBType");
 
+	if ( $mode eq "UPDATE" ) {
+		if ( !( $#parameterNull == -1 ) ) {
+			$defaultValue = $cfg->param("general.targetDBType");
+		}
+		else {
+			$defaultValue = "";
+		}
+	}
+	else {
+		$defaultValue = "";
+	}
+	print
+"\n\nWhat is the target database type that will be used (enter number to select)? 1/2/3/4/5 ["
+	  . $defaultValue . "] :";
+	print "\n1. MySQL";
+	print "\n2. PostgreSQL";
+	print "\n3. Oracle";
+	print "\n4. Microsoft SQL Server";
+	print "\n5. HSQLDB (NOT RECOMMENDED/Even for testing purposes!)";
+	if (!( $#parameterNull == -1 )){
+		print "\n\nPlease make a selection: (note hitting RETURN will keep existing value of [" . $defaultValue . "].";
+	} else {
+		print "\n\nPlease make a selection: \n";
+	}
+	
 	my $LOOP = 1;
+
 	while ( $LOOP == 1 ) {
 
-		# define the main menu as a multiline string
-		$main_menu = <<'END_TXT';
+		$input = <STDIN>;
+		chomp $input;
+
+		if (   ( lc $input ) eq "1"
+			|| ( lc $input ) eq "mysql" )
+		{
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "MySQL" );
+		}
+		elsif (( lc $input ) eq "2"
+			|| ( lc $input ) eq "postgresql"
+			|| ( lc $input ) eq "postgres"
+			|| ( lc $input ) eq "postgre" )
+		{
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "PostgreSQL" );
+		}
+		elsif (( lc $input ) eq "3"
+			|| ( lc $input ) eq "oracle" )
+		{
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "Oracle" );
+		}
+		elsif (( lc $input ) eq "4"
+			|| ( lc $input ) eq "microsoft sql server"
+			|| ( lc $input ) eq "mssql" )
+		{
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "MSSQL" );
+		}
+		elsif (( lc $input ) eq "5"
+			|| ( lc $input ) eq "hsqldb"
+			|| ( lc $input ) eq "hsql" )
+		{
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "HSQLDB" );
+		}
+		elsif (
+			( lc $input ) eq "" & ( $#parameterNull == -1 )){
+				print
+"\n\nYou did not make a selection please enter 1, 2, 3, 4 or 5. \n";
+			} elsif (
+				( lc $input ) eq "" & !( $#parameterNull == -1 )) {
+
+					#keepExistingValueWithNoChange
+					$LOOP = 0;
+				} else {
+					print "\n\nYour input '" . $input
+					  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n";
+				}
+			}
+
+			$cfg->write("new.cfg");
+			loadSuiteConfig();
+		}
+
+########################################
+		#Display Install Menu                  #
+########################################
+		sub displayMenu {
+			my $choice;
+			my $main_menu;
+
+			my $LOOP = 1;
+			while ( $LOOP == 1 ) {
+
+				# define the main menu as a multiline string
+				$main_menu = <<'END_TXT';
 
       Welcome to the Atlassian Suite Manager Script
 
@@ -1288,41 +1372,42 @@ sub displayMenu {
 
 END_TXT
 
-		# print the main menu
-		system 'clear';
-		print $main_menu;
+				# print the main menu
+				system 'clear';
+				print $main_menu;
 
-		# prompt for user's choice
-		printf( "%s", "enter selection: " );
+				# prompt for user's choice
+				printf( "%s", "enter selection: " );
 
-		# capture the choice
-		$choice = <STDIN>;
+				# capture the choice
+				$choice = <STDIN>;
 
-		# and finally print it
-		#print "You entered: ",$choice;
-		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
-			$LOOP = 0;
-			exit 0;
+				# and finally print it
+				#print "You entered: ",$choice;
+				if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+					$LOOP = 0;
+					exit 0;
+				}
+			}
 		}
-	}
-}
-loadSuiteConfig();
+		loadSuiteConfig();
+		generateSuiteConfig();
 
 #generateSuiteConfig();
 #getVersionDownloadURL( "confluence", whichApplicationArchitecture(), "4.2.7" );
 
 #updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
 
-#isSupportedVersion( "confluence", "5.1.1" );
+		#isSupportedVersion( "confluence", "5.1.1" );
 
-#backupFile( "/opt/atlassian/confluence/bin",
-#	"/opt/atlassian/confluence/bin", "setenv.sh" );
+		#backupFile( "/opt/atlassian/confluence/bin",
+		#	"/opt/atlassian/confluence/bin", "setenv.sh" );
 
 #generateInitD("crowd","crowd",$globalConfig->param("confluence.installDir"),"start_crowd.sh","stop_crowd.sh");
 
-#updateLineInFile( "crowd.cfg", "crowd.home",
-#	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
-#	"#crowd.home=/var/crowd-home" );
+		#updateLineInFile( "crowd.cfg", "crowd.home",
+		#	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		#	"#crowd.home=/var/crowd-home" );
 
 #extractAndMoveDownload( "/opt/atlassian/software/atlassian-crowd-2.5.2.tar.gz",
 #	$globalConfig->param("crowd.installDir") );
@@ -1330,4 +1415,4 @@ loadSuiteConfig();
 #extractAndMoveDownload(
 #	"/opt/atlassian/software/fisheye-2.9.0.zip",#	$globalConfig->param("fisheye.installDir")
 #);
-installCrowd();
+#installCrowd();
