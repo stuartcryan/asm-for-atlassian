@@ -48,6 +48,7 @@ use warnings;                  # Good practice
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
+my $configFile = "settings.cfg";
 
 ########################################
 #TestOSArchitecture                    #
@@ -693,8 +694,8 @@ sub generateInitD {
 #LoadSuiteConfig                       #
 ########################################
 sub loadSuiteConfig {
-	if ( -e "new.cfg" ) {
-		$globalConfig = new Config::Simple('new.cfg');
+	if ( -e $configFile ) {
+		$globalConfig = new Config::Simple($configFile);
 	}
 }
 
@@ -715,7 +716,7 @@ sub installCrowd {
 	$input = getGenericInput();
 	if ( $input eq "default" || $input eq "yes" ) {
 		generateCrowdConfig( "UPDATE", $globalConfig );
-		$globalConfig->write("new.cfg");
+		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
 
@@ -1056,10 +1057,13 @@ sub generateSuiteConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+	my @parameterNull;
+	my $oldConfig;
 
 	if ($globalConfig) {
-		$mode = "UPDATE";
-		$cfg  = $globalConfig;
+		$mode      = "UPDATE";
+		$cfg       = $globalConfig;
+		$oldConfig = new Config::Simple($configFile);
 	}
 	else {
 		$mode = "NEW";
@@ -1254,7 +1258,7 @@ sub generateSuiteConfig {
 		$cfg->param( "fisheye.enable", "FALSE" );
 	}
 
-	my @parameterNull = $cfg->param("general.targetDBType");
+	@parameterNull = $cfg->param("general.targetDBType");
 
 	if ( $mode eq "UPDATE" ) {
 		if ( !( $#parameterNull == -1 ) ) {
@@ -1275,12 +1279,15 @@ sub generateSuiteConfig {
 	print "\n3. Oracle";
 	print "\n4. Microsoft SQL Server";
 	print "\n5. HSQLDB (NOT RECOMMENDED/Even for testing purposes!)";
-	if (!( $#parameterNull == -1 )){
-		print "\n\nPlease make a selection: (note hitting RETURN will keep existing value of [" . $defaultValue . "].";
-	} else {
+	if ( !( $#parameterNull == -1 ) ) {
+		print
+"\n\nPlease make a selection: (note hitting RETURN will keep existing value of ["
+		  . $defaultValue . "].";
+	}
+	else {
 		print "\n\nPlease make a selection: \n";
 	}
-	
+
 	my $LOOP = 1;
 
 	while ( $LOOP == 1 ) {
@@ -1322,37 +1329,76 @@ sub generateSuiteConfig {
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "HSQLDB" );
 		}
-		elsif (
-			( lc $input ) eq "" & ( $#parameterNull == -1 )){
-				print
+		elsif ( ( lc $input ) eq "" & ( $#parameterNull == -1 ) ) {
+			print
 "\n\nYou did not make a selection please enter 1, 2, 3, 4 or 5. \n";
-			} elsif (
-				( lc $input ) eq "" & !( $#parameterNull == -1 )) {
-
-					#keepExistingValueWithNoChange
-					$LOOP = 0;
-				} else {
-					print "\n\nYour input '" . $input
-					  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n";
-				}
-			}
-
-			$cfg->write("new.cfg");
-			loadSuiteConfig();
 		}
+		elsif ( ( lc $input ) eq "" & !( $#parameterNull == -1 ) ) {
+
+			#keepExistingValueWithNoChange
+			$LOOP = 0;
+		}
+		else {
+			print "\n\nYour input '" . $input
+			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n";
+		}
+	}
+	if ( $cfg->param("general.targetDBType") ne
+		$oldConfig->param("general.targetDBType") )
+	{
+
+#Database selection has changed therefore NULL the dbJDBCJar config option to ensure it gets a new value appropriate to the new DB
+		$cfg->param( "general.dbJDBCJar", "" );
+	}
+	@parameterNull = $cfg->param("general.dbJDBCJar");
+	if (
+		(
+			   $cfg->param("general.targetDBType") eq "Oracle"
+			|| $cfg->param("general.targetDBType") eq "MSSQL"
+		) & ( ( $#parameterNull == -1 )
+			  || $cfg->param("general.dbJDBCJar") eq "" )
+	  )
+	{
+
+		#createNullOptionInConfigFile
+		$cfg->param( "general.dbJDBCJar", "" );
+		print "\n\nIn order to support your target database type ["
+		  . $cfg->param("general.targetDBType")
+		  . "] you need to download the appropriate JAR file.";
+		if ( $cfg->param("general.targetDBType") eq "Oracle" ) {
+			print
+"\n\nPlease visit http://www.oracle.com/technetwork/database/features/jdbc/index-091264.html and download the appropriate JDBC JAR File";
+		}
+		elsif ( $cfg->param("general.targetDBType") eq "MSSQL" ) {
+			print
+"\nPlease visit http://msdn.microsoft.com/en-us/sqlserver/aa937724.aspx and download the appropriate JDBC JAR File";
+		}
+		print
+"\nOnce you have downloaded this (any location is fine, I recommend to the folder this script is installed into),\nplease edit the 'dbJDBCJar' option under [general] in '$configFile' to point to the full absolute path (including filename) of the jar file.";
+		print
+"\n\nThis script will now exit. Please update the aforementioned config before running again.\n\n";
+
+		#Write config and exit;
+		$cfg->write($configFile);
+		exit;
+	}
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
+}
 
 ########################################
-		#Display Install Menu                  #
+#Display Install Menu                  #
 ########################################
-		sub displayMenu {
-			my $choice;
-			my $main_menu;
+sub displayMenu {
+	my $choice;
+	my $main_menu;
 
-			my $LOOP = 1;
-			while ( $LOOP == 1 ) {
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
 
-				# define the main menu as a multiline string
-				$main_menu = <<'END_TXT';
+		# define the main menu as a multiline string
+		$main_menu = <<'END_TXT';
 
       Welcome to the Atlassian Suite Manager Script
 
@@ -1372,42 +1418,42 @@ sub generateSuiteConfig {
 
 END_TXT
 
-				# print the main menu
-				system 'clear';
-				print $main_menu;
+		# print the main menu
+		system 'clear';
+		print $main_menu;
 
-				# prompt for user's choice
-				printf( "%s", "enter selection: " );
+		# prompt for user's choice
+		printf( "%s", "enter selection: " );
 
-				# capture the choice
-				$choice = <STDIN>;
+		# capture the choice
+		$choice = <STDIN>;
 
-				# and finally print it
-				#print "You entered: ",$choice;
-				if ( $choice eq "Q\n" || $choice eq "q\n" ) {
-					$LOOP = 0;
-					exit 0;
-				}
-			}
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			$LOOP = 0;
+			exit 0;
 		}
-		loadSuiteConfig();
-		generateSuiteConfig();
+	}
+}
+loadSuiteConfig();
+generateSuiteConfig();
 
 #generateSuiteConfig();
 #getVersionDownloadURL( "confluence", whichApplicationArchitecture(), "4.2.7" );
 
 #updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
 
-		#isSupportedVersion( "confluence", "5.1.1" );
+#isSupportedVersion( "confluence", "5.1.1" );
 
-		#backupFile( "/opt/atlassian/confluence/bin",
-		#	"/opt/atlassian/confluence/bin", "setenv.sh" );
+#backupFile( "/opt/atlassian/confluence/bin",
+#	"/opt/atlassian/confluence/bin", "setenv.sh" );
 
 #generateInitD("crowd","crowd",$globalConfig->param("confluence.installDir"),"start_crowd.sh","stop_crowd.sh");
 
-		#updateLineInFile( "crowd.cfg", "crowd.home",
-		#	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
-		#	"#crowd.home=/var/crowd-home" );
+#updateLineInFile( "crowd.cfg", "crowd.home",
+#	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+#	"#crowd.home=/var/crowd-home" );
 
 #extractAndMoveDownload( "/opt/atlassian/software/atlassian-crowd-2.5.2.tar.gz",
 #	$globalConfig->param("crowd.installDir") );
