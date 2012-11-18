@@ -1320,7 +1320,7 @@ sub downloadAtlassianInstaller {
 
 	if ( is_success($downloadResponseCode) ) {
 		print "\n\n";
-		print "Download completed successfully.";
+		print "Download completed successfully.\n\n";
 		$downloadDetails[2] =
 		    $globalConfig->param("general.rootInstallDir") . "/"
 		  . $bits[ @bits - 1 ];
