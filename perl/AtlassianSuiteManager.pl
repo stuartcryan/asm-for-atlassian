@@ -561,7 +561,12 @@ sub genBooleanConfigItem {
 	if ( $mode eq "UPDATE" ) {
 		if ( defined( $cfg->param($configParam) ) & !( $#parameterNull == -1 ) )
 		{
-			$defaultValue = $cfg->param($configParam);
+			if ( $cfg->param($configParam) eq "TRUE" ) {
+				$defaultValue = "yes";
+			}
+			elsif ( $cfg->param($configParam) eq "FALSE" ) {
+				$defaultValue = "no";
+			}
 		}
 		else {
 			$defaultValue = $defaultInputValue;
@@ -1146,7 +1151,7 @@ sub generateCrowdConfig {
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
-		"Would you like to run Crowd as a service? yes/no.", "" );
+		"Would you like to run Crowd as a service? yes/no.", "yes" );
 
 	genConfigItem(
 		$mode,
@@ -1357,45 +1362,29 @@ sub generateSuiteConfig {
 		$cfg = new Config::Simple( syntax => 'ini' );
 	}
 
+	#Generate Main Suite Configuration
 	print
-"This will guide you through the generation of the config required for the management of the Atlassian suite.";
+"This will guide you through the generation of the config required for the management of the Atlassian suite.\n\n";
 
+	#Check for 64Bit Override
 	if ( testOSArchitecture() eq "64" ) {
-		if ( $mode eq "UPDATE" ) {
-			if ( $globalConfig->param("general.force32Bit") ne "TRUE" ) {
-				$defaultValue = "no";
-			}
-			else {
-				$defaultValue = "yes";
-			}
-		}
-		else {
-			$defaultValue = "no";
-		}
-		print "Your operating system architecture has been detected as "
-		  . testOSArchitecture()
-		  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no ["
-		  . $defaultValue . "]: ";
-
-		$input = getBooleanInput();
-		print "\n\n";
-		if ( $input eq "yes"
-			|| ( $input eq "default" && $defaultValue eq "yes" ) )
-		{
-			$cfg->param( "general.force32Bit", "TRUE" );
-		}
-		elsif ( $input eq "no"
-			|| ( $input eq "default" && $defaultValue eq "no" ) )
-		{
-			$cfg->param( "general.force32Bit", "FALSE" );
-		}
-
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"general.force32Bit",
+			"Your operating system architecture has been detected as "
+			  . testOSArchitecture()
+			  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no",
+			"no"
+		);
 	}
 
+	#Get root installation directory
 	genConfigItem( $mode, $cfg, "general.rootInstallDir",
 		"Please enter the root directory the suite will be installed into.",
 		"/opt/atlassian" );
 
+	#Get root data directory
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1403,26 +1392,12 @@ sub generateSuiteConfig {
 "Please enter the root directory the suite data/home directories will be stored.",
 		"/var/atlassian/application-data"
 	);
-	if ( $mode eq "UPDATE" ) {
-		if ( $globalConfig->param("crowd.enable") ne "TRUE" ) {
-			$defaultValue = "no";
-		}
-		else {
-			$defaultValue = "yes";
-		}
-	}
-	else {
-		$defaultValue = "yes";
-	}
 
-	print "Do you wish to install/manage Crowd? yes/no ["
-	  . $defaultValue . "]: ";
-	$input = getBooleanInput();
-	print "\n\n";
-	if ( $input eq "yes"
-		|| ( $input eq "default" && $defaultValue eq "yes" ) )
-	{
-		$cfg->param( "crowd.enable", "TRUE" );
+	#Get Crowd configuration
+	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
+		"Do you wish to install/manage Crowd? yes/no ", "yes" );
+
+	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
 		print
 		  "Do you wish to set up/update the Crowd configuration now? [no] \n\n";
 
@@ -1433,32 +1408,12 @@ sub generateSuiteConfig {
 		}
 
 	}
-	elsif ( $input eq "no"
-		|| ( $input eq "default" && $defaultValue eq "no" ) )
-	{
-		$cfg->param( "crowd.enable", "FALSE" );
-	}
 
-	if ( $mode eq "UPDATE" ) {
-		if ( $globalConfig->param("jira.enable") ne "TRUE" ) {
-			$defaultValue = "no";
-		}
-		else {
-			$defaultValue = "yes";
-		}
-	}
-	else {
-		$defaultValue = "yes";
-	}
+	#Get Jira configuration
+	genBooleanConfigItem( $mode, $cfg, "jira.enable",
+		"Do you wish to install/manage Jira? yes/no ", "yes" );
 
-	print "Do you wish to install/manage JIRA? yes/no ["
-	  . $defaultValue . "]: ";
-	$input = getBooleanInput();
-	print "\n\n";
-	if ( $input eq "yes"
-		|| ( $input eq "default" && $defaultValue eq "yes" ) )
-	{
-		$cfg->param( "jira.enable", "TRUE" );
+	if ( $cfg->param("jira.enable") eq "TRUE" ) {
 		print
 		  "Do you wish to set up/update the Jira configuration now? [no] \n\n";
 
@@ -1468,32 +1423,12 @@ sub generateSuiteConfig {
 			generateJiraConfig( $mode, $cfg );
 		}
 	}
-	elsif ( $input eq "no"
-		|| ( $input eq "default" && $defaultValue eq "no" ) )
-	{
-		$cfg->param( "jira.enable", "FALSE" );
-	}
 
-	if ( $mode eq "UPDATE" ) {
-		if ( $globalConfig->param("confluence.enable") ne "TRUE" ) {
-			$defaultValue = "no";
-		}
-		else {
-			$defaultValue = "yes";
-		}
-	}
-	else {
-		$defaultValue = "yes";
-	}
+	#Get Confluence configuration
+	genBooleanConfigItem( $mode, $cfg, "confluence.enable",
+		"Do you wish to install/manage Confluence? yes/no ", "yes" );
 
-	print "Do you wish to install/manage Confluence? yes/no ["
-	  . $defaultValue . "]: ";
-	$input = getBooleanInput();
-	print "\n\n";
-	if ( $input eq "yes"
-		|| ( $input eq "default" && $defaultValue eq "yes" ) )
-	{
-		$cfg->param( "confluence.enable", "TRUE" );
+	if ( $cfg->param("confluence.enable") eq "TRUE" ) {
 		print
 "Do you wish to set up/update the Confluence configuration now? [no] \n\n";
 
@@ -1503,47 +1438,23 @@ sub generateSuiteConfig {
 			generateConfluenceConfig( $mode, $cfg );
 		}
 	}
-	elsif ( $input eq "no"
-		|| ( $input eq "default" && $defaultValue eq "no" ) )
-	{
-		$cfg->param( "confluence.enable", "FALSE" );
-	}
 
-	if ( $mode eq "UPDATE" ) {
-		if ( $globalConfig->param("fisheye.enable") ne "TRUE" ) {
-			$defaultValue = "no";
-		}
-		else {
-			$defaultValue = "yes";
-		}
-	}
-	else {
-		$defaultValue = "yes";
-	}
+	#Get Fisheye configuration
+	genBooleanConfigItem( $mode, $cfg, "fisheye.enable",
+		"Do you wish to install/manage Fisheye? yes/no ", "yes" );
 
-	print "Do you wish to install/manage Fisheye? yes/no ["
-	  . $defaultValue . "]: ";
-	$input = getBooleanInput();
-	print "\n\n";
-	if ( $input eq "yes"
-		|| ( $input eq "default" && $defaultValue eq "yes" ) )
-	{
-		$cfg->param( "fisheye.enable", "TRUE" );
+	if ( $cfg->param("fisheye.enable") eq "TRUE" ) {
 		print
 "Do you wish to set up/update the Fisheye configuration now? [no] \n\n";
 
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
-			generateFisheyeConfig( $mode, $cfg );
+			generateJiraConfig( $mode, $cfg );
 		}
 	}
-	elsif ( $input eq "no"
-		|| ( $input eq "default" && $defaultValue eq "no" ) )
-	{
-		$cfg->param( "fisheye.enable", "FALSE" );
-	}
 
+	#Get suite database architecture configuration
 	@parameterNull = $cfg->param("general.targetDBType");
 
 	if ( $mode eq "UPDATE" ) {
