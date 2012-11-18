@@ -157,6 +157,23 @@ sub createDirectory {
 }
 
 ########################################
+#MoveDirectory                         #
+########################################
+sub moveDirectory {
+	my $origDirectory;
+	my $newDirectory;
+
+	$origDirectory = $_[0];
+	$newDirectory  = $_[1];
+
+	if ( move( $origDirectory, $newDirectory ) == 0 ) {
+		die
+"Unable to move folder $origDirectory to $newDirectory. Unknown error occured.\n\n";
+	}
+
+}
+
+########################################
 #CheckRequiredConfigItems              #
 ########################################
 sub checkRequiredConfigItems {
@@ -435,11 +452,30 @@ sub extractAndMoveDownload {
 
 	@uidGid = getUserUidGid($osUser);
 
+	print "Preparing to extract $inputFile...\n\n";
+
+	#Make sure directory exists
+	createDirectory( $globalConfig->param("general.rootInstallDir"), "root" );
+
+	#Make sure file exists
+	if ( !-e $inputFile ) {
+		die "File $inputFile could not be extracted. File does not exist.\n\n";
+	}
+
+	#Set up extract object
 	my $ae = Archive::Extract->new( archive => $inputFile );
-	print "Please wait, extracting $inputFile.\n\n";
+	print "Extracting $inputFile. Please wait...\n\n";
+
+	#Extract
 	$ae->extract( to => $globalConfig->param("general.rootInstallDir") );
+	if ( $ae->error ) {
+		die
+"Unable to extract $inputFile. The following error was encountered: $ae->error\n\n";
+	}
+
 	print "Extracting $inputFile has been completed.\n\n";
 
+	#Check for existing folder and provide option to backup
 	if ( -d $expectedFolderName ) {
 		my $LOOP = 1;
 		my $input;
@@ -452,41 +488,45 @@ sub extractAndMoveDownload {
 			$input = <STDIN>;
 			chomp $input;
 
+			#If user selects, backup existing folder
 			if (   ( lc $input ) eq "backup"
-				|| ( lc $input ) eq "b" )
+				|| ( lc $input ) eq "b"
+				|| $input eq "" )
 			{
 				$LOOP = 0;
-				move( $expectedFolderName, $expectedFolderName . $date );
+				moveDirectory( $expectedFolderName,
+					$expectedFolderName . $date );
 				print "Folder backed up to "
 				  . $expectedFolderName
 				  . $date . "\n\n";
-				move( $ae->extract_path(), $expectedFolderName );
+				moveDirectory( $ae->extract_path(), $expectedFolderName );
 				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 
 			}
+
+#If user selects, overwrite existing folder by deleting and then moving new directory in place
 			elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" ) {
 				$LOOP = 0;
+
+#Considered failure handling for rmtree however based on http://perldoc.perl.org/File/Path.html used
+#recommended in built error handling.
 				rmtree( ["$expectedFolderName"] );
-				move( $ae->extract_path(), $expectedFolderName );
+
+				moveDirectory( $ae->extract_path(), $expectedFolderName );
 				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 			}
-			elsif ( $input eq "" ) {
-				$LOOP = 0;
-				move( $expectedFolderName, $expectedFolderName . $date );
-				print "Folder backed up to "
-				  . $expectedFolderName
-				  . $date . "\n\n";
-				move( $ae->extract_path(), $expectedFolderName );
-				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
-			}
+
+			#Input was not recognised, ask user for input again
 			else {
 				print "Your input '" . $input
 				  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n\n";
 			}
 		}
 	}
+
+	#Directory does not exist, move new directory in place.
 	else {
-		move( $ae->extract_path(), $expectedFolderName );
+		moveDirectory( $ae->extract_path(), $expectedFolderName );
 		chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 	}
 
@@ -1312,7 +1352,7 @@ sub downloadAtlassianInstaller {
 	my @bits = $parsedURL->path_segments();
 	$ua->show_progress(1);
 	print "Checking that root install dir exists...\n\n";
-	createDirectory( $globalConfig->param("general.rootInstallDir"), $product );
+	createDirectory( $globalConfig->param("general.rootInstallDir"), "root" );
 	print "Downloading file from Atlassian...\n\n";
 	$downloadResponseCode = getstore( $downloadDetails[0],
 		    $globalConfig->param("general.rootInstallDir") . "/"
@@ -1675,9 +1715,9 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/software/atlassian-crowd-2.5.2.tar.gz",
 #	$globalConfig->param("crowd.installDir") );
 
-#extractAndMoveDownload(
-#	"/opt/atlassian/software/fisheye-2.9.0.zip",#	$globalConfig->param("fisheye.installDir")
-#);
+#extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
+#	  "/opt/atlassian/stu", "crowd" );
+
 #installCrowd();
-downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
-	whichApplicationArchitecture() );
+#downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
+#	whichApplicationArchitecture() );
