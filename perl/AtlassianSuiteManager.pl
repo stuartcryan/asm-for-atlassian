@@ -39,6 +39,7 @@ use Data::Dumper;              # Perl core module
 use Config::Simple;            # From CPAN
 use File::Copy;
 use File::Path;
+use File::Find;
 use Archive::Extract;
 use XML::Twig;
 use strict;                    # Good practice
@@ -60,6 +61,50 @@ sub testOSArchitecture {
 	else {
 		return "32";
 	}
+}
+
+########################################
+#TestOSArchitecture                    #
+########################################
+sub getUserUidGid {
+	my $osUser;
+	my $login;
+	my $pass;
+	my $uid;
+	my $gid;
+	my @return;
+	
+	$osUser = $_[0];
+	
+	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
+	  or die "$osUser not in passwd file";
+	  
+	  @return = ($uid, $gid);
+	  return @return;
+}
+
+########################################
+#ChownRecursive                        #
+########################################
+sub chownRecursive {
+	my $uid;
+	my $gid;
+	my $directory;
+	
+	$uid = $_[0];
+	$gid = $_[1];
+	$directory = $_[2];
+	
+	print "\n\nChowning files to correct user. Please wait.";
+
+	find(
+    sub {
+        chown $uid, $gid, $_
+            or die "could not chown '$_': $!";
+    },
+    $directory);
+    
+	print "\n\nFiles chowned successfully.";
 }
 
 ########################################
@@ -342,9 +387,18 @@ sub extractAndMoveDownload {
 	my $inputFile;
 	my $expectedFolderName;    #MustBeAbsolute
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
+	my $osUser;
+	my $uid;
+	my $gid;
+	my $login;
+	my $pass;
 
 	$inputFile          = $_[0];
 	$expectedFolderName = $_[1];
+	$osUser             = $_[2];
+
+	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
+	  or die "$osUser not in passwd file";
 
 	my $ae = Archive::Extract->new( archive => $inputFile );
 	print "Please wait, extracting $inputFile.\n\n";
@@ -372,11 +426,14 @@ sub extractAndMoveDownload {
 				  . $expectedFolderName
 				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
+				chownRecursive ($uid, $gid, $expectedFolderName);
+
 			}
 			elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" ) {
 				$LOOP = 0;
 				rmtree( ["$expectedFolderName"] );
 				move( $ae->extract_path(), $expectedFolderName );
+				chownRecursive ($uid, $gid, $expectedFolderName);
 			}
 			elsif ( $input eq "" ) {
 				$LOOP = 0;
@@ -385,6 +442,7 @@ sub extractAndMoveDownload {
 				  . $expectedFolderName
 				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
+				chownRecursive ($uid, $gid, $expectedFolderName);
 			}
 			else {
 				print "Your input '" . $input
@@ -394,6 +452,7 @@ sub extractAndMoveDownload {
 	}
 	else {
 		move( $ae->extract_path(), $expectedFolderName );
+		chownRecursive ($uid, $gid, $expectedFolderName);
 	}
 
 }
@@ -845,6 +904,7 @@ sub installCrowd {
 	my $application = "crowd";
 	my @downloadDetails;
 	my $archiveLocation;
+	my $osUser = "crowd";
 
 	print
 "\n\nWould you like to review the crowd config before installing? Yes/No [yes]: ";
@@ -887,7 +947,7 @@ sub installCrowd {
 	}
 
 	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("crowd.installDir") );
+		$globalConfig->param("crowd.installDir"), $osUser );
 
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
@@ -910,9 +970,13 @@ sub installCrowd {
 	#chown home directory
 
 	#EditFileToReferenceHomedir
-	updateLineInFile( $globalConfig->param("crowd.installDir") . "/crowd-webapp/WEB-INF/classes/crowd-init.properties", "crowd.home",
+	updateLineInFile(
+		$globalConfig->param("crowd.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		"crowd.home",
 		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
-		"#crowd.home=/var/crowd-home" );
+		"#crowd.home=/var/crowd-home"
+	);
 
 }
 
@@ -1140,12 +1204,10 @@ sub downloadAtlassianInstaller {
 	$product      = $_[1];
 	$version      = $_[2];
 	$architecture = $_[3];
-	$
 
-	if ( $type eq "LATEST" ) {
+	  if( $type eq "LATEST" ){
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
-	}
-	else {
+	  } else {
 		@downloadDetails =
 		  getVersionDownloadURL( $product, $architecture, $version );
 	}
@@ -1163,7 +1225,8 @@ sub downloadAtlassianInstaller {
 		$parsedURL = URI->new( $downloadDetails[0] );
 		my @bits = $parsedURL->path_segments();
 		$ua->show_progress(1);
-		createDirectory($globalConfig->param("general.rootInstallDir"), $product);
+		createDirectory( $globalConfig->param("general.rootInstallDir"),
+			$product );
 		getstore( $downloadDetails[0],
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ] );
