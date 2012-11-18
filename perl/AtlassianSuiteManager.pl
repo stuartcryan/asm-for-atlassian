@@ -1423,7 +1423,15 @@ sub generateSuiteConfig {
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "crowd.enable", "TRUE" );
-		generateCrowdConfig( $mode, $cfg );
+		print
+		  "Do you wish to set up/update the Crowd configuration now? [no] \n\n";
+
+		$input = getBooleanInput();
+
+		if ( $input eq "yes" ) {
+			generateCrowdConfig( $mode, $cfg );
+		}
+
 	}
 	elsif ( $input eq "no"
 		|| ( $input eq "default" && $defaultValue eq "no" ) )
@@ -1451,7 +1459,14 @@ sub generateSuiteConfig {
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "jira.enable", "TRUE" );
-		generateJiraConfig( $mode, $cfg );
+		print
+		  "Do you wish to set up/update the Jira configuration now? [no] \n\n";
+
+		$input = getBooleanInput();
+
+		if ( $input eq "yes" ) {
+			generateJiraConfig( $mode, $cfg );
+		}
 	}
 	elsif ( $input eq "no"
 		|| ( $input eq "default" && $defaultValue eq "no" ) )
@@ -1479,7 +1494,14 @@ sub generateSuiteConfig {
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "confluence.enable", "TRUE" );
-		generateConfluenceConfig( $mode, $cfg );
+		print
+"Do you wish to set up/update the Confluence configuration now? [no] \n\n";
+
+		$input = getBooleanInput();
+
+		if ( $input eq "yes" ) {
+			generateConfluenceConfig( $mode, $cfg );
+		}
 	}
 	elsif ( $input eq "no"
 		|| ( $input eq "default" && $defaultValue eq "no" ) )
@@ -1507,7 +1529,14 @@ sub generateSuiteConfig {
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$cfg->param( "fisheye.enable", "TRUE" );
-		generateFisheyeConfig( $mode, $cfg );
+		print
+"Do you wish to set up/update the Fisheye configuration now? [no] \n\n";
+
+		$input = getBooleanInput();
+
+		if ( $input eq "yes" ) {
+			generateFisheyeConfig( $mode, $cfg );
+		}
 	}
 	elsif ( $input eq "no"
 		|| ( $input eq "default" && $defaultValue eq "no" ) )
