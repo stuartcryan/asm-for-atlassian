@@ -95,7 +95,7 @@ sub chownRecursive {
 	$gid = $_[1];
 	$directory = $_[2];
 	
-	print "\n\nChowning files to correct user. Please wait.";
+	print "Chowning files to correct user. Please wait.\n\n";
 
 	find(
     sub {
@@ -104,7 +104,7 @@ sub chownRecursive {
     },
     $directory);
     
-	print "\n\nFiles chowned successfully.";
+	print "Files chowned successfully.\n\n";
 }
 
 ########################################
@@ -203,8 +203,8 @@ sub bootStrapper {
 			print
 			  "In order to continue you must download the JDBC JAR file for "
 			  . $globalConfig->param("general.targetDBType")
-			  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.";
-			print "\n\nThis script will now exit.\n\n";
+			  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
+			print "This script will now exit.\n\n";
 		}
 	}
 
@@ -411,7 +411,7 @@ sub extractAndMoveDownload {
 
 		print "The destination directory '"
 		  . $expectedFolderName
-		  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
+		  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n\n";
 		while ( $LOOP == 1 ) {
 
 			$input = <STDIN>;
@@ -422,7 +422,7 @@ sub extractAndMoveDownload {
 			{
 				$LOOP = 0;
 				move( $expectedFolderName, $expectedFolderName . $date );
-				print "\nFolder backed up to "
+				print "Folder backed up to "
 				  . $expectedFolderName
 				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
@@ -438,7 +438,7 @@ sub extractAndMoveDownload {
 			elsif ( $input eq "" ) {
 				$LOOP = 0;
 				move( $expectedFolderName, $expectedFolderName . $date );
-				print "\nFolder backed up to "
+				print "Folder backed up to "
 				  . $expectedFolderName
 				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
@@ -446,7 +446,7 @@ sub extractAndMoveDownload {
 			}
 			else {
 				print "Your input '" . $input
-				  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n";
+				  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n\n";
 			}
 		}
 	}
@@ -490,7 +490,7 @@ sub genConfigItem {
 	else {
 		$defaultValue = $defaultInputValue;
 	}
-	print "\n\n" . $messageText . " [" . $defaultValue . "]: ";
+	print $messageText . " [" . $defaultValue . "]: \n\n";
 
 	$input = getGenericInput();
 	if ( $input eq "default" ) {
@@ -535,7 +535,7 @@ sub genBooleanConfigItem {
 	else {
 		$defaultValue = $defaultInputValue;
 	}
-	print "\n\n" . $messageText . " [" . $defaultValue . "]: ";
+	print $messageText . " [" . $defaultValue . "]: \n\n";
 
 	$input = getBooleanInput();
 
@@ -671,7 +671,7 @@ sub updateLineInFile {
 			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
 			if ( !defined($index1) ) {
 				die(
-"No line containing \"$lineReference\" found in file $inputFile"
+"No line containing \"$lineReference\" found in file $inputFile\n\n"
 				);
 			}
 			else {
@@ -680,7 +680,7 @@ sub updateLineInFile {
 		}
 		else {
 			die(
-				"No line containing \"$lineReference\" found in file $inputFile"
+				"No line containing \"$lineReference\" found in file $inputFile\n\n"
 			);
 		}
 	}
@@ -907,18 +907,20 @@ sub installCrowd {
 	my $osUser = "crowd";
 
 	print
-"\n\nWould you like to review the crowd config before installing? Yes/No [yes]: ";
+"Would you like to review the crowd config before installing? Yes/No [yes]: ";
 
 	$input = getBooleanInput();
+	print "\n\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		generateCrowdConfig( "UPDATE", $globalConfig );
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
 
-	print "\n\nWould you like to install the latest version? yes/no [yes]: ";
+	print "Would you like to install the latest version? yes/no [yes]: ";
 
 	$input = getBooleanInput();
+	print "\n\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$mode = "LATEST";
 	}
@@ -928,9 +930,10 @@ sub installCrowd {
 
 	if ( $mode eq "SPECIFIC" ) {
 		print
-		  "\n\nPlease enter the version number you would like. i.e. 4.2.2 []: ";
+		  "Please enter the version number you would like. i.e. 4.2.2 []: ";
 
 		$version = <STDIN>;
+		print "\n\n";
 		chomp $version;
 	}
 
@@ -1214,9 +1217,10 @@ sub downloadAtlassianInstaller {
 
 	if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
 		print
-"\n\nThis version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
+"This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
 
 		$input = getBooleanInput();
+		print "\n\n";
 		if ( $input eq "no" ) {
 			return;
 		}
@@ -1237,7 +1241,7 @@ sub downloadAtlassianInstaller {
 	}
 	else {
 		die
-"No such version ($version) of Crowd seems to exist (could not resolve URL)";
+"No such version ($version) of Crowd seems to exist (could not resolve URL)\n\n";
 	}
 }
 
@@ -1304,12 +1308,13 @@ sub generateSuiteConfig {
 		else {
 			$defaultValue = "no";
 		}
-		print "\n\nYour operating system architecture has been detected as "
+		print "Your operating system architecture has been detected as "
 		  . testOSArchitecture()
 		  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no ["
 		  . $defaultValue . "]: ";
 
 		$input = getBooleanInput();
+		print "\n\n";
 		if ( $input eq "yes"
 			|| ( $input eq "default" && $defaultValue eq "yes" ) )
 		{
@@ -1335,10 +1340,11 @@ sub generateSuiteConfig {
 		$defaultValue = "/opt/atlassian";
 	}
 	print
-	  "\n\nPlease enter the root directory the suite will be installed into. ["
+	  "Please enter the root directory the suite will be installed into. ["
 	  . $defaultValue . "]: ";
 
 	$input = getGenericInput();
+	print "\n\n";
 	if ( $input eq "default" ) {
 		$cfg->param( "general.rootInstallDir", $defaultValue );
 	}
@@ -1358,10 +1364,11 @@ sub generateSuiteConfig {
 		$defaultValue = "/var/atlassian/application-data";
 	}
 	print
-"\n\nPlease enter the root directory the suite data/home directories will be stored. ["
+"Please enter the root directory the suite data/home directories will be stored. ["
 	  . $defaultValue . "]: ";
 
 	$input = getGenericInput();
+	print "\n\n";
 	if ( $input eq "default" ) {
 		$cfg->param( "general.rootDataDir", $defaultValue );
 	}
@@ -1381,9 +1388,10 @@ sub generateSuiteConfig {
 		$defaultValue = "yes";
 	}
 
-	print "\n\nDo you wish to install/manage Crowd? yes/no ["
+	print "Do you wish to install/manage Crowd? yes/no ["
 	  . $defaultValue . "]: ";
 	$input = getBooleanInput();
+	print "\n\n";
 	if ( $input eq "yes"
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
@@ -1408,9 +1416,10 @@ sub generateSuiteConfig {
 		$defaultValue = "yes";
 	}
 
-	print "\n\nDo you wish to install/manage JIRA? yes/no ["
+	print "Do you wish to install/manage JIRA? yes/no ["
 	  . $defaultValue . "]: ";
 	$input = getBooleanInput();
+	print "\n\n";
 	if ( $input eq "yes"
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
@@ -1435,9 +1444,10 @@ sub generateSuiteConfig {
 		$defaultValue = "yes";
 	}
 
-	print "\n\nDo you wish to install/manage Confluence? yes/no ["
+	print "Do you wish to install/manage Confluence? yes/no ["
 	  . $defaultValue . "]: ";
 	$input = getBooleanInput();
+	print "\n\n";
 	if ( $input eq "yes"
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
@@ -1462,9 +1472,10 @@ sub generateSuiteConfig {
 		$defaultValue = "yes";
 	}
 
-	print "\n\nDo you wish to install/manage Fisheye? yes/no ["
+	print "Do you wish to install/manage Fisheye? yes/no ["
 	  . $defaultValue . "]: ";
 	$input = getBooleanInput();
+	print "\n\n";
 	if ( $input eq "yes"
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
@@ -1491,7 +1502,7 @@ sub generateSuiteConfig {
 		$defaultValue = "";
 	}
 	print
-"\n\nWhat is the target database type that will be used (enter number to select)? 1/2/3/4/5 ["
+"What is the target database type that will be used (enter number to select)? 1/2/3/4/5 ["
 	  . $defaultValue . "] :";
 	print "\n1. MySQL";
 	print "\n2. PostgreSQL";
@@ -1504,7 +1515,7 @@ sub generateSuiteConfig {
 		  . $defaultValue . "].";
 	}
 	else {
-		print "\n\nPlease make a selection: \n";
+		print "\n\nPlease make a selection: \n\n";
 	}
 
 	my $LOOP = 1;
@@ -1550,7 +1561,7 @@ sub generateSuiteConfig {
 		}
 		elsif ( ( lc $input ) eq "" & ( $#parameterNull == -1 ) ) {
 			print
-"\n\nYou did not make a selection please enter 1, 2, 3, 4 or 5. \n";
+"You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
 		}
 		elsif ( ( lc $input ) eq "" & !( $#parameterNull == -1 ) ) {
 
@@ -1558,8 +1569,8 @@ sub generateSuiteConfig {
 			$LOOP = 0;
 		}
 		else {
-			print "\n\nYour input '" . $input
-			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n";
+			print "Your input '" . $input
+			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n\n";
 		}
 	}
 	if ( defined($oldConfig) ) {
@@ -1583,21 +1594,21 @@ sub generateSuiteConfig {
 
 		#createNullOptionInConfigFile
 		$cfg->param( "general.dbJDBCJar", "" );
-		print "\n\nIn order to support your target database type ["
+		print "In order to support your target database type ["
 		  . $cfg->param("general.targetDBType")
-		  . "] you need to download the appropriate JAR file.";
+		  . "] you need to download the appropriate JAR file.\n\n";
 		if ( $cfg->param("general.targetDBType") eq "Oracle" ) {
 			print
-"\n\nPlease visit http://www.oracle.com/technetwork/database/features/jdbc/index-091264.html and download the appropriate JDBC JAR File";
+"Please visit http://www.oracle.com/technetwork/database/features/jdbc/index-091264.html and download the appropriate JDBC JAR File\n";
 		}
 		elsif ( $cfg->param("general.targetDBType") eq "MSSQL" ) {
 			print
-"\nPlease visit http://msdn.microsoft.com/en-us/sqlserver/aa937724.aspx and download the appropriate JDBC JAR File";
+"Please visit http://msdn.microsoft.com/en-us/sqlserver/aa937724.aspx and download the appropriate JDBC JAR File\n";
 		}
 		print
-"\nOnce you have downloaded this (any location is fine, I recommend to the folder this script is installed into),\nplease edit the 'dbJDBCJar' option under [general] in '$configFile' to point to the full absolute path (including filename) of the jar file.";
+"Once you have downloaded this (any location is fine, I recommend to the folder this script is installed into),\nplease edit the 'dbJDBCJar' option under [general] in '$configFile' to point to the full absolute path (including filename) of the jar file.\n\n";
 		print
-"\n\nThis script will now exit. Please update the aforementioned config before running again.\n\n";
+"This script will now exit. Please update the aforementioned config before running again.\n\n";
 
 		#Write config and exit;
 		$cfg->write($configFile);
