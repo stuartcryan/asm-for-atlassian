@@ -944,14 +944,15 @@ sub installCrowd {
 	my $application = "crowd";
 	my @downloadDetails;
 	my $archiveLocation;
-	my $osUser = $globalConfig->param("crowd.osUser");
+	my $osUser;
+	my $VERSIONLOOP = 1;
 
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"crowd.appContext",   "crowd.enable",
-		"crowd.dataDir",      "crowd.installDir",
-		"crowd.runAsService", "crowd.serverPort",
-		"crowd.connectorPort"
+		"crowd.appContext",    "crowd.enable",
+		"crowd.dataDir",       "crowd.installDir",
+		"crowd.runAsService",  "crowd.serverPort",
+		"crowd.connectorPort", "crowd.osUser"
 	);
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		print
@@ -972,17 +973,7 @@ sub installCrowd {
 			loadSuiteConfig();
 		}
 	}
-
-	print
-"Would you like to review the crowd config before installing? Yes/No [yes]: ";
-
-	$input = getBooleanInput();
-	print "\n\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		generateCrowdConfig( "UPDATE", $globalConfig );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
+	$osUser = $globalConfig->param("crowd.osUser");
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
 
@@ -996,11 +987,29 @@ sub installCrowd {
 	}
 
 	if ( $mode eq "SPECIFIC" ) {
-		print "Please enter the version number you would like. i.e. 4.2.2 []: ";
+		while ( $VERSIONLOOP == 1 ) {
+			print
+			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
 
-		$version = <STDIN>;
-		print "\n\n";
-		chomp $version;
+			$version = <STDIN>;
+			print "\n\n";
+			chomp $version;
+			print
+"Please wait, checking that version $version of Crowd exists (may take a few moments)... \n\n";
+			@downloadDetails =
+			  getVersionDownloadURL( $application,
+				whichApplicationArchitecture(), $version );
+
+			if ( head( $downloadDetails[0] ) ) {
+				$VERSIONLOOP = 0;
+				print "Crowd version $version found. Continuing...\n\n";
+			}
+			else {
+				print
+"No such version of Crowd exists. Please visit http://www.atlassian.com/software/crowd/download-archive and pick a valid version number and try again.\n\n";
+			}
+		}
+
 	}
 
 	if ( $mode eq "LATEST" ) {
@@ -1121,6 +1130,7 @@ sub generateCrowdConfig {
 		"Please enter the directory Crowd will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/crowd"
 	);
+
 	genConfigItem(
 		$mode, $cfg, "crowd.dataDir",
 		"Please enter the directory Crowd's data will be stored in.",
@@ -1128,6 +1138,7 @@ sub generateCrowdConfig {
 	);
 	genConfigItem( $mode, $cfg, "crowd.osUser",
 		"Enter the user that Crowd will run under.", "crowd" );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1270,11 +1281,14 @@ sub downloadAtlassianInstaller {
 	my $parsedURL;
 	my @downloadDetails;
 	my $input;
+	my $downloadResponseCode;
 
 	$type         = $_[0];
 	$product      = $_[1];
 	$version      = $_[2];
 	$architecture = $_[3];
+
+	print "Beginning download of $product version $version\n\n";
 
 	if ( $type eq "LATEST" ) {
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
@@ -1294,15 +1308,19 @@ sub downloadAtlassianInstaller {
 			return;
 		}
 	}
-	if ( head( $downloadDetails[0] ) ) {
-		$parsedURL = URI->new( $downloadDetails[0] );
-		my @bits = $parsedURL->path_segments();
-		$ua->show_progress(1);
-		createDirectory( $globalConfig->param("general.rootInstallDir"),
-			$product );
-		getstore( $downloadDetails[0],
-			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ] );
+	$parsedURL = URI->new( $downloadDetails[0] );
+	my @bits = $parsedURL->path_segments();
+	$ua->show_progress(1);
+	print "Checking that root install dir exists...\n\n";
+	createDirectory( $globalConfig->param("general.rootInstallDir"), $product );
+	print "Downloading file from Atlassian...\n\n";
+	$downloadResponseCode = getstore( $downloadDetails[0],
+		    $globalConfig->param("general.rootInstallDir") . "/"
+		  . $bits[ @bits - 1 ] );
+
+	if ( is_success($downloadResponseCode) ) {
+		print "\n\n";
+		print "Download completed successfully.";
 		$downloadDetails[2] =
 		    $globalConfig->param("general.rootInstallDir") . "/"
 		  . $bits[ @bits - 1 ];
@@ -1310,8 +1328,9 @@ sub downloadAtlassianInstaller {
 	}
 	else {
 		die
-"No such version ($version) of Crowd seems to exist (could not resolve URL)\n\n";
+"Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'";
 	}
+
 }
 
 ########################################
@@ -1660,3 +1679,5 @@ bootStrapper();
 #	"/opt/atlassian/software/fisheye-2.9.0.zip",#	$globalConfig->param("fisheye.installDir")
 #);
 #installCrowd();
+downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
+	whichApplicationArchitecture() );
