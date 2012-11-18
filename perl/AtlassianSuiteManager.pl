@@ -73,14 +73,14 @@ sub getUserUidGid {
 	my $uid;
 	my $gid;
 	my @return;
-	
+
 	$osUser = $_[0];
-	
+
 	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
 	  or die "$osUser not in passwd file";
-	  
-	  @return = ($uid, $gid);
-	  return @return;
+
+	@return = ( $uid, $gid );
+	return @return;
 }
 
 ########################################
@@ -90,20 +90,21 @@ sub chownRecursive {
 	my $uid;
 	my $gid;
 	my $directory;
-	
-	$uid = $_[0];
-	$gid = $_[1];
+
+	$uid       = $_[0];
+	$gid       = $_[1];
 	$directory = $_[2];
-	
+
 	print "Chowning files to correct user. Please wait.\n\n";
 
 	find(
-    sub {
-        chown $uid, $gid, $_
-            or die "could not chown '$_': $!";
-    },
-    $directory);
-    
+		sub {
+			chown $uid, $gid, $_
+			  or die "could not chown '$_': $!";
+		},
+		$directory
+	);
+
 	print "Files chowned successfully.\n\n";
 }
 
@@ -388,17 +389,13 @@ sub extractAndMoveDownload {
 	my $expectedFolderName;    #MustBeAbsolute
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 	my $osUser;
-	my $uid;
-	my $gid;
-	my $login;
-	my $pass;
+	my @uidGid;
 
 	$inputFile          = $_[0];
 	$expectedFolderName = $_[1];
 	$osUser             = $_[2];
 
-	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
-	  or die "$osUser not in passwd file";
+	@uidGid = getUserUidGid($osUser);
 
 	my $ae = Archive::Extract->new( archive => $inputFile );
 	print "Please wait, extracting $inputFile.\n\n";
@@ -426,14 +423,14 @@ sub extractAndMoveDownload {
 				  . $expectedFolderName
 				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
-				chownRecursive ($uid, $gid, $expectedFolderName);
+				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 
 			}
 			elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" ) {
 				$LOOP = 0;
 				rmtree( ["$expectedFolderName"] );
 				move( $ae->extract_path(), $expectedFolderName );
-				chownRecursive ($uid, $gid, $expectedFolderName);
+				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 			}
 			elsif ( $input eq "" ) {
 				$LOOP = 0;
@@ -442,7 +439,7 @@ sub extractAndMoveDownload {
 				  . $expectedFolderName
 				  . $date . "\n\n";
 				move( $ae->extract_path(), $expectedFolderName );
-				chownRecursive ($uid, $gid, $expectedFolderName);
+				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 			}
 			else {
 				print "Your input '" . $input
@@ -452,7 +449,7 @@ sub extractAndMoveDownload {
 	}
 	else {
 		move( $ae->extract_path(), $expectedFolderName );
-		chownRecursive ($uid, $gid, $expectedFolderName);
+		chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 	}
 
 }
@@ -680,7 +677,7 @@ sub updateLineInFile {
 		}
 		else {
 			die(
-				"No line containing \"$lineReference\" found in file $inputFile\n\n"
+"No line containing \"$lineReference\" found in file $inputFile\n\n"
 			);
 		}
 	}
@@ -929,8 +926,7 @@ sub installCrowd {
 	}
 
 	if ( $mode eq "SPECIFIC" ) {
-		print
-		  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+		print "Please enter the version number you would like. i.e. 4.2.2 []: ";
 
 		$version = <STDIN>;
 		print "\n\n";
@@ -1208,9 +1204,10 @@ sub downloadAtlassianInstaller {
 	$version      = $_[2];
 	$architecture = $_[3];
 
-	  if( $type eq "LATEST" ){
+	if ( $type eq "LATEST" ) {
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
-	  } else {
+	}
+	else {
 		@downloadDetails =
 		  getVersionDownloadURL( $product, $architecture, $version );
 	}
@@ -1339,8 +1336,7 @@ sub generateSuiteConfig {
 	else {
 		$defaultValue = "/opt/atlassian";
 	}
-	print
-	  "Please enter the root directory the suite will be installed into. ["
+	print "Please enter the root directory the suite will be installed into. ["
 	  . $defaultValue . "]: ";
 
 	$input = getGenericInput();
@@ -1561,7 +1557,7 @@ sub generateSuiteConfig {
 		}
 		elsif ( ( lc $input ) eq "" & ( $#parameterNull == -1 ) ) {
 			print
-"You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
+			  "You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
 		}
 		elsif ( ( lc $input ) eq "" & !( $#parameterNull == -1 ) ) {
 
