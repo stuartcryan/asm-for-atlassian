@@ -64,7 +64,7 @@ sub testOSArchitecture {
 }
 
 ########################################
-#TestOSArchitecture                    #
+#getUserUidGid                         #
 ########################################
 sub getUserUidGid {
 	my $osUser;
@@ -138,7 +138,7 @@ sub createDirectory {
 
 	@folderList = ($directory);
 
-	@uidGid = getUserUidGid($osUser); 
+	@uidGid = getUserUidGid($osUser);
 	if ( -d $directory ) {
 		chown $uidGid[0], $uidGid[1], @folderList;
 
@@ -154,6 +154,36 @@ sub createDirectory {
 
 		chown $uidGid[0], $uidGid[1], @folderList;
 	}
+}
+
+########################################
+#CheckRequiredConfigItems              #
+########################################
+sub checkRequiredConfigItems {
+	my @requiredConfigItems;
+	my @parameterNull;
+	my $failureCount = 0;
+
+	@requiredConfigItems = @_;
+
+	print Dumper @requiredConfigItems;
+
+	foreach (@requiredConfigItems) {
+
+		#$_;
+		@parameterNull = $globalConfig->param($_);
+		if ( ( $#parameterNull == -1 ) || $globalConfig->param($_) eq "" ) {
+			print "We are here";
+			$failureCount++;
+		}
+	}
+	if ( $failureCount > 0 ) {
+		return "FAIL";
+	}
+	else {
+		return "PASS";
+	}
+
 }
 
 ########################################
@@ -897,8 +927,24 @@ sub installCrowd {
 	my $application = "crowd";
 	my @downloadDetails;
 	my $archiveLocation;
-	my $osUser = "crowd";
+	my $osUser = $globalConfig->param("crowd.osUser");
 
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"crowd.appContext",   "crowd.enable",
+		"crowd.dataDir",      "crowd.installDir",
+		"crowd.runAsService", "crowd.serverPort",
+		"crowd.connectorPort"
+	);
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		print
+"Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: ";
+		generateCrowdConfig( "UPDATE", $globalConfig );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+}
+else {
 	print
 "Would you like to review the crowd config before installing? Yes/No [yes]: ";
 
@@ -909,69 +955,79 @@ sub installCrowd {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
+}
 
-	print "Would you like to install the latest version? yes/no [yes]: ";
+print
+  "Would you like to review the crowd config before installing? Yes/No [yes]: ";
 
-	$input = getBooleanInput();
+$input = getBooleanInput();
+print "\n\n";
+if ( $input eq "default" || $input eq "yes" ) {
+	generateCrowdConfig( "UPDATE", $globalConfig );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+}
+
+print "Would you like to install the latest version? yes/no [yes]: ";
+
+$input = getBooleanInput();
+print "\n\n";
+if ( $input eq "default" || $input eq "yes" ) {
+	$mode = "LATEST";
+}
+else {
+	$mode = "SPECIFIC";
+}
+
+if ( $mode eq "SPECIFIC" ) {
+	print "Please enter the version number you would like. i.e. 4.2.2 []: ";
+
+	$version = <STDIN>;
 	print "\n\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$mode = "LATEST";
-	}
-	else {
-		$mode = "SPECIFIC";
-	}
+	chomp $version;
+}
 
-	if ( $mode eq "SPECIFIC" ) {
-		print "Please enter the version number you would like. i.e. 4.2.2 []: ";
+if ( $mode eq "LATEST" ) {
+	@downloadDetails =
+	  downloadAtlassianInstaller( $mode, $application, "",
+		whichApplicationArchitecture() );
 
-		$version = <STDIN>;
-		print "\n\n";
-		chomp $version;
-	}
+}
+else {
+	@downloadDetails =
+	  downloadAtlassianInstaller( $mode, $application, $version,
+		whichApplicationArchitecture() );
+}
 
-	if ( $mode eq "LATEST" ) {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "",
-			whichApplicationArchitecture() );
+extractAndMoveDownload( $downloadDetails[2],
+	$globalConfig->param("crowd.installDir"), $osUser );
 
-	}
-	else {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
-			whichApplicationArchitecture() );
-	}
+updateXMLAttribute(
+	$globalConfig->param("crowd.installDir") . "/apache-tomcat/conf/server.xml",
+	"///Connector", "port", $globalConfig->param("crowd.connectorPort")
+);
+updateXMLAttribute(
+	$globalConfig->param("crowd.installDir") . "/apache-tomcat/conf/server.xml",
+	"/Server", "port", $globalConfig->param("crowd.serverPort")
+);
 
-	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("crowd.installDir"), $osUser );
+createOSUser("crowd");
 
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
-	);
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"/Server", "port", $globalConfig->param("crowd.serverPort")
-	);
+generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
+	"start_crowd.sh", "stop_crowd.sh" );
 
-	createOSUser("crowd");
+#createHomeDirectory
 
-	generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
-		"start_crowd.sh", "stop_crowd.sh" );
+#chown home directory
 
-	#createHomeDirectory
-
-	#chown home directory
-
-	#EditFileToReferenceHomedir
-	updateLineInFile(
-		$globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
-		"crowd.home",
-		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
-		"#crowd.home=/var/crowd-home"
-	);
+#EditFileToReferenceHomedir
+updateLineInFile(
+	$globalConfig->param("crowd.installDir")
+	  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+	"crowd.home",
+	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+	"#crowd.home=/var/crowd-home"
+);
 
 }
 
@@ -1052,6 +1108,8 @@ sub generateCrowdConfig {
 		"Please enter the directory Crowd's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/crowd"
 	);
+	genConfigItem( $mode, $cfg, "crowd.osUser",
+		"Enter the user that Crowd will run under.", "crowd" );
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1684,4 +1742,4 @@ bootStrapper();
 #extractAndMoveDownload(
 #	"/opt/atlassian/software/fisheye-2.9.0.zip",#	$globalConfig->param("fisheye.installDir")
 #);
-installCrowd();
+#installCrowd();
