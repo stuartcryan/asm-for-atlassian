@@ -225,14 +225,17 @@ sub bootStrapper {
 	my @requiredConfigItems;
 	my $input;
 
+	#Try to load configuration file
 	loadSuiteConfig();
 
 	#If no config found, force generation
 	if ( !$globalConfig ) {
 		generateSuiteConfig();
 	}
-	else {
 
+ #If config file exists check for required config items.
+ #Useful if new functions have been added to ensure new config items are defined
+	else {
 		@requiredConfigItems = (
 			"general.rootDataDir",  "general.rootInstallDir",
 			"general.targetDBType", "general.force32Bit"
@@ -243,6 +246,9 @@ sub bootStrapper {
 			$input = <STDIN>;
 			generateSuiteConfig();
 		}
+
+	  #Check for database setting that requires a JDBC Jar file to be downloaded
+	  #to ensure this is done, we die if the parameter is not defined.
 		else {
 			@parameterNull = $globalConfig->param("general.dbJDBCJar");
 			if (
@@ -259,7 +265,7 @@ sub bootStrapper {
 "In order to continue you must download the JDBC JAR file for "
 				  . $globalConfig->param("general.targetDBType")
 				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
-				print "This script will now exit.\n\n";
+				die "This script will now exit.\n\n";
 			}
 		}
 	}
@@ -273,14 +279,17 @@ sub getLatestDownloadURL {
 	my $product;
 	my $architecture;
 	my @returnArray;
+	my $decoded_json;
 
 	$product      = $_[0];
 	$architecture = $_[1];
 
+	#Build URL to check latest version for a particular product
 	my $versionurl =
 	  "https://my.atlassian.com/download/feeds/current/" . $product . ".json";
 	my $searchString;
 
+ #For each product define the file type that we are looking for in the json feed
 	if ( $product eq "confluence" ) {
 		$searchString = ".*Linux.*$architecture.*";
 	}
@@ -305,8 +314,8 @@ sub getLatestDownloadURL {
 		exit 2;
 	}
 
+	#Try and download the feed
 	my $json = get($versionurl);
-
 	die "Could not get $versionurl!" unless defined $json;
 
  #We have to rework the string slightly as Atlassian is not returning valid JSON
@@ -314,12 +323,10 @@ sub getLatestDownloadURL {
 	$json = '{ "downloads": ' . $json . '}';
 
 	# Decode the entire JSON
-	my $decoded_json = decode_json($json);
+	$decoded_json = decode_json($json);
 
-	my $json_obj = from_json($json);
-
+	#Loop through the feed and find the specific file we want for this product
 	for my $item ( @{ $decoded_json->{downloads} } ) {
-
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
 				@returnArray = ( $item->{zipUrl}, $item->{version} );
@@ -340,15 +347,17 @@ sub getVersionDownloadURL {
 	my $fileExt;
 	my $version;
 	my @returnArray;
+	my $versionurl;
 
 	$product      = $_[0];
 	$architecture = $_[1];
 	$version      = $_[2];
 
-	my $versionurl =
+	#Generate product specific URL
+	$versionurl =
 	  "http://www.atlassian.com/software/" . $product . "/downloads/binary";
-	my $searchString;
 
+#For each product generate the file name based on known information and input data
 	if ( $product eq "confluence" ) {
 		$fileExt = "bin";
 		$filename =
@@ -383,6 +392,8 @@ sub getVersionDownloadURL {
 "That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
 		exit 2;
 	}
+
+	#Return the absolute URL to the version specific download
 	@returnArray = ( $versionurl . "/" . $filename, $version );
 }
 
@@ -450,6 +461,7 @@ sub extractAndMoveDownload {
 	$expectedFolderName = $_[1];
 	$osUser             = $_[2];
 
+	#Get the UID and GID for the user so that we can chown files
 	@uidGid = getUserUidGid($osUser);
 
 	print "Preparing to extract $inputFile...\n\n";
@@ -551,9 +563,13 @@ sub genConfigItem {
 	$messageText       = $_[3];
 	$defaultInputValue = $_[4];
 
+	#Check if the paramater is null (undefined)
 	@parameterNull = $cfg->param($configParam);
 
+#Check if we are updating (get current value), or doing a fresh run (use default passed to this function)
 	if ( $mode eq "UPDATE" ) {
+
+		#Check if the current value is defined
 		if ( defined( $cfg->param($configParam) ) & !( $#parameterNull == -1 ) )
 		{
 			$defaultValue = $cfg->param($configParam);
@@ -568,6 +584,8 @@ sub genConfigItem {
 	print $messageText . " [" . $defaultValue . "]: \n\n";
 
 	$input = getGenericInput();
+
+#If default option is selected (i.e. just a return), use default value, otherwise use input
 	if ( $input eq "default" ) {
 		$cfg->param( $configParam, $defaultValue );
 	}
@@ -596,9 +614,13 @@ sub genBooleanConfigItem {
 	$messageText       = $_[3];
 	$defaultInputValue = $_[4];
 
+	#Check if parameter is null (undefined)
 	@parameterNull = $cfg->param($configParam);
 
+#Check if we are updating (get current value), or doing a fresh run (use default passed to this function)
 	if ( $mode eq "UPDATE" ) {
+
+		#Check if the current value is defined
 		if ( defined( $cfg->param($configParam) ) & !( $#parameterNull == -1 ) )
 		{
 			if ( $cfg->param($configParam) eq "TRUE" ) {
@@ -619,6 +641,7 @@ sub genBooleanConfigItem {
 
 	$input = getBooleanInput();
 
+#If default option is selected (i.e. just a return), use default value, set to boolean value based on return
 	if ( $input eq "yes"
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
@@ -637,7 +660,6 @@ sub genBooleanConfigItem {
 ########################################
 sub updateXMLAttribute {
 
-	#options in format option="something"
 	my $xmlFile;    #Must Be Absolute Path
 	my $searchString;
 	my $referenceAttribute;
@@ -648,12 +670,18 @@ sub updateXMLAttribute {
 	$referenceAttribute = $_[2];
 	$attributeValue     = $_[3];
 
+    #Set up new XML object, with "pretty" spacing (i.e. standard spacing)
 	my $twig = new XML::Twig( pretty_print => 'indented', );
+	
+	#Parse the XML file
 	$twig->parsefile($xmlFile);
-
+	
+    #Find the node we are looking for based on the provided search string
 	for my $node ( $twig->findnodes($searchString) ) {
+		#Set the node to the new attribute value
 		$node->set_att( $referenceAttribute => $attributeValue );
 	}
+	#Print the new XML tree back to the original file
 	$twig->print_to_file($xmlFile);
 }
 
@@ -668,8 +696,9 @@ sub updateJavaOpts {
 
 	$inputFile = $_[0];
 	$javaOpts  = $_[1];
-
-	open( FILE, $inputFile ) or die("Unable to open file");
+    
+    #Try to open the provided file
+	open( FILE, $inputFile ) or die("Unable to open file: $inputFile");
 
 	# read file into an array
 	@data = <FILE>;
@@ -677,8 +706,13 @@ sub updateJavaOpts {
 	close(FILE);
 
 	$searchFor = "JAVA_OPTS";
+	
+	#Search for the provided string in the file array
 	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
 
+    #See how many times ATLASMGR_JAVA_OPTS occurs in file, this will be in the existing
+    #JAVA_OPTS parameter as a variable.
+    #If it doesn't exist this splits up the string so that we can insert it as a new variable
 	my $count = grep( /.*ATLASMGR_JAVA_OPTS.*/, $data[$index1] );
 	if ( $count == 0 ) {
 		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
@@ -703,17 +737,22 @@ sub updateJavaOpts {
 		}
 	}
 
+    #Search for the definition of the variable ATLASMGR_JAVA_OPTS which can be used to add
+    #additional parameters to the main JAVA_OPTS variable
 	$searchFor = "ATLASMGR_JAVA_OPTS=";
 	my ($index2) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
 
+    #If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
 	if ( !defined($index2) ) {
 		splice( @data, $index1, 0,
 			"ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n" );
 	}
+	#Else update the line to have the new parameters that have been specified
 	else {
 		$data[$index2] = "ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n";
 	}
 
+    #Try to open file, output the lines that are in memory and close
 	open FILE, ">$inputFile" or die $!;
 	print FILE @data;
 	close FILE;
