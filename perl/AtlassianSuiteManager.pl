@@ -130,21 +130,17 @@ sub createOSUser {
 sub createDirectory {
 	my $directory;
 	my $osUser;
-	my $pass;
-	my $uid;
-	my $gid;
-	my $login;
 	my @folderList;
+	my @uidGid;
 
 	$directory = $_[0];
 	$osUser    = $_[1];
 
 	@folderList = ($directory);
 
-	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
-	  or die "$osUser not in passwd file";
+	@uidGid = getUserUidGid($osUser); 
 	if ( -d $directory ) {
-		chown $uid, $gid, @folderList;
+		chown $uidGid[0], $uidGid[1], @folderList;
 
 	}
 	else {
@@ -156,7 +152,7 @@ sub createDirectory {
 			}
 		);
 
-		chown $uid, $gid, @folderList;
+		chown $uidGid[0], $uidGid[1], @folderList;
 	}
 }
 
