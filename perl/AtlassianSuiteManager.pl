@@ -166,14 +166,11 @@ sub checkRequiredConfigItems {
 
 	@requiredConfigItems = @_;
 
-	print Dumper @requiredConfigItems;
-
 	foreach (@requiredConfigItems) {
 
 		#$_;
 		@parameterNull = $globalConfig->param($_);
 		if ( ( $#parameterNull == -1 ) || $globalConfig->param($_) eq "" ) {
-			print "We are here";
 			$failureCount++;
 		}
 	}
@@ -208,6 +205,8 @@ sub whichApplicationArchitecture {
 ########################################
 sub bootStrapper {
 	my @parameterNull;
+	my @requiredConfigItems;
+	my $input;
 
 	loadSuiteConfig();
 
@@ -216,22 +215,35 @@ sub bootStrapper {
 		generateSuiteConfig();
 	}
 	else {
-		@parameterNull = $globalConfig->param("general.dbJDBCJar");
-		if (
-			(
-				   $globalConfig->param("general.targetDBType") eq "Oracle"
-				|| $globalConfig->param("general.targetDBType") eq "MSSQL"
-			) & (
-				( $#parameterNull == -1 )
-				  || $globalConfig->param("general.dbJDBCJar") eq ""
-			)
-		  )
-		{
+
+		@requiredConfigItems = (
+			"general.rootDataDir",  "general.rootInstallDir",
+			"general.targetDBType", "general.force32Bit"
+		);
+		if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 			print
-			  "In order to continue you must download the JDBC JAR file for "
-			  . $globalConfig->param("general.targetDBType")
-			  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
-			print "This script will now exit.\n\n";
+"There are some global configuration items that are incomplete or missing. This may be due to new features or new config items.\n\nThe global config manager will now run to get all items, please press return/enter to begin.\n\n";
+			$input = <STDIN>;
+			generateSuiteConfig();
+		}
+		else {
+			@parameterNull = $globalConfig->param("general.dbJDBCJar");
+			if (
+				(
+					   $globalConfig->param("general.targetDBType") eq "Oracle"
+					|| $globalConfig->param("general.targetDBType") eq "MSSQL"
+				) & (
+					( $#parameterNull == -1 )
+					  || $globalConfig->param("general.dbJDBCJar") eq ""
+				)
+			  )
+			{
+				print
+"In order to continue you must download the JDBC JAR file for "
+				  . $globalConfig->param("general.targetDBType")
+				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
+				print "This script will now exit.\n\n";
+			}
 		}
 	}
 
@@ -943,8 +955,19 @@ sub installCrowd {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
-}
-else {
+	else {
+		print
+"Would you like to review the crowd config before installing? Yes/No [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			generateCrowdConfig( "UPDATE", $globalConfig );
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+		}
+	}
+
 	print
 "Would you like to review the crowd config before installing? Yes/No [yes]: ";
 
@@ -955,79 +978,69 @@ else {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
-}
 
-print
-  "Would you like to review the crowd config before installing? Yes/No [yes]: ";
+	print "Would you like to install the latest version? yes/no [yes]: ";
 
-$input = getBooleanInput();
-print "\n\n";
-if ( $input eq "default" || $input eq "yes" ) {
-	generateCrowdConfig( "UPDATE", $globalConfig );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-}
-
-print "Would you like to install the latest version? yes/no [yes]: ";
-
-$input = getBooleanInput();
-print "\n\n";
-if ( $input eq "default" || $input eq "yes" ) {
-	$mode = "LATEST";
-}
-else {
-	$mode = "SPECIFIC";
-}
-
-if ( $mode eq "SPECIFIC" ) {
-	print "Please enter the version number you would like. i.e. 4.2.2 []: ";
-
-	$version = <STDIN>;
+	$input = getBooleanInput();
 	print "\n\n";
-	chomp $version;
-}
+	if ( $input eq "default" || $input eq "yes" ) {
+		$mode = "LATEST";
+	}
+	else {
+		$mode = "SPECIFIC";
+	}
 
-if ( $mode eq "LATEST" ) {
-	@downloadDetails =
-	  downloadAtlassianInstaller( $mode, $application, "",
-		whichApplicationArchitecture() );
+	if ( $mode eq "SPECIFIC" ) {
+		print "Please enter the version number you would like. i.e. 4.2.2 []: ";
 
-}
-else {
-	@downloadDetails =
-	  downloadAtlassianInstaller( $mode, $application, $version,
-		whichApplicationArchitecture() );
-}
+		$version = <STDIN>;
+		print "\n\n";
+		chomp $version;
+	}
 
-extractAndMoveDownload( $downloadDetails[2],
-	$globalConfig->param("crowd.installDir"), $osUser );
+	if ( $mode eq "LATEST" ) {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, "",
+			whichApplicationArchitecture() );
 
-updateXMLAttribute(
-	$globalConfig->param("crowd.installDir") . "/apache-tomcat/conf/server.xml",
-	"///Connector", "port", $globalConfig->param("crowd.connectorPort")
-);
-updateXMLAttribute(
-	$globalConfig->param("crowd.installDir") . "/apache-tomcat/conf/server.xml",
-	"/Server", "port", $globalConfig->param("crowd.serverPort")
-);
+	}
+	else {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, $version,
+			whichApplicationArchitecture() );
+	}
 
-createOSUser("crowd");
+	extractAndMoveDownload( $downloadDetails[2],
+		$globalConfig->param("crowd.installDir"), $osUser );
 
-generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
-	"start_crowd.sh", "stop_crowd.sh" );
+	updateXMLAttribute(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
+	);
+	updateXMLAttribute(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		"/Server", "port", $globalConfig->param("crowd.serverPort")
+	);
 
-#createHomeDirectory
+	createOSUser("crowd");
 
-#chown home directory
+	generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
+		"start_crowd.sh", "stop_crowd.sh" );
 
-#EditFileToReferenceHomedir
-updateLineInFile(
-	$globalConfig->param("crowd.installDir")
-	  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
-	"crowd.home",
-	"crowd.home=" . $globalConfig->param("crowd.dataDir"),
-	"#crowd.home=/var/crowd-home"
-);
+	#createHomeDirectory
+
+	#chown home directory
+
+	#EditFileToReferenceHomedir
+	updateLineInFile(
+		$globalConfig->param("crowd.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		"crowd.home",
+		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		"#crowd.home=/var/crowd-home"
+	);
 
 }
 
@@ -1379,53 +1392,17 @@ sub generateSuiteConfig {
 
 	}
 
-	if ( $mode eq "UPDATE" ) {
-		if ( $globalConfig->param("general.rootInstallDir") ) {
-			$defaultValue = $globalConfig->param("general.rootInstallDir");
-		}
-		else {
-			$defaultValue = "/opt/atlassian";
-		}
-	}
-	else {
-		$defaultValue = "/opt/atlassian";
-	}
-	print "Please enter the root directory the suite will be installed into. ["
-	  . $defaultValue . "]: ";
+	genConfigItem( $mode, $cfg, "general.rootInstallDir",
+		"Please enter the root directory the suite will be installed into.",
+		"/opt/atlassian" );
 
-	$input = getGenericInput();
-	print "\n\n";
-	if ( $input eq "default" ) {
-		$cfg->param( "general.rootInstallDir", $defaultValue );
-	}
-	else {
-		$cfg->param( "general.rootInstallDir", $input );
-	}
-
-	if ( $mode eq "UPDATE" ) {
-		if ( $globalConfig->param("general.rootDataDir") ) {
-			$defaultValue = $globalConfig->param("general.rootDataDir");
-		}
-		else {
-			$defaultValue = "/var/atlassian/application-data";
-		}
-	}
-	else {
-		$defaultValue = "/var/atlassian/application-data";
-	}
-	print
-"Please enter the root directory the suite data/home directories will be stored. ["
-	  . $defaultValue . "]: ";
-
-	$input = getGenericInput();
-	print "\n\n";
-	if ( $input eq "default" ) {
-		$cfg->param( "general.rootDataDir", $defaultValue );
-	}
-	else {
-		$cfg->param( "general.rootDataDir", $input );
-	}
-
+	genConfigItem(
+		$mode,
+		$cfg,
+		"general.rootDataDir",
+"Please enter the root directory the suite data/home directories will be stored.",
+		"/var/atlassian/application-data"
+	);
 	if ( $mode eq "UPDATE" ) {
 		if ( $globalConfig->param("crowd.enable") ne "TRUE" ) {
 			$defaultValue = "no";
