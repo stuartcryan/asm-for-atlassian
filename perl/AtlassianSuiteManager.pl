@@ -63,6 +63,58 @@ sub testOSArchitecture {
 }
 
 ########################################
+#CreateOSUser                           #
+########################################
+sub createOSUser {
+	my $osUser;
+
+	$osUser = $_[0];
+
+	if ( !getpwnam($osUser) ) {
+		system("useradd $osUser");
+		if ( $? == -1 ) {
+			die "could not create system user $osUser";
+		}
+	}
+}
+
+########################################
+#CreateDirectory                       #
+########################################
+sub createDirectory {
+	my $directory;
+	my $osUser;
+	my $pass;
+	my $uid;
+	my $gid;
+	my $login;
+	my @folderList;
+
+	$directory = $_[0];
+	$osUser    = $_[1];
+
+	@folderList = ($directory);
+
+	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
+	  or die "$osUser not in passwd file";
+	if ( -d $directory ) {
+		chown $uid, $gid, @folderList;
+
+	}
+	else {
+		make_path(
+			$directory,
+			{
+				verbose => 1,
+				mode    => 0755,
+			}
+		);
+
+		chown $uid, $gid, @folderList;
+	}
+}
+
+########################################
 #WhichApplicationArchitecture          #
 ########################################
 sub whichApplicationArchitecture {
@@ -392,6 +444,56 @@ sub genConfigItem {
 }
 
 ########################################
+#genBooleanConfigItem                  #
+########################################
+sub genBooleanConfigItem {
+	my $mode;
+	my $cfg;
+	my $configParam;
+	my $messageText;
+	my $defaultInputValue;
+	my $defaultValue;
+	my $input;
+	my @parameterNull;
+
+	$mode              = $_[0];
+	$cfg               = $_[1];
+	$configParam       = $_[2];
+	$messageText       = $_[3];
+	$defaultInputValue = $_[4];
+
+	@parameterNull = $cfg->param($configParam);
+
+	if ( $mode eq "UPDATE" ) {
+		if ( defined( $cfg->param($configParam) ) & !( $#parameterNull == -1 ) )
+		{
+			$defaultValue = $cfg->param($configParam);
+		}
+		else {
+			$defaultValue = $defaultInputValue;
+		}
+	}
+	else {
+		$defaultValue = $defaultInputValue;
+	}
+	print "\n\n" . $messageText . " [" . $defaultValue . "]: ";
+
+	$input = getBooleanInput();
+
+	if ( $input eq "yes"
+		|| ( $input eq "default" && $defaultValue eq "yes" ) )
+	{
+		$cfg->param( $configParam, "TRUE" );
+	}
+	elsif ( $input eq "no"
+		|| ( $input eq "default" && $defaultValue eq "no" ) )
+	{
+		$cfg->param( $configParam, "FALSE" );
+	}
+
+}
+
+########################################
 #updateXMLAttribute                    #
 ########################################
 sub updateXMLAttribute {
@@ -495,7 +597,7 @@ sub updateLineInFile {
 	$newLine        = $_[2];
 	$lineReference2 = $_[3];
 
-	open( FILE, $inputFile ) or die("Unable to open file");
+	open( FILE, $inputFile ) or die("Unable to open file: $inputFile.");
 
 	# read file into an array
 	@data = <FILE>;
@@ -678,7 +780,7 @@ sub generateInitD {
 
 	@initFile = (
 		"#!/bin/sh -e\n",
-		"# " . $product . "startup script\n",
+		"#" . $product . " startup script\n",
 		"#chkconfig: 2345 80 05\n",
 		"#description: " . $product . "\n",
 		"\n",
@@ -688,7 +790,7 @@ sub generateInitD {
 		"STARTCOMMAND=" . $startCmd . "\n",
 		"STOPCOMMAND=" . $stopCmd . "\n",
 		"\n",
-		'case "$1 " in' . "\n",
+		'case "$1" in' . "\n",
 		"  # Start command\n",
 		"  start)\n",
 		'    echo "Starting $APP"' . "\n",
@@ -702,9 +804,9 @@ sub generateInitD {
 		"    ;;\n",
 		"   # Restart command\n",
 		"   restart)\n",
-		"        $0 stop\n",
+		'        $0 stop' . "\n",
 		"        sleep 5\n",
-		"        $0 start\n",
+		'        $0 start' . "\n",
 		"        ;;\n",
 		"  *)\n",
 		'    echo "Usage: /etc/init.d/$APP {start|restart|stop}"' . "\n",
@@ -747,7 +849,7 @@ sub installCrowd {
 	print
 "\n\nWould you like to review the crowd config before installing? Yes/No [yes]: ";
 
-	$input = getGenericInput();
+	$input = getBooleanInput();
 	if ( $input eq "default" || $input eq "yes" ) {
 		generateCrowdConfig( "UPDATE", $globalConfig );
 		$globalConfig->write($configFile);
@@ -756,7 +858,7 @@ sub installCrowd {
 
 	print "\n\nWould you like to install the latest version? yes/no [yes]: ";
 
-	$input = getGenericInput();
+	$input = getBooleanInput();
 	if ( $input eq "default" || $input eq "yes" ) {
 		$mode = "LATEST";
 	}
@@ -797,6 +899,20 @@ sub installCrowd {
 		  . "/apache-tomcat/conf/server.xml",
 		"/Server", "port", $globalConfig->param("crowd.serverPort")
 	);
+
+	createOSUser("crowd");
+
+	generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
+		"start_crowd.sh", "stop_crowd.sh" );
+
+	#createHomeDirectory
+
+	#chown home directory
+
+	#EditFileToReferenceHomedir
+	updateLineInFile( $globalConfig->param("crowd.installDir") . "/crowd-webapp/WEB-INF/classes/crowd-init.properties", "crowd.home",
+		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		"#crowd.home=/var/crowd-home" );
 
 }
 
@@ -898,6 +1014,10 @@ sub generateCrowdConfig {
 "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).",
 		"8000"
 	);
+
+	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
+		"Would you like to run Crowd as a service? yes/no.", "" );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1020,6 +1140,7 @@ sub downloadAtlassianInstaller {
 	$product      = $_[1];
 	$version      = $_[2];
 	$architecture = $_[3];
+	$
 
 	if ( $type eq "LATEST" ) {
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
@@ -1042,6 +1163,7 @@ sub downloadAtlassianInstaller {
 		$parsedURL = URI->new( $downloadDetails[0] );
 		my @bits = $parsedURL->path_segments();
 		$ua->show_progress(1);
+		createDirectory($globalConfig->param("general.rootInstallDir"), $product);
 		getstore( $downloadDetails[0],
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ] );
@@ -1496,4 +1618,4 @@ bootStrapper();
 #extractAndMoveDownload(
 #	"/opt/atlassian/software/fisheye-2.9.0.zip",#	$globalConfig->param("fisheye.installDir")
 #);
-#installCrowd();
+installCrowd();
