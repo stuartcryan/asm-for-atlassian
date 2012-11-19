@@ -1445,6 +1445,7 @@ sub installCrowd {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, "",
 			whichApplicationArchitecture() );
+		$version = $downloadDetails[1];
 
 	}
 
@@ -1574,6 +1575,7 @@ sub upgradeCrowd {
 	my $version;
 	my $application = "crowd";
 	my @downloadDetails;
+	my @downloadVersionCheck;
 	my $archiveLocation;
 	my $osUser;
 	my $VERSIONLOOP = 1;
@@ -1618,7 +1620,76 @@ sub upgradeCrowd {
 	createOSUser($osUser);
 
 	#We are upgrading, get the latest version
-	$mode = "LATEST";
+	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$mode = "LATEST";
+	}
+	else {
+		$mode = "SPECIFIC";
+	}
+
+	#If a specific version is selected, ask for the version number
+	if ( $mode eq "SPECIFIC" ) {
+		while ( $VERSIONLOOP == 1 ) {
+			print
+			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+
+			$version = <STDIN>;
+			print "\n";
+			chomp $version;
+
+			#Check that the input version actually exists
+			print
+"Please wait, checking that version $version of Crowd exists (may take a few moments)... \n\n";
+
+			#get the version specific URL to test
+			@downloadDetails =
+			  getVersionDownloadURL( $application,
+				whichApplicationArchitecture(), $version );
+
+			#Try to get the header of the version URL to ensure it exists
+			if ( head( $downloadDetails[0] ) ) {
+				$VERSIONLOOP = 0;
+				print "Crowd version $version found. Continuing...\n\n";
+			}
+			else {
+				print
+"No such version of Crowd exists. Please visit http://www.atlassian.com/software/crowd/download-archive and pick a valid version number and try again.\n\n";
+			}
+		}
+
+	}
+
+	#Get the URL for the version we want to download
+	if ( $mode eq "LATEST" ) {
+		@downloadVersionCheck =
+		  getLatestDownloadURL( $application, whichApplicationArchitecture() );
+		my $versionSupported =
+		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
+			$downloadVersionCheck[1] );
+		if ( $versionSupported eq "GREATER" ) {
+			die "The version to be downloaded ("
+			  . $downloadVersionCheck[1]
+			  . ") is older than the currently installed version ("
+			  . $globalConfig->param("crowd.installedVersion")
+			  . "). Downgrading is not supported and this script will now exit.\n\n";
+		}
+	}
+	elsif ( $mode eq "SPECIFIC" ) {
+		my $versionSupported =
+		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
+			$version );
+		if ( $versionSupported eq "GREATER" ) {
+			die "The version to be downloaded (" 
+			  . $version
+			  . ") is older than the currently installed version ("
+			  . $globalConfig->param("crowd.installedVersion")
+			  . "). Downgrading is not supported and this script will now exit.\n\n";
+		}
+	}
 
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
