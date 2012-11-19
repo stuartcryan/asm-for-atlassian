@@ -1504,6 +1504,7 @@ sub installCrowd {
 		print "\nCrowd can now be accessed on http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort") .
 		  . $globalConfig->param("crowd.appContext") . ".\n\n";
+		  print "If you have any issues please check the log at " . $globalConfig->param("crowd.installDir") . "/apache-tomcat/logs/catalina.out\n\n"; 
 	}
 }
 
@@ -1662,6 +1663,7 @@ sub upgradeCrowd {
 		  . $globalConfig->param("crowd.connectorPort") .
 		  . $globalConfig->param("crowd.appContext")
 		  . ".\n\n";
+		  print "If you have any issues please check the log at " . $globalConfig->param("crowd.installDir") . "/apache-tomcat/logs/catalina.out\n\n"; 
 	}
 }
 
