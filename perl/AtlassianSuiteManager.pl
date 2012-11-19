@@ -1501,6 +1501,9 @@ sub installCrowd {
 	print "\n\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		system("service $application start");
+		print "\nCrowd can now be accessed on http://localhost:"
+		  . $globalConfig->param("crowd.connectorPort") .
+		  . $globalConfig->param("crowd.appContext") . ".\n\n";
 	}
 }
 
@@ -1655,6 +1658,10 @@ sub upgradeCrowd {
 	print "\n\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		system("service $application start");
+		print "\nCrowd can now be accessed on http://localhost:"
+		  . $globalConfig->param("crowd.connectorPort") .
+		  . $globalConfig->param("crowd.appContext")
+		  . ".\n\n";
 	}
 }
 
