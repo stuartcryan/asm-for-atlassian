@@ -38,6 +38,7 @@ use POSIX qw(strftime);
 use Data::Dumper;              # Perl core module
 use Config::Simple;            # From CPAN
 use File::Copy;
+use File::Path qw(make_path remove_tree);
 use File::Path;
 use File::Find;
 use Archive::Extract;
@@ -165,11 +166,13 @@ sub createDirectory {
 
 	#Check if the directory exists if so just chown it
 	if ( -d $directory ) {
+		print "Directory exists...\n\n";
 		chownRecursive( $uidGid[0], $uidGid[1], $directory );
 	}
 
 #If the directory doesn't exist make the path to the directory (including any missing folders)
 	else {
+		print "Directory does not exist, creating...\n\n";
 		make_path(
 			$directory,
 			{
@@ -179,6 +182,7 @@ sub createDirectory {
 		);
 
 		#Then chown the directory recursively
+		print "Chowning files for good measure...\n\n";
 		chownRecursive( $uidGid[0], $uidGid[1], $directory );
 	}
 }
@@ -239,6 +243,7 @@ sub manageService {
 
 	#Install the service
 	if ( $mode eq "INSTALL" ) {
+		print "Installing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --add $application") == 0
 			  or die "Adding $application as a service failed: $?";
@@ -247,10 +252,12 @@ sub manageService {
 			system("update-rc.d $application defaults") == 0
 			  or die "Adding $application as a service failed: $?";
 		}
+		print "Service installed successfully...\n\n";
 	}
 
 	#Remove the service
 	elsif ( $mode eq "UNINSTALL" ) {
+		print "Removing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --del $application") == 0
 			  or die "Removing $application as a service failed: $?";
@@ -260,6 +267,7 @@ sub manageService {
 			  or die "Removing $application as a service failed: $?";
 
 		}
+		print "Service removed successfully...\n\n";
 	}
 
 }
@@ -1138,7 +1146,7 @@ sub installCrowd {
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		print
-"Would you like to review the crowd config before installing? Yes/No [yes]: ";
+"Would you like to review the Crowd config before installing? Yes/No [yes]: ";
 
 		$input = getBooleanInput();
 		print "\n\n";
@@ -1154,9 +1162,6 @@ sub installCrowd {
 
 	#Check the user exists or create if not
 	createOSUser($osUser);
-
-	#Create home/data directory if it does not exist
-	createDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
 
@@ -1220,6 +1225,8 @@ sub installCrowd {
 	extractAndMoveDownload( $downloadDetails[2],
 		$globalConfig->param("crowd.installDir"), $osUser );
 
+	print "Applying configuration settings to the install, please wait...\n\n";
+
 	#Update the server config with the configured connector port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
@@ -1234,12 +1241,6 @@ sub installCrowd {
 		"/Server", "port", $globalConfig->param("crowd.serverPort")
 	);
 
-	#Generate the init.d file
-	generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
-		"start_crowd.sh", "stop_crowd.sh" );
-
-	#use chkconfig to start as service (if configured)
-
 	#EditFileToReferenceHomedir
 	updateLineInFile(
 		$globalConfig->param("crowd.installDir")
@@ -1249,6 +1250,35 @@ sub installCrowd {
 		"#crowd.home=/var/crowd-home"
 	);
 
+	print "Configuration settings have been applied successfully.\n\n";
+
+	#Create home/data directory if it does not exist
+	print
+"Checking if data directory exists and creating if not, please wait...\n\n";
+	createDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
+
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+
+	#Generate the init.d file
+	generateInitD( $application, $osUser,
+		$globalConfig->param("crowd.installDir"),
+		"start_crowd.sh", "stop_crowd.sh" );
+
+	#If set to run as a service, set to run on startup
+	if ( $globalConfig->param( "crowd.runAsService") eq "TRUE" ) {
+		manageService( "INSTALL", $application );
+	}
+	print "Services configured successfully.\n\n";
+
+	#Check if we should start the service
+	print
+"Installation has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
+	$input = getBooleanInput();
+	print "\n\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		system("service $application start");
+	}
 }
 
 ########################################
@@ -1481,7 +1511,7 @@ sub downloadAtlassianInstaller {
 	$version      = $_[2];
 	$architecture = $_[3];
 
-	print "Beginning download of $product version $version\n\n";
+	print "Beginning download of $product, please wait...\n\n";
 
 	#Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
@@ -1890,6 +1920,7 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-#installCrowd();
+installCrowd();
+
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
