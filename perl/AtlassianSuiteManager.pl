@@ -505,6 +505,23 @@ sub bootStrapper {
 				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
 				die "This script will now exit.\n\n";
 			}
+			elsif (
+				(
+					   $globalConfig->param("general.targetDBType") eq "MySQL"
+					|| $globalConfig->param("general.targetDBType") eq
+					"PostgreSQL"
+				) & (
+					( $#parameterNull == -1 )
+					  || $globalConfig->param("general.dbJDBCJar") eq ""
+				)
+			  )
+			{
+				print
+"In order to continue you must download the JDBC JAR file for "
+				  . $globalConfig->param("general.targetDBType")
+				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
+				die "This script will now exit.\n\n";
+			}
 		}
 	}
 
