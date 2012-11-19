@@ -135,15 +135,15 @@ sub createDirectory {
 	$directory = $_[0];
 	$osUser    = $_[1];
 
-    #Get UID and GID for the user
+	#Get UID and GID for the user
 	@uidGid = getUserUidGid($osUser);
-	
+
 	#Check if the directory exists if so just chown it
 	if ( -d $directory ) {
 		chownRecursive( $uidGid[0], $uidGid[1], $directory );
 	}
-	
-	#If the directory doesn't exist make the path to the directory (including any missing folders)
+
+#If the directory doesn't exist make the path to the directory (including any missing folders)
 	else {
 		make_path(
 			$directory,
@@ -152,7 +152,8 @@ sub createDirectory {
 				mode    => 0755,
 			}
 		);
-        #Then chown the directory recursively
+
+		#Then chown the directory recursively
 		chownRecursive( $uidGid[0], $uidGid[1], $directory );
 	}
 }
@@ -1045,7 +1046,6 @@ sub installCrowd {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 
-
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
@@ -1080,9 +1080,12 @@ sub installCrowd {
 
 	#Get the user Crowd will run as
 	$osUser = $globalConfig->param("crowd.osUser");
-	
+
 	#Check the user exists or create if not
 	createOSUser($osUser);
+
+	#Create home/data directory if it does not exist
+	createDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
 
@@ -1114,7 +1117,7 @@ sub installCrowd {
 			  getVersionDownloadURL( $application,
 				whichApplicationArchitecture(), $version );
 
-		  #Try to get the header of the version URL to ensure it exists
+			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
 				$VERSIONLOOP = 0;
 				print "Crowd version $version found. Continuing...\n\n";
@@ -1126,15 +1129,15 @@ sub installCrowd {
 		}
 
 	}
-	
-    #Download the latest version
+
+	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, "",
 			whichApplicationArchitecture() );
 
 	}
-	
+
 	#Download a specific version
 	else {
 		@downloadDetails =
@@ -1142,17 +1145,17 @@ sub installCrowd {
 			whichApplicationArchitecture() );
 	}
 
-    #Extract the download and move into place
+	#Extract the download and move into place
 	extractAndMoveDownload( $downloadDetails[2],
 		$globalConfig->param("crowd.installDir"), $osUser );
 
-    #Update the server config with the configured connector port
+	#Update the server config with the configured connector port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/conf/server.xml",
 		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
 	);
-	
+
 	#Update the server config with the configured server port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
@@ -1160,15 +1163,11 @@ sub installCrowd {
 		"/Server", "port", $globalConfig->param("crowd.serverPort")
 	);
 
-    #Generate the init.d file
+	#Generate the init.d file
 	generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
 		"start_crowd.sh", "stop_crowd.sh" );
 
 	#use chkconfig to start as service (if configured)
-	
-	#createHomeDirectory
-
-	#chown home directory
 
 	#EditFileToReferenceHomedir
 	updateLineInFile(
@@ -1413,7 +1412,7 @@ sub downloadAtlassianInstaller {
 
 	print "Beginning download of $product version $version\n\n";
 
-    #Get the URL for the version we want to download
+	#Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
 	}
@@ -1422,7 +1421,7 @@ sub downloadAtlassianInstaller {
 		  getVersionDownloadURL( $product, $architecture, $version );
 	}
 
-    #Check if we are trying to download a supported version
+	#Check if we are trying to download a supported version
 	if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
 		print
 "This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
@@ -1433,18 +1432,18 @@ sub downloadAtlassianInstaller {
 			return;
 		}
 	}
-	
+
 	#Parse the URL so that we can get specific sections of it
 	$parsedURL = URI->new( $downloadDetails[0] );
 	my @bits = $parsedURL->path_segments();
-	
+
 	#Set the download to show progress as we download
 	$ua->show_progress(1);
-	
+
 	#Check that the install/download directory exists, if not create it
 	print "Checking that root install dir exists...\n\n";
 	createDirectory( $globalConfig->param("general.rootInstallDir"), "root" );
-	
+
 	#Download the file and store the HTTP response code
 	print "Downloading file from Atlassian...\n\n";
 	$downloadResponseCode = getstore( $downloadDetails[0],
@@ -1475,15 +1474,15 @@ sub downloadLatestAtlassianSuite {
 	my $architecture;
 	my $parsedURL;
 	my @downloadDetails;
-    my @suiteProducts;
-    
-    $architecture = $_[0];
-	
+	my @suiteProducts;
+
+	$architecture = $_[0];
+
 	#Configure all products in the suite
 	@suiteProducts =
 	  ( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
 
-    #Iterate through each of the products, get the URL and download
+	#Iterate through each of the products, get the URL and download
 	foreach (@suiteProducts) {
 		@downloadDetails = getLatestDownloadURL( $_, $architecture );
 
@@ -1509,13 +1508,13 @@ sub generateSuiteConfig {
 	my @parameterNull;
 	my $oldConfig;
 
-    #Check if we have a valid config file already, if so we are updating it
+	#Check if we have a valid config file already, if so we are updating it
 	if ($globalConfig) {
 		$mode      = "UPDATE";
 		$cfg       = $globalConfig;
 		$oldConfig = new Config::Simple($configFile);
 	}
-	
+
 	#Otherwise we are creating a new file
 	else {
 		$mode = "NEW";
@@ -1741,8 +1740,8 @@ sub generateSuiteConfig {
 		$cfg->write($configFile);
 		exit;
 	}
-	
-    #Write config and reload
+
+	#Write config and reload
 	$cfg->write($configFile);
 	loadSuiteConfig();
 }
