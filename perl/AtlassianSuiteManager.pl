@@ -670,17 +670,19 @@ sub updateXMLAttribute {
 	$referenceAttribute = $_[2];
 	$attributeValue     = $_[3];
 
-    #Set up new XML object, with "pretty" spacing (i.e. standard spacing)
+	#Set up new XML object, with "pretty" spacing (i.e. standard spacing)
 	my $twig = new XML::Twig( pretty_print => 'indented', );
-	
+
 	#Parse the XML file
 	$twig->parsefile($xmlFile);
-	
-    #Find the node we are looking for based on the provided search string
+
+	#Find the node we are looking for based on the provided search string
 	for my $node ( $twig->findnodes($searchString) ) {
+
 		#Set the node to the new attribute value
 		$node->set_att( $referenceAttribute => $attributeValue );
 	}
+
 	#Print the new XML tree back to the original file
 	$twig->print_to_file($xmlFile);
 }
@@ -696,8 +698,8 @@ sub updateJavaOpts {
 
 	$inputFile = $_[0];
 	$javaOpts  = $_[1];
-    
-    #Try to open the provided file
+
+	#Try to open the provided file
 	open( FILE, $inputFile ) or die("Unable to open file: $inputFile");
 
 	# read file into an array
@@ -706,13 +708,13 @@ sub updateJavaOpts {
 	close(FILE);
 
 	$searchFor = "JAVA_OPTS";
-	
+
 	#Search for the provided string in the file array
 	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
 
-    #See how many times ATLASMGR_JAVA_OPTS occurs in file, this will be in the existing
-    #JAVA_OPTS parameter as a variable.
-    #If it doesn't exist this splits up the string so that we can insert it as a new variable
+#See how many times ATLASMGR_JAVA_OPTS occurs in file, this will be in the existing
+#JAVA_OPTS parameter as a variable.
+#If it doesn't exist this splits up the string so that we can insert it as a new variable
 	my $count = grep( /.*ATLASMGR_JAVA_OPTS.*/, $data[$index1] );
 	if ( $count == 0 ) {
 		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
@@ -737,22 +739,23 @@ sub updateJavaOpts {
 		}
 	}
 
-    #Search for the definition of the variable ATLASMGR_JAVA_OPTS which can be used to add
-    #additional parameters to the main JAVA_OPTS variable
+#Search for the definition of the variable ATLASMGR_JAVA_OPTS which can be used to add
+#additional parameters to the main JAVA_OPTS variable
 	$searchFor = "ATLASMGR_JAVA_OPTS=";
 	my ($index2) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
 
-    #If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
+#If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
 	if ( !defined($index2) ) {
 		splice( @data, $index1, 0,
 			"ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n" );
 	}
+
 	#Else update the line to have the new parameters that have been specified
 	else {
 		$data[$index2] = "ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n";
 	}
 
-    #Try to open file, output the lines that are in memory and close
+	#Try to open file, output the lines that are in memory and close
 	open FILE, ">$inputFile" or die $!;
 	print FILE @data;
 	close FILE;
@@ -782,8 +785,10 @@ sub updateLineInFile {
 
 	close(FILE);
 
+	#Search for reference line
 	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
 
+	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
 		if ( defined($lineReference2) ) {
 			my ($index1) =
@@ -793,6 +798,8 @@ sub updateLineInFile {
 "No line containing \"$lineReference\" found in file $inputFile\n\n"
 				);
 			}
+
+			#Otherwise replace the line with the new provided line
 			else {
 				$data[$index1] = $newLine . "\n";
 			}
@@ -807,6 +814,7 @@ sub updateLineInFile {
 		$data[$index1] = $newLine . "\n";
 	}
 
+	#Write out the updated file
 	open FILE, ">$inputFile" or die $!;
 	print FILE @data;
 	close FILE;
@@ -828,6 +836,7 @@ sub isSupportedVersion {
 	$product = $_[0];
 	$version = $_[1];
 
+	#Set up maximum supported versions
 	my @jiraSupportedVerHigh       = ( 5, 2 );
 	my @confluenceSupportedVerHigh = ( 4, 3, 2 );
 	my @crowdSupportedVerHigh      = ( 2, 5, 2 );
@@ -837,6 +846,7 @@ sub isSupportedVersion {
 
 	@splitVersion = split( /\./, $version );
 
+	#Set up supported version for each product
 	if ( $product eq "confluence" ) {
 		@productArray = @confluenceSupportedVerHigh;
 	}
@@ -861,6 +871,7 @@ sub isSupportedVersion {
 		exit 2;
 	}
 
+#Iterate through supported version array and test if the version provided is less than or equal to the supported version
 	my $supported;
 	for ( $count = 0 ; $count <= $#productArray ; $count++ ) {
 		if ( $splitVersion[$count] <= $productArray[$count] ) {
@@ -912,6 +923,7 @@ sub isSupportedVersion {
 		}
 	}
 
+	#If the version is supported return true
 	if ( $supported == 1 ) {
 		return "yes";
 	}
@@ -934,6 +946,7 @@ sub backupFile {
 	$outputDir = $_[1];
 	$inputFile = $_[2];
 
+	#Create copy of input file with date_time appended to the end of filename
 	copy( $inputDir . "/" . $inputFile,
 		$outputDir . "/" . $inputFile . "_" . $date )
 	  or die "Copy failed: $!";
@@ -956,6 +969,7 @@ sub generateInitD {
 	$startCmd = $_[3];
 	$stopCmd  = $_[4];
 
+	#generate INITD file
 	@initFile = (
 		"#!/bin/sh -e\n",
 		"#" . $product . " startup script\n",
@@ -995,10 +1009,12 @@ sub generateInitD {
 		"exit 0\n"
 	);
 
+	#Write out file to /etc/init.d
 	open FILE, ">/etc/init.d/$product" or die $!;
 	print FILE @initFile;
 	close FILE;
 
+	#Make the new init.d file executable
 	chmod 0755, "/etc/init.d/$product"
 	  or die "Couldn't chmod /etc/init.d/$product: $!";
 
@@ -1008,6 +1024,8 @@ sub generateInitD {
 #LoadSuiteConfig                       #
 ########################################
 sub loadSuiteConfig {
+
+	#Test if config file exists, if so load it
 	if ( -e $configFile ) {
 		$globalConfig = new Config::Simple($configFile);
 	}
@@ -1026,6 +1044,8 @@ sub installCrowd {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 
+
+	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
 		"crowd.appContext",    "crowd.enable",
@@ -1033,6 +1053,8 @@ sub installCrowd {
 		"crowd.runAsService",  "crowd.serverPort",
 		"crowd.connectorPort", "crowd.osUser"
 	);
+
+#Iterate through required config items, if an are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		print
 "Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: ";
@@ -1040,6 +1062,8 @@ sub installCrowd {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
+
+	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		print
 "Would you like to review the crowd config before installing? Yes/No [yes]: ";
@@ -1052,7 +1076,12 @@ sub installCrowd {
 			loadSuiteConfig();
 		}
 	}
+
+	#Get the user Crowd will run as
 	$osUser = $globalConfig->param("crowd.osUser");
+	
+	#Check the user exists or create if not
+	createOSUser($osUser);
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
 
@@ -1065,6 +1094,7 @@ sub installCrowd {
 		$mode = "SPECIFIC";
 	}
 
+	#If a specific version is selected, ask for the version number
 	if ( $mode eq "SPECIFIC" ) {
 		while ( $VERSIONLOOP == 1 ) {
 			print
@@ -1073,12 +1103,17 @@ sub installCrowd {
 			$version = <STDIN>;
 			print "\n\n";
 			chomp $version;
+
+			#Check that the input version actually exists
 			print
 "Please wait, checking that version $version of Crowd exists (may take a few moments)... \n\n";
+
+			#get the version specific URL to test
 			@downloadDetails =
 			  getVersionDownloadURL( $application,
 				whichApplicationArchitecture(), $version );
 
+		  #Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
 				$VERSIONLOOP = 0;
 				print "Crowd version $version found. Continuing...\n\n";
@@ -1090,38 +1125,46 @@ sub installCrowd {
 		}
 
 	}
-
+	
+    #Download the latest version
 	if ( $mode eq "LATEST" ) {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, "",
 			whichApplicationArchitecture() );
 
 	}
+	
+	#Download a specific version
 	else {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, $version,
 			whichApplicationArchitecture() );
 	}
 
+    #Extract the download and move into place
 	extractAndMoveDownload( $downloadDetails[2],
 		$globalConfig->param("crowd.installDir"), $osUser );
 
+    #Update the server config with the configured connector port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/conf/server.xml",
 		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
 	);
+	
+	#Update the server config with the configured server port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/conf/server.xml",
 		"/Server", "port", $globalConfig->param("crowd.serverPort")
 	);
 
-	createOSUser("crowd");
-
+    #Generate the init.d file
 	generateInitD( "crowd", "crowd", $globalConfig->param("crowd.installDir"),
 		"start_crowd.sh", "stop_crowd.sh" );
 
+	#use chkconfig to start as service (if configured)
+	
 	#createHomeDirectory
 
 	#chown home directory
@@ -1369,6 +1412,7 @@ sub downloadAtlassianInstaller {
 
 	print "Beginning download of $product version $version\n\n";
 
+    #Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
 	}
@@ -1377,6 +1421,7 @@ sub downloadAtlassianInstaller {
 		  getVersionDownloadURL( $product, $architecture, $version );
 	}
 
+    #Check if we are trying to download a supported version
 	if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
 		print
 "This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
@@ -1387,16 +1432,25 @@ sub downloadAtlassianInstaller {
 			return;
 		}
 	}
+	
+	#Parse the URL so that we can get specific sections of it
 	$parsedURL = URI->new( $downloadDetails[0] );
 	my @bits = $parsedURL->path_segments();
+	
+	#Set the download to show progress as we download
 	$ua->show_progress(1);
+	
+	#Check that the install/download directory exists, if not create it
 	print "Checking that root install dir exists...\n\n";
 	createDirectory( $globalConfig->param("general.rootInstallDir"), "root" );
+	
+	#Download the file and store the HTTP response code
 	print "Downloading file from Atlassian...\n\n";
 	$downloadResponseCode = getstore( $downloadDetails[0],
 		    $globalConfig->param("general.rootInstallDir") . "/"
 		  . $bits[ @bits - 1 ] );
 
+#Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 	if ( is_success($downloadResponseCode) ) {
 		print "\n\n";
 		print "Download completed successfully.\n\n";
@@ -1419,12 +1473,16 @@ sub downloadLatestAtlassianSuite {
 	my $downloadURL;
 	my $architecture;
 	my $parsedURL;
-	my @suiteProducts =
-	  ( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
 	my @downloadDetails;
+    my @suiteProducts;
+    
+    $architecture = $_[0];
+	
+	#Configure all products in the suite
+	@suiteProducts =
+	  ( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
 
-	$architecture = $_[0];
-
+    #Iterate through each of the products, get the URL and download
 	foreach (@suiteProducts) {
 		@downloadDetails = getLatestDownloadURL( $_, $architecture );
 
@@ -1450,11 +1508,14 @@ sub generateSuiteConfig {
 	my @parameterNull;
 	my $oldConfig;
 
+    #Check if we have a valid config file already, if so we are updating it
 	if ($globalConfig) {
 		$mode      = "UPDATE";
 		$cfg       = $globalConfig;
 		$oldConfig = new Config::Simple($configFile);
 	}
+	
+	#Otherwise we are creating a new file
 	else {
 		$mode = "NEW";
 		$cfg = new Config::Simple( syntax => 'ini' );
@@ -1679,7 +1740,8 @@ sub generateSuiteConfig {
 		$cfg->write($configFile);
 		exit;
 	}
-
+	
+    #Write config and reload
 	$cfg->write($configFile);
 	loadSuiteConfig();
 }
