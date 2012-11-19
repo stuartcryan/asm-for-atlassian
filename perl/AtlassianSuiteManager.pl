@@ -232,7 +232,7 @@ sub downloadJDBCConnector {
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 	if ( is_success($downloadResponseCode) ) {
-		print "\n\n";
+		print "\n";
 		print "Download completed successfully.\n\n";
 	}
 	else {
@@ -662,7 +662,7 @@ sub getBooleanInput {
 	while ( $LOOP == 1 ) {
 
 		$input = <STDIN>;
-		print "\n\n";
+		print "\n";
 		chomp $input;
 
 		if (   ( lc $input ) eq "yes"
@@ -693,7 +693,7 @@ sub getGenericInput {
 	my $input;
 
 	$input = <STDIN>;
-	print "\n\n";
+	print "\n";
 	chomp $input;
 
 	if ( $input eq "" ) {
@@ -773,7 +773,7 @@ sub extractAndMoveDownload {
 
 				$input = <STDIN>;
 				chomp $input;
-				print "\n\n";
+				print "\n";
 
 				#If user selects, backup existing folder
 				if (   ( lc $input ) eq "backup"
@@ -862,7 +862,7 @@ sub genConfigItem {
 	print $messageText . " [" . $defaultValue . "]: ";
 
 	$input = getGenericInput();
-	print "\n\n";
+	print "\n";
 
 #If default option is selected (i.e. just a return), use default value, otherwise use input
 	if ( $input eq "default" ) {
@@ -919,7 +919,7 @@ sub genBooleanConfigItem {
 	print $messageText . " [" . $defaultValue . "]: ";
 
 	$input = getBooleanInput();
-	print "\n\n";
+	print "\n";
 
 #If default option is selected (i.e. just a return), use default value, set to boolean value based on return
 	if ( $input eq "yes"
@@ -1344,7 +1344,7 @@ sub installCrowd {
 "Would you like to review the Crowd config before installing? Yes/No [yes]: ";
 
 		$input = getBooleanInput();
-		print "\n\n";
+		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			generateCrowdConfig( "UPDATE", $globalConfig );
 			$globalConfig->write($configFile);
@@ -1361,7 +1361,7 @@ sub installCrowd {
 	print "Would you like to install the latest version? yes/no [yes]: ";
 
 	$input = getBooleanInput();
-	print "\n\n";
+	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$mode = "LATEST";
 	}
@@ -1376,7 +1376,7 @@ sub installCrowd {
 			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
 
 			$version = <STDIN>;
-			print "\n\n";
+			print "\n";
 			chomp $version;
 
 			#Check that the input version actually exists
@@ -1498,11 +1498,11 @@ sub installCrowd {
 	print
 "Installation has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
 	$input = getBooleanInput();
-	print "\n\n";
+	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		system("service $application start");
 		print "\nCrowd can now be accessed on http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort") .
+		  . $globalConfig->param("crowd.connectorPort")
 		  . $globalConfig->param("crowd.appContext") . ".\n\n";
 		  print "If you have any issues please check the log at " . $globalConfig->param("crowd.installDir") . "/apache-tomcat/logs/catalina.out\n\n"; 
 	}
@@ -1546,7 +1546,7 @@ sub upgradeCrowd {
 "Would you like to review the Crowd config before upgrading? Yes/No [yes]: ";
 
 		$input = getBooleanInput();
-		print "\n\n";
+		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			generateCrowdConfig( "UPDATE", $globalConfig );
 			$globalConfig->write($configFile);
@@ -1656,11 +1656,11 @@ sub upgradeCrowd {
 	print
 "Upgrade has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
 	$input = getBooleanInput();
-	print "\n\n";
+	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		system("service $application start");
 		print "\nCrowd can now be accessed on http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort") .
+		  . $globalConfig->param("crowd.connectorPort")
 		  . $globalConfig->param("crowd.appContext")
 		  . ".\n\n";
 		  print "If you have any issues please check the log at " . $globalConfig->param("crowd.installDir") . "/apache-tomcat/logs/catalina.out\n\n"; 
@@ -1707,7 +1707,7 @@ sub uninstallCrowd {
 		print
 "We will now remove the data directory (Crowd home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
 		$input = getBooleanInput();
-		print "\n\n";
+		print "\n";
 		if ( $input eq "yes" ) {
 			rmtree( [ $globalConfig->param("crowd.dataDir") ] );
 		}
@@ -1970,7 +1970,7 @@ sub downloadAtlassianInstaller {
 "This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
 
 		$input = getBooleanInput();
-		print "\n\n";
+		print "\n";
 		if ( $input eq "no" ) {
 			return;
 		}
@@ -1995,7 +1995,7 @@ sub downloadAtlassianInstaller {
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 	if ( is_success($downloadResponseCode) ) {
-		print "\n\n";
+		print "\n";
 		print "Download completed successfully.\n\n";
 		$downloadDetails[2] =
 		    $globalConfig->param("general.rootInstallDir") . "/"
@@ -2193,7 +2193,7 @@ sub generateSuiteConfig {
 
 		$input = <STDIN>;
 		chomp $input;
-		print "\n\n";
+		print "\n";
 
 		if (   ( lc $input ) eq "1"
 			|| ( lc $input ) eq "mysql" )
