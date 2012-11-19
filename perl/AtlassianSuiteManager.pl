@@ -112,6 +112,26 @@ sub chownRecursive {
 }
 
 ########################################
+#ChownFile                             #
+########################################
+sub chownFile {
+	my $uid;
+	my $gid;
+	my $file;
+
+	$uid  = $_[0];
+	$gid  = $_[1];
+	$file = $_[2];
+
+	print "Chowning file to correct user. Please wait.\n\n";
+
+	chown $uid, $gid, $file
+	  or die "could not chown '$_': $!";
+
+	print "File chowned successfully.\n\n";
+}
+
+########################################
 #CreateOSUser                           #
 ########################################
 sub createOSUser {
@@ -1266,6 +1286,7 @@ sub installCrowd {
 	my $archiveLocation;
 	my $osUser;
 	my $VERSIONLOOP = 1;
+	my @uidGid;
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -1393,6 +1414,22 @@ sub installCrowd {
 	);
 
 	print "Configuration settings have been applied successfully.\n\n";
+
+	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		print
+"Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
+		copy( $globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
+		  or die
+		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!";
+
+		#Get UID and GID for the user
+		@uidGid = getUserUidGid($osUser);
+
+		#Chown the files again
+		chownRecursive( $uidGid[0], $uidGid[1],
+			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
+	}
 
 	#Create home/data directory if it does not exist
 	print
@@ -1957,12 +1994,12 @@ sub generateSuiteConfig {
 	if ( $cfg->param("general.targetDBType") eq "MySQL" &
 		( $#parameterNull == -1 ) )
 	{
-		downloadJDBCConnector("MySQL", $cfg);
+		downloadJDBCConnector( "MySQL", $cfg );
 	}
-	elsif ( $cfg->param("general.targetDBType") eq
-		"PostgreSQL" & ( $#parameterNull == -1 ) )
+	elsif ( $cfg->param("general.targetDBType") eq "PostgreSQL" &
+		( $#parameterNull == -1 ) )
 	{
-		downloadJDBCConnector("PostgreSQL", $cfg);
+		downloadJDBCConnector( "PostgreSQL", $cfg );
 	}
 
 	if (
@@ -2076,7 +2113,7 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-#installCrowd();
+installCrowd();
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
