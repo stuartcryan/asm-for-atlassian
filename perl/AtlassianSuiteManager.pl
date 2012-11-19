@@ -1421,6 +1421,17 @@ sub installCrowd {
 		$globalConfig->param("crowd.installDir"),
 		$osUser, "" );
 
+	#Check if user wants to remove the downloaded archive
+	print "Do you wish to delete the downloaded archive "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	print "Creating backup of config files...\n\n";
@@ -1504,7 +1515,9 @@ sub installCrowd {
 		print "\nCrowd can now be accessed on http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
 		  . $globalConfig->param("crowd.appContext") . ".\n\n";
-		  print "If you have any issues please check the log at " . $globalConfig->param("crowd.installDir") . "/apache-tomcat/logs/catalina.out\n\n"; 
+		print "If you have any issues please check the log at "
+		  . $globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/logs/catalina.out\n\n";
 	}
 }
 
@@ -1582,6 +1595,17 @@ sub upgradeCrowd {
 	extractAndMoveDownload( $downloadDetails[2],
 		$globalConfig->param("crowd.installDir"),
 		$osUser, "UPGRADE" );
+
+	#Check if user wants to remove the downloaded archive
+	print "Do you wish to delete the downloaded archive "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
 
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -1661,9 +1685,10 @@ sub upgradeCrowd {
 		system("service $application start");
 		print "\nCrowd can now be accessed on http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
-		  . $globalConfig->param("crowd.appContext")
-		  . ".\n\n";
-		  print "If you have any issues please check the log at " . $globalConfig->param("crowd.installDir") . "/apache-tomcat/logs/catalina.out\n\n"; 
+		  . $globalConfig->param("crowd.appContext") . ".\n\n";
+		print "If you have any issues please check the log at "
+		  . $globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/logs/catalina.out\n\n";
 	}
 }
 
