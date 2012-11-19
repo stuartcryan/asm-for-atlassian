@@ -50,6 +50,7 @@ use warnings;                  # Good practice
 ########################################
 my $globalConfig;
 my $configFile = "settings.cfg";
+my $distro;
 
 ########################################
 #TestOSArchitecture                    #
@@ -122,6 +123,30 @@ sub createOSUser {
 			die "could not create system user $osUser";
 		}
 	}
+}
+
+########################################
+#findDistro                            #
+########################################
+sub findDistro {
+	my $distribution;
+	
+	#Test for debian
+	if ( -e /etc/debian_version ) {
+		$distribution = "debian";
+	}
+	
+	#Test for redhat
+	elsif ( -f /etc/redhat-release ) {
+		$distribution = "redhat";
+	}
+	
+	#Otherwise distro not supported
+	else {
+		$distribution = "unknown";
+	}
+	
+	return $distribution;
 }
 
 ########################################
@@ -227,6 +252,14 @@ sub bootStrapper {
 	my @requiredConfigItems;
 	my $input;
 
+    #Check for supported distribution of *nix
+    $distro = findDistro();
+    
+    #If distro unknown die as not supported (if you receive this in error please log a bug to me)
+    if ( $distro eq "unknown"){
+    	die "This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.";
+    } 
+    
 	#Try to load configuration file
 	loadSuiteConfig();
 
