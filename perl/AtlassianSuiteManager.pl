@@ -1888,11 +1888,16 @@ sub generateJiraConfig {
 		"Please enter the directory Jira will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/jira"
 	);
+
 	genConfigItem(
 		$mode, $cfg, "jira.dataDir",
 		"Please enter the directory Jira's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/jira"
 	);
+
+	genConfigItem( $mode, $cfg, "jira.osUser",
+		"Enter the user that Jira will run under.", "jira" );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1900,6 +1905,7 @@ sub generateJiraConfig {
 "Enter the context that Jira should run under (i.e. /jira or /bugtraq). Write NULL to blank out the context.",
 		"/jira"
 	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1907,6 +1913,7 @@ sub generateJiraConfig {
 "Please enter the Connector port Jira will run on (note this is the port you will access in the browser).",
 		"8080"
 	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1914,6 +1921,7 @@ sub generateJiraConfig {
 "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).",
 		"8000"
 	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1921,6 +1929,9 @@ sub generateJiraConfig {
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
 		""
 	);
+
+	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
+		"Would you like to run Jira as a service? yes/no.", "yes" );
 
 }
 
@@ -1949,6 +1960,7 @@ sub generateCrowdConfig {
 		"Please enter the directory Crowd's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/crowd"
 	);
+
 	genConfigItem( $mode, $cfg, "crowd.osUser",
 		"Enter the user that Crowd will run under.", "crowd" );
 
@@ -1974,9 +1986,6 @@ sub generateCrowdConfig {
 		"8000"
 	);
 
-	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
-		"Would you like to run Crowd as a service? yes/no.", "yes" );
-
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -1984,6 +1993,9 @@ sub generateCrowdConfig {
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
 		""
 	);
+
+	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
+		"Would you like to run Crowd as a service? yes/no.", "yes" );
 
 }
 
