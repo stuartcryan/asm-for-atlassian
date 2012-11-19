@@ -303,7 +303,7 @@ sub bootStrapper {
 #If distro unknown die as not supported (if you receive this in error please log a bug to me)
 	if ( $distro eq "unknown" ) {
 		die
-"This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.";
+"This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.\n\n";
 	}
 
 	#Try to load configuration file
@@ -488,6 +488,7 @@ sub getBooleanInput {
 	while ( $LOOP == 1 ) {
 
 		$input = <STDIN>;
+		print "\n\n";
 		chomp $input;
 
 		if (   ( lc $input ) eq "yes"
@@ -518,6 +519,7 @@ sub getGenericInput {
 	my $input;
 
 	$input = <STDIN>;
+	print "\n\n";
 	chomp $input;
 
 	if ( $input eq "" ) {
@@ -575,11 +577,12 @@ sub extractAndMoveDownload {
 
 		print "The destination directory '"
 		  . $expectedFolderName
-		  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n\n";
+		  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
 		while ( $LOOP == 1 ) {
 
 			$input = <STDIN>;
 			chomp $input;
+			print "\n\n";
 
 			#If user selects, backup existing folder
 			if (   ( lc $input ) eq "backup"
@@ -612,7 +615,7 @@ sub extractAndMoveDownload {
 			#Input was not recognised, ask user for input again
 			else {
 				print "Your input '" . $input
-				  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n\n";
+				  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n";
 			}
 		}
 	}
@@ -662,9 +665,10 @@ sub genConfigItem {
 	else {
 		$defaultValue = $defaultInputValue;
 	}
-	print $messageText . " [" . $defaultValue . "]: \n\n";
+	print $messageText . " [" . $defaultValue . "]: ";
 
 	$input = getGenericInput();
+	print "\n\n";
 
 #If default option is selected (i.e. just a return), use default value, otherwise use input
 	if ( $input eq "default" ) {
@@ -718,9 +722,10 @@ sub genBooleanConfigItem {
 	else {
 		$defaultValue = $defaultInputValue;
 	}
-	print $messageText . " [" . $defaultValue . "]: \n\n";
+	print $messageText . " [" . $defaultValue . "]: ";
 
 	$input = getBooleanInput();
+	print "\n\n";
 
 #If default option is selected (i.e. just a return), use default value, set to boolean value based on return
 	if ( $input eq "yes"
@@ -1137,7 +1142,7 @@ sub installCrowd {
 #Iterate through required config items, if an are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		print
-"Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: ";
+"Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: \n\n";
 		generateCrowdConfig( "UPDATE", $globalConfig );
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
