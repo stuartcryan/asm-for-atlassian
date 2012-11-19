@@ -696,10 +696,13 @@ sub extractAndMoveDownload {
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 	my $osUser;
 	my @uidGid;
+	my $upgrade;
+	my $mode;
 
 	$inputFile          = $_[0];
 	$expectedFolderName = $_[1];
 	$osUser             = $_[2];
+	$mode               = $_[3];
 
 	#Get the UID and GID for the user so that we can chown files
 	@uidGid = getUserUidGid($osUser);
@@ -729,50 +732,67 @@ sub extractAndMoveDownload {
 
 	#Check for existing folder and provide option to backup
 	if ( -d $expectedFolderName ) {
-		my $LOOP = 1;
-		my $input;
+		if ( $mode eq "UPGRADE" ) {
+			print "Backing up old installation folder to $expectedFolderName"
+			  . "_upgrade_"
+			  . $date
+			  . ", please wait...\n\n";
+			moveDirectory( $expectedFolderName,
+				$expectedFolderName . "_upgrade_" . $date );
+			print "Old installation successfully backed up.\n\n";
+			print "Moving new installation into place...\n\n";
+			moveDirectory( $ae->extract_path(), $expectedFolderName );
+			chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
 
-		print "The destination directory '"
-		  . $expectedFolderName
-		  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
-		while ( $LOOP == 1 ) {
+		}
+		else {
+			my $LOOP = 1;
+			my $input;
 
-			$input = <STDIN>;
-			chomp $input;
-			print "\n\n";
+			print "The destination directory '"
+			  . $expectedFolderName
+			  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
+			while ( $LOOP == 1 ) {
 
-			#If user selects, backup existing folder
-			if (   ( lc $input ) eq "backup"
-				|| ( lc $input ) eq "b"
-				|| $input eq "" )
-			{
-				$LOOP = 0;
-				moveDirectory( $expectedFolderName,
-					$expectedFolderName . $date );
-				print "Folder backed up to "
-				  . $expectedFolderName
-				  . $date . "\n\n";
-				moveDirectory( $ae->extract_path(), $expectedFolderName );
-				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
+				$input = <STDIN>;
+				chomp $input;
+				print "\n\n";
 
-			}
+				#If user selects, backup existing folder
+				if (   ( lc $input ) eq "backup"
+					|| ( lc $input ) eq "b"
+					|| $input eq "" )
+				{
+					$LOOP = 0;
+					moveDirectory( $expectedFolderName,
+						$expectedFolderName . $date );
+					print "Folder backed up to "
+					  . $expectedFolderName
+					  . $date . "\n\n";
+					moveDirectory( $ae->extract_path(), $expectedFolderName );
+					chownRecursive( $uidGid[0], $uidGid[1],
+						$expectedFolderName );
+
+				}
 
 #If user selects, overwrite existing folder by deleting and then moving new directory in place
-			elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" ) {
-				$LOOP = 0;
+				elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" ) {
+					$LOOP = 0;
 
 #Considered failure handling for rmtree however based on http://perldoc.perl.org/File/Path.html used
 #recommended in built error handling.
-				rmtree( ["$expectedFolderName"] );
+					rmtree( ["$expectedFolderName"] );
 
-				moveDirectory( $ae->extract_path(), $expectedFolderName );
-				chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
-			}
+					moveDirectory( $ae->extract_path(), $expectedFolderName );
+					chownRecursive( $uidGid[0], $uidGid[1],
+						$expectedFolderName );
+				}
 
-			#Input was not recognised, ask user for input again
-			else {
-				print "Your input '" . $input
-				  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n";
+				#Input was not recognised, ask user for input again
+				else {
+					print "Your input '" . $input
+					  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n";
+				}
 			}
 		}
 	}
@@ -1386,7 +1406,8 @@ sub installCrowd {
 
 	#Extract the download and move into place
 	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("crowd.installDir"), $osUser );
+		$globalConfig->param("crowd.installDir"),
+		$osUser, "" );
 
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -1453,6 +1474,149 @@ sub installCrowd {
 	#Check if we should start the service
 	print
 "Installation has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
+	$input = getBooleanInput();
+	print "\n\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		system("service $application start");
+	}
+}
+
+########################################
+#UpgradeCrowd                        #
+########################################
+sub upgradeCrowd {
+	my $input;
+	my $mode;
+	my $version;
+	my $application = "crowd";
+	my @downloadDetails;
+	my $archiveLocation;
+	my $osUser;
+	my $VERSIONLOOP = 1;
+	my @uidGid;
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"crowd.appContext",    "crowd.enable",
+		"crowd.dataDir",       "crowd.installDir",
+		"crowd.runAsService",  "crowd.serverPort",
+		"crowd.connectorPort", "crowd.osUser"
+	);
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		print
+"Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: \n\n";
+		generateCrowdConfig( "UPDATE", $globalConfig );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#Otherwise provide the option to update the configuration before proceeding
+	else {
+		print
+"Would you like to review the Crowd config before upgrading? Yes/No [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			generateCrowdConfig( "UPDATE", $globalConfig );
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+		}
+	}
+
+	#Get the user Crowd will run as
+	$osUser = $globalConfig->param("crowd.osUser");
+
+	#Check the user exists or create if not
+	createOSUser($osUser);
+
+	#We are upgrading, get the latest version
+	$mode = "LATEST";
+
+	#Download the latest version
+	if ( $mode eq "LATEST" ) {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, "",
+			whichApplicationArchitecture() );
+
+	}
+
+	#Download a specific version
+	else {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, $version,
+			whichApplicationArchitecture() );
+	}
+
+	#Extract the download and move into place
+	extractAndMoveDownload( $downloadDetails[2],
+		$globalConfig->param("crowd.installDir"),
+		$osUser, "UPGRADE" );
+
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	#Update the server config with the configured connector port
+	updateXMLAttribute(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
+	);
+
+	#Update the server config with the configured server port
+	updateXMLAttribute(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		"/Server", "port", $globalConfig->param("crowd.serverPort")
+	);
+
+	#EditFileToReferenceHomedir
+	updateLineInFile(
+		$globalConfig->param("crowd.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		"crowd.home",
+		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		"#crowd.home=/var/crowd-home"
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		print
+"Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
+		copy( $globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
+		  or die
+		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!";
+
+		#Get UID and GID for the user
+		@uidGid = getUserUidGid($osUser);
+
+		#Chown the files again
+		chownRecursive( $uidGid[0], $uidGid[1],
+			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
+	}
+
+	#Set up init.d again just incase any params have changed.
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+
+	#Generate the init.d file
+	generateInitD( $application, $osUser,
+		$globalConfig->param("crowd.installDir"),
+		"start_crowd.sh", "stop_crowd.sh" );
+
+	#If set to run as a service, set to run on startup
+	if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
+		manageService( "INSTALL", $application );
+	}
+	print "Services configured successfully.\n\n";
+
+	#Check if we should start the service
+	print
+"Upgrade has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
 	$input = getBooleanInput();
 	print "\n\n";
 	if ( $input eq "default" || $input eq "yes" ) {
@@ -2113,9 +2277,11 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-installCrowd();
+#installCrowd();
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
 
 #downloadJDBCConnector("PostgreSQL");
+
+upgradeCrowd();
