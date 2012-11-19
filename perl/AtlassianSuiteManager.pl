@@ -151,36 +151,41 @@ sub createOSUser {
 #Generate Jira Kickstart File          #
 ########################################
 sub generateJiraKickstart {
-	my $filename; #Must contain absolute path
-	my $mode; #"INSTALL" or "UPDATE"
-	
+	my $filename;    #Must contain absolute path
+	my $mode;        #"INSTALL" or "UPDATE"
+
 	$filename = $_[0];
 	$mode     = $_[1];
-	
+
 	open FH, ">$filename" or die "Unable to open $filename for writing.";
-    print FH "#install4j response file for JIRA\n";
-    print FH 'rmiPort$Long=' . $globalConfig->param("jira.serverPort") . "\n";
-    print FH "app.jiraHome="  . $globalConfig->param("jira.dataDir") . "\n";
-    if ( $globalConfig->param("jira.runAsService") eq "TRUE"){
-    	print FH 'app.install.service$Boolean=true' . "\n";
-    } else {
-    	print FH 'app.install.service$Boolean=false' . "\n";
-    }
-    print FH "existingInstallationDir=" . $globalConfig->param("jira.installDir") . "\n";
-    
-    if ($mode eq "UPDATE"){
-    	print FH "sys.confirmedUpdateInstallationString=true" . "\n";
-    }else {
-    	print FH "sys.confirmedUpdateInstallationString=false" . "\n";
-    }
-    print FH "sys.languageId=en" . "\n";
-    print FH "sys.installationDir=" . $globalConfig->param("jira.installDir") . "\n";
-    print FH 'executeLauncherAction$Boolean=true' . "\n";
-    print FH 'httpPort$Long=' . $globalConfig->param("jira.connectorPort") . "\n";
-    print FH "portChoice=custom" . "\n";
-    
-    close FH; 
-	
+	print FH "#install4j response file for JIRA\n";
+	print FH 'rmiPort$Long=' . $globalConfig->param("jira.serverPort") . "\n";
+	print FH "app.jiraHome=" . $globalConfig->param("jira.dataDir") . "\n";
+	if ( $globalConfig->param("jira.runAsService") eq "TRUE" ) {
+		print FH 'app.install.service$Boolean=true' . "\n";
+	}
+	else {
+		print FH 'app.install.service$Boolean=false' . "\n";
+	}
+	print FH "existingInstallationDir="
+	  . $globalConfig->param("jira.installDir") . "\n";
+
+	if ( $mode eq "UPDATE" ) {
+		print FH "sys.confirmedUpdateInstallationString=true" . "\n";
+	}
+	else {
+		print FH "sys.confirmedUpdateInstallationString=false" . "\n";
+	}
+	print FH "sys.languageId=en" . "\n";
+	print FH "sys.installationDir="
+	  . $globalConfig->param("jira.installDir") . "\n";
+	print FH 'executeLauncherAction$Boolean=true' . "\n";
+	print FH 'httpPort$Long='
+	  . $globalConfig->param("jira.connectorPort") . "\n";
+	print FH "portChoice=custom" . "\n";
+
+	close FH;
+
 }
 
 ########################################
@@ -1385,6 +1390,151 @@ sub loadSuiteConfig {
 }
 
 ########################################
+#Install Jira                          #
+########################################
+sub installJira {
+	my $input;
+	my $mode;
+	my $version;
+	my $application = "jira";
+	my @downloadDetails;
+	my $archiveLocation;
+	my $osUser;
+	my $VERSIONLOOP = 1;
+	my @uidGid;
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"jira.appContext",   "jira.enable",
+		"jira.dataDir",      "jira.installDir",
+		"jira.runAsService", "jira.serverPort",
+		"jira.connectorPort"
+	);
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		print
+"Some of the Jira config parameters are incomplete. You must review the Jira configuration before continuing: \n\n";
+		generateJiraConfig( "UPDATE", $globalConfig );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#Otherwise provide the option to update the configuration before proceeding
+	else {
+		print
+"Would you like to review the Jira config before installing? Yes/No [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			generateJiraConfig( "UPDATE", $globalConfig );
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+		}
+	}
+
+	print "Would you like to install the latest version? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$mode = "LATEST";
+	}
+	else {
+		$mode = "SPECIFIC";
+	}
+
+	#If a specific version is selected, ask for the version number
+	if ( $mode eq "SPECIFIC" ) {
+		while ( $VERSIONLOOP == 1 ) {
+			print
+			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+
+			$version = <STDIN>;
+			print "\n";
+			chomp $version;
+
+			#Check that the input version actually exists
+			print
+"Please wait, checking that version $version of Jira exists (may take a few moments)... \n\n";
+
+			#get the version specific URL to test
+			@downloadDetails =
+			  getVersionDownloadURL( $application,
+				whichApplicationArchitecture(), $version );
+
+			#Try to get the header of the version URL to ensure it exists
+			if ( head( $downloadDetails[0] ) ) {
+				$VERSIONLOOP = 0;
+				print "Jira version $version found. Continuing...\n\n";
+			}
+			else {
+				print
+"No such version of Jira exists. Please visit http://www.atlassian.com/software/jira/download-archives and pick a valid version number and try again.\n\n";
+			}
+		}
+
+	}
+
+	#Download the latest version
+	if ( $mode eq "LATEST" ) {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, "",
+			whichApplicationArchitecture() );
+		$version = $downloadDetails[1];
+
+	}
+
+	#Download a specific version
+	else {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, $version,
+			whichApplicationArchitecture() );
+	}
+
+	#chmod the file to be executable
+
+	#install
+
+	#getTheUserItWasInstalledAs - Save and reload config
+
+	#CopyMySQLDriver
+
+	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		print
+"Database is configured as MySQL, copying the JDBC connector to Jira install.\n\n";
+		copy(
+			$globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param("jira.installDir") . "/lib/"
+		  )
+		  or die
+		  "Unable to copy MySQL JDBC connector to Jira lib directory: $!";
+
+		#Get UID and GID for the user
+		@uidGid = getUserUidGid($osUser);
+
+		#Chown the files again
+		chownRecursive( $uidGid[0], $uidGid[1],
+			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
+
+		#RestartService
+	}
+
+	#Check if user wants to remove the downloaded archive
+	print "Do you wish to delete the downloaded installer "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+}
+
+########################################
 #InstallCrowd                          #
 ########################################
 sub installCrowd {
@@ -2585,4 +2735,4 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-generateJiraKickstart("/opt/atlassian/jira-response.varfile","INSTALL");
+generateJiraKickstart( "/opt/atlassian/jira-response.varfile", "INSTALL" );
