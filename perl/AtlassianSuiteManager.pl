@@ -130,22 +130,22 @@ sub createOSUser {
 ########################################
 sub findDistro {
 	my $distribution;
-	
+
 	#Test for debian
-	if ( -e /etc/debian_version ) {
+	if ( -e "/etc/debian_version" ) {
 		$distribution = "debian";
 	}
-	
+
 	#Test for redhat
-	elsif ( -f /etc/redhat-release ) {
+	elsif ( -f "/etc/redhat-release" ) {
 		$distribution = "redhat";
 	}
-	
+
 	#Otherwise distro not supported
 	else {
 		$distribution = "unknown";
 	}
-	
+
 	return $distribution;
 }
 
@@ -228,6 +228,43 @@ sub checkRequiredConfigItems {
 }
 
 ########################################
+#Manage Service                        #
+########################################
+sub manageService {
+	my $application;
+	my $mode;
+
+	$application = $_[0];
+	$mode        = $_[1];
+
+	#Install the service
+	if ( $mode eq "INSTALL" ) {
+		if ( $distro eq "redhat" ) {
+			system("chkconfig --add $application") == 0
+			  or die "Adding $application as a service failed: $?";
+		}
+		elsif ( $distro eq "debian" ) {
+			system("update-rc.d $application defaults") == 0
+			  or die "Adding $application as a service failed: $?";
+		}
+	}
+
+	#Remove the service
+	elsif ( $mode eq "UNINSTALL" ) {
+		if ( $distro eq "redhat" ) {
+			system("chkconfig --del $application") == 0
+			  or die "Removing $application as a service failed: $?";
+		}
+		elsif ( $distro eq "debian" ) {
+			system("update-rc.d -f $application remove") == 0
+			  or die "Removing $application as a service failed: $?";
+
+		}
+	}
+
+}
+
+########################################
 #WhichApplicationArchitecture          #
 ########################################
 sub whichApplicationArchitecture {
@@ -252,14 +289,15 @@ sub bootStrapper {
 	my @requiredConfigItems;
 	my $input;
 
-    #Check for supported distribution of *nix
-    $distro = findDistro();
-    
-    #If distro unknown die as not supported (if you receive this in error please log a bug to me)
-    if ( $distro eq "unknown"){
-    	die "This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.";
-    } 
-    
+	#Check for supported distribution of *nix
+	$distro = findDistro();
+
+#If distro unknown die as not supported (if you receive this in error please log a bug to me)
+	if ( $distro eq "unknown" ) {
+		die
+"This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.";
+	}
+
 	#Try to load configuration file
 	loadSuiteConfig();
 
