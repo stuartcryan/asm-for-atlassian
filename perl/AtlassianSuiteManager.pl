@@ -1102,48 +1102,137 @@ sub updateLineInFile {
 }
 
 ########################################
-#isSupportedVersion                   #
+#Compare two versions                  #
+#compareTwoVersions("current","new");  #
 ########################################
-sub isSupportedVersion {
-	my $product;    #Must Be Absolute Path
-	my $version;
-	my @splitVersion;
-	my @productArray;
+sub compareTwoVersions {
+	my $version1;
+	my $version2;
+	my @splitVersion1;
+	my @splitVersion2;
 	my $count;
 	my $majorVersionStatus;
 	my $midVersionStatus;
+	my $minVersionStatus;
+
+	$version1 = $_[0];
+	$version2 = $_[1];
+
+	@splitVersion1 = split( /\./, $version1 );
+	@splitVersion2 = split( /\./, $version2 );
+
+#Iterate through first array and test if the version provided is less than or equal to the second array
+	for ( $count = 0 ; $count <= $#splitVersion1 ; $count++ ) {
+		if ( $count == 0 ) {
+			if ( $splitVersion1[$count] < $splitVersion2[$count] ) {
+				$majorVersionStatus = "LESS";
+			}
+			elsif ( $splitVersion1[$count] == $splitVersion2[$count] ) {
+				$majorVersionStatus = "EQUAL";
+			}
+			elsif ( $splitVersion1[$count] > $splitVersion2[$count] ) {
+				$majorVersionStatus = "GREATER";
+			}
+
+		}
+		elsif ( $count == 1 ) {
+			if ( $splitVersion1[$count] < $splitVersion2[$count] ) {
+				$midVersionStatus = "LESS";
+			}
+			elsif ( $splitVersion1[$count] == $splitVersion2[$count] ) {
+				$midVersionStatus = "EQUAL";
+			}
+			elsif ( $splitVersion1[$count] > $splitVersion2[$count] ) {
+				$midVersionStatus = "GREATER";
+			}
+		}
+		elsif ( $count == 2 ) {
+			if ( $splitVersion1[$count] < $splitVersion2[$count] ) {
+				$minVersionStatus = "LESS";
+			}
+			elsif ( $splitVersion1[$count] == $splitVersion2[$count] ) {
+				$minVersionStatus = "EQUAL";
+			}
+			elsif ( $splitVersion1[$count] > $splitVersion2[$count] ) {
+				$minVersionStatus = "GREATER";
+			}
+		}
+	}
+
+	if ( $majorVersionStatus eq "LESS" ) {
+		return "LESS";
+	}
+	elsif ( $majorVersionStatus eq "GREATER" ) {
+		return "GREATER";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "LESS" ) {
+		return "LESS";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "GREATER" ) {
+		return "GREATER";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
+		!defined($minVersionStatus) )
+	{
+		return "EQUAL";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
+		$minVersionStatus eq "LESS" )
+	{
+		return "LESS";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
+		$minVersionStatus eq "GREATER" )
+	{
+		return "GREATER";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
+		$minVersionStatus eq "EQUAL" )
+	{
+		return "EQUAL";
+	}
+
+}
+
+########################################
+#isSupportedVersion                   #
+########################################
+sub isSupportedVersion {
+	my $product;
+	my $version;
+	my $productVersion;
+	my $count;
+	my $versionReturn;
 
 	$product = $_[0];
 	$version = $_[1];
 
 	#Set up maximum supported versions
-	my @jiraSupportedVerHigh       = ( 5, 2 );
-	my @confluenceSupportedVerHigh = ( 4, 3, 2 );
-	my @crowdSupportedVerHigh      = ( 2, 5, 2 );
-	my @fisheyeSupportedVerHigh    = ( 2, 9, 0 );
-	my @bambooSupportedVerHigh     = ( 4, 3, 1 );
-	my @stashSupportedVerHigh      = ( 1, 3, 1 );
-
-	@splitVersion = split( /\./, $version );
+	my $jiraSupportedVerHigh       = "5.2";
+	my $confluenceSupportedVerHigh = "4.3.2";
+	my $crowdSupportedVerHigh      = "2.5.2";
+	my $fisheyeSupportedVerHigh    = "2.9.0";
+	my $bambooSupportedVerHigh     = "4.3.1";
+	my $stashSupportedVerHigh      = "1.3.1";
 
 	#Set up supported version for each product
 	if ( $product eq "confluence" ) {
-		@productArray = @confluenceSupportedVerHigh;
+		$productVersion = $confluenceSupportedVerHigh;
 	}
 	elsif ( $product eq "jira" ) {
-		@productArray = @jiraSupportedVerHigh;
+		$productVersion = $jiraSupportedVerHigh;
 	}
 	elsif ( $product eq "stash" ) {
-		@productArray = @stashSupportedVerHigh;
+		$productVersion = $stashSupportedVerHigh;
 	}
 	elsif ( $product eq "fisheye" ) {
-		@productArray = @fisheyeSupportedVerHigh;
+		$productVersion = $fisheyeSupportedVerHigh;
 	}
 	elsif ( $product eq "crowd" ) {
-		@productArray = @crowdSupportedVerHigh;
+		$productVersion = $crowdSupportedVerHigh;
 	}
 	elsif ( $product eq "bamboo" ) {
-		@productArray = @bambooSupportedVerHigh;
+		$productVersion = $bambooSupportedVerHigh;
 	}
 	else {
 		print
@@ -1151,60 +1240,10 @@ sub isSupportedVersion {
 		exit 2;
 	}
 
-#Iterate through supported version array and test if the version provided is less than or equal to the supported version
-	my $supported;
-	for ( $count = 0 ; $count <= $#productArray ; $count++ ) {
-		if ( $splitVersion[$count] <= $productArray[$count] ) {
-			$supported = 1;
-			if ( $count == 0 ) {
-				if ( $splitVersion[$count] < $productArray[$count] ) {
-					$majorVersionStatus = "LESS";
-				}
-				else {
-					$majorVersionStatus = "EQUAL";
-				}
-
-			}
-			elsif ( $count == 1 ) {
-				if ( $splitVersion[$count] < $productArray[$count] ) {
-					$midVersionStatus = "LESS";
-				}
-				else {
-					$midVersionStatus = "EQUAL";
-				}
-			}
-		}
-		else {
-			if ( $count == 0 ) {
-				$supported = 0;
-				last;
-			}
-			elsif ( ( $count == 1 ) & ( $majorVersionStatus eq "LESS" ) ) {
-				$supported = 1;
-				last;
-			}
-			elsif ( ( $count == 2 ) & ( $majorVersionStatus eq "LESS" ) &
-				( $midVersionStatus eq "LESS" ) )
-			{
-				$supported = 1;
-				last;
-			}
-			elsif ( ( $count == 2 ) & ( $majorVersionStatus eq "EQ" ) &
-				( $midVersionStatus eq "LESS" ) )
-			{
-				$supported = 1;
-				last;
-			}
-			else {
-				$supported = 0;
-				last;
-			}
-
-		}
-	}
+	$versionReturn = compareTwoVersions( $version, $productVersion );
 
 	#If the version is supported return true
-	if ( $supported == 1 ) {
+	if ( $versionReturn eq "LESS" || $versionReturn eq "EQUAL" ) {
 		return "yes";
 	}
 	else {
@@ -1432,6 +1471,11 @@ sub installCrowd {
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
 
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "crowd.installedVersion", $version );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	print "Creating backup of config files...\n\n";
@@ -1606,6 +1650,11 @@ sub upgradeCrowd {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
+
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "crowd.installedVersion", $version );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -2384,7 +2433,7 @@ bootStrapper();
 
 #updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
 
-#isSupportedVersion( "confluence", "5.1.1" );
+#print isSupportedVersion( "confluence", "4.3.3" );
 
 #backupFile( "/opt/atlassian/confluence/bin",
 #	"/opt/atlassian/confluence/bin", "setenv.sh" );
@@ -2410,4 +2459,6 @@ bootStrapper();
 
 #upgradeCrowd();
 
-uninstallCrowd();
+#uninstallCrowd();
+
+#print compareTwoVersions("5.1.1","5.1.1");
