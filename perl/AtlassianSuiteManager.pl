@@ -1200,18 +1200,13 @@ sub isSupportedVersion {
 #backupFile                            #
 ########################################
 sub backupFile {
-	my $inputDir;
-	my $outputDir;
 	my $inputFile;
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 
-	$inputDir  = $_[0];
-	$outputDir = $_[1];
-	$inputFile = $_[2];
+	$inputFile = $_[0];
 
 	#Create copy of input file with date_time appended to the end of filename
-	copy( $inputDir . "/" . $inputFile,
-		$outputDir . "/" . $inputFile . "_" . $date )
+	copy( $inputFile, $inputFile . "_" . $date )
 	  or die "Copy failed: $!";
 }
 
@@ -1411,6 +1406,16 @@ sub installCrowd {
 
 	print "Applying configuration settings to the install, please wait...\n\n";
 
+	print "Creating backup of config files...\n\n";
+
+	backupFile( $globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml" );
+
+	backupFile( $globalConfig->param("crowd.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
+
+	print "Applying port numbers to server config...\n\n";
+
 	#Update the server config with the configured connector port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
@@ -1424,8 +1429,9 @@ sub installCrowd {
 		  . "/apache-tomcat/conf/server.xml",
 		"/Server", "port", $globalConfig->param("crowd.serverPort")
 	);
+	print "Applying home directory location to config...\n\n";
 
-	#EditFileToReferenceHomedir
+	#Edit Crowd config file to reference homedir
 	updateLineInFile(
 		$globalConfig->param("crowd.installDir")
 		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
@@ -1482,7 +1488,7 @@ sub installCrowd {
 }
 
 ########################################
-#UpgradeCrowd                        #
+#UpgradeCrowd                          #
 ########################################
 sub upgradeCrowd {
 	my $input;
@@ -1558,6 +1564,16 @@ sub upgradeCrowd {
 
 	print "Applying configuration settings to the install, please wait...\n\n";
 
+	print "Creating backup of config files...\n\n";
+
+	backupFile( $globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml" );
+
+	backupFile( $globalConfig->param("crowd.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
+
+	print "Applying port numbers to server config...\n\n";
+
 	#Update the server config with the configured connector port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
@@ -1571,8 +1587,9 @@ sub upgradeCrowd {
 		  . "/apache-tomcat/conf/server.xml",
 		"/Server", "port", $globalConfig->param("crowd.serverPort")
 	);
+	print "Applying home directory location to config...\n\n";
 
-	#EditFileToReferenceHomedir
+	#Edit Crowd config file to reference homedir
 	updateLineInFile(
 		$globalConfig->param("crowd.installDir")
 		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
@@ -1621,6 +1638,62 @@ sub upgradeCrowd {
 	print "\n\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		system("service $application start");
+	}
+}
+
+########################################
+#Uninstall Crowd                       #
+########################################
+sub uninstallCrowd {
+	my $application = "crowd";
+	my $initdFile   = "/etc/init.d/$application";
+	my $input;
+
+	print
+"This will uninstall Crowd. This will delete the installation directory AND provide the option to delete the data directory.\n";
+	print
+"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
+	print "Do you really want to continue? yes/no [no]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "yes" ) {
+
+		#Remove Service
+		print "Disabling service...\n\n";
+		manageService( "UNINSTALL", $application );
+
+		#remove init.d file
+		print "Removing init.d file\n\n";
+		unlink $initdFile or warn "Could not unlink $initdFile: $!";
+
+		#Remove install dir
+		print "Removing installation directory...\n\n";
+		if ( -d $globalConfig->param("crowd.installDir") ) {
+			rmtree( [ $globalConfig->param("crowd.installDir") ] );
+		}
+		else {
+			print
+"Could not find configured install directory... possibly not installed?";
+		}
+
+		#Check if you REALLY want to remove data directory
+		print
+"We will now remove the data directory (Crowd home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
+		$input = getBooleanInput();
+		print "\n\n";
+		if ( $input eq "yes" ) {
+			rmtree( [ $globalConfig->param("crowd.dataDir") ] );
+		}
+		else {
+			print
+"The data directory has not been deleted and is still available at "
+			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
+		}
+
+		print
+"Crowd has been uninstalled successfully and the config file updated to reflect Crowd as disabled. Press enter to continue...\n\n";
+		$input = <STDIN>;
 	}
 }
 
@@ -2284,4 +2357,6 @@ bootStrapper();
 
 #downloadJDBCConnector("PostgreSQL");
 
-upgradeCrowd();
+#upgradeCrowd();
+
+uninstallCrowd();
