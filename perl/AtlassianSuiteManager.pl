@@ -148,6 +148,42 @@ sub createOSUser {
 }
 
 ########################################
+#Generate Jira Kickstart File          #
+########################################
+sub generateJiraKickstart {
+	my $filename; #Must contain absolute path
+	my $mode; #"INSTALL" or "UPDATE"
+	
+	$filename = $_[0];
+	$mode     = $_[1];
+	
+	open FH, ">$filename" or die "Unable to open $filename for writing.";
+    print FH "#install4j response file for JIRA\n";
+    print FH 'rmiPort$Long=' . $globalConfig->param("jira.serverPort") . "\n";
+    print FH "app.jiraHome="  . $globalConfig->param("jira.dataDir") . "\n";
+    if ( $globalConfig->param("jira.runAsService") eq "TRUE"){
+    	print FH 'app.install.service$Boolean=true' . "\n";
+    } else {
+    	print FH 'app.install.service$Boolean=false' . "\n";
+    }
+    print FH "existingInstallationDir=" . $globalConfig->param("jira.installDir") . "\n";
+    
+    if ($mode eq "UPDATE"){
+    	print FH "sys.confirmedUpdateInstallationString=true" . "\n";
+    }else {
+    	print FH "sys.confirmedUpdateInstallationString=false" . "\n";
+    }
+    print FH "sys.languageId=en" . "\n";
+    print FH "sys.installationDir=" . $globalConfig->param("jira.installDir") . "\n";
+    print FH 'executeLauncherAction$Boolean=true' . "\n";
+    print FH 'httpPort$Long=' . $globalConfig->param("jira.connectorPort") . "\n";
+    print FH "portChoice=custom" . "\n";
+    
+    close FH; 
+	
+}
+
+########################################
 #downloadJDBCConnector                 #
 ########################################
 sub downloadJDBCConnector {
@@ -2548,3 +2584,5 @@ bootStrapper();
 #uninstallCrowd();
 
 #print compareTwoVersions("5.1.1","5.1.1");
+
+generateJiraKickstart("/opt/atlassian/jira-response.varfile","INSTALL");
