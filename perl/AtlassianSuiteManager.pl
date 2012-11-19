@@ -42,6 +42,7 @@ use File::Path qw(make_path remove_tree);
 use File::Path;
 use File::Find;
 use Archive::Extract;
+use FindBin '$Bin';
 use XML::Twig;
 use strict;                    # Good practice
 use warnings;                  # Good practice
@@ -122,6 +123,142 @@ sub createOSUser {
 		system("useradd $osUser");
 		if ( $? == -1 ) {
 			die "could not create system user $osUser";
+		}
+	}
+}
+
+########################################
+#downloadJDBCConnector                 #
+########################################
+sub downloadJDBCConnector {
+	my $dbType;
+	my $input;
+	my $LOOP = 1;
+	my $downloadResponseCode;
+	my $parsedURL;
+	my $archiveFile;
+	my $url;
+	my $jarFile;
+	my $ae;
+	my $cfg;
+
+	$dbType = $_[0];
+	$cfg    = $_[1];
+
+	print
+"Not all the Atlassian products come with the $dbType connector so we need to download it.\n\n";
+	if ( $dbType eq "MySQL" ) {
+		print
+"In a web browser please visit http://dev.mysql.com/downloads/connector/j/ and note down the version number (such as 5.2.22).\n";
+		print "Enter the version number displayed on the page above: ";
+		while ( $LOOP == 1 ) {
+			$input = getGenericInput();
+			if ( $input eq "default" ) {
+				print
+"You did not enter anything, please enter a valid version number: ";
+			}
+			else {
+				$url =
+"http://cdn.mysql.com/Downloads/Connector-J/mysql-connector-java-"
+				  . $input
+				  . ".tar.gz";
+				if ( head($url) ) {
+					$LOOP = 0;
+				}
+				else {
+					print
+"That is not a valid version, no such URL with that version exists. Please try again: ";
+				}
+			}
+		}
+
+	}
+	elsif ( $dbType eq "PostgreSQL" ) {
+		print
+"In a web browser please visit http://jdbc.postgresql.org/download.html and note down the version number of the JDBC4 driver (such as 9.2-1002).\n";
+		print "Enter the version number displayed on the page above: ";
+		while ( $LOOP == 1 ) {
+			$input = getGenericInput();
+			if ( $input eq "default" ) {
+				print
+"You did not enter anything, please enter a valid version number: ";
+			}
+			else {
+				$url =
+				    "http://jdbc.postgresql.org/download/postgresql-" 
+				  . $input
+				  . ".jdbc4.jar";
+				if ( head($url) ) {
+					$LOOP = 0;
+				}
+				else {
+					print
+"That is not a valid version, no such URL with that version exists. Please try again: ";
+				}
+			}
+		}
+	}
+
+	#Parse the URL so that we can get specific sections of it
+	$parsedURL = URI->new($url);
+	my @bits = $parsedURL->path_segments();
+
+	#Set the download to show progress as we download
+	$ua->show_progress(1);
+
+	$archiveFile = $Bin . "/" . $bits[ @bits - 1 ];
+	print "Downloading JDBC connector for $dbType...\n\n";
+	$downloadResponseCode = getstore( $url, $archiveFile );
+
+#Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
+	if ( is_success($downloadResponseCode) ) {
+		print "\n\n";
+		print "Download completed successfully.\n\n";
+	}
+	else {
+		die
+"Could not download $input. HTTP Response received was: '$downloadResponseCode'";
+	}
+
+	if ( $dbType eq "MySQL" ) {
+
+		#Make sure file exists
+		if ( !-e $archiveFile ) {
+			die
+"File $archiveFile could not be extracted. File does not exist.\n\n";
+		}
+
+		#Set up extract object
+		$ae = Archive::Extract->new( archive => $archiveFile );
+		print "Extracting $archiveFile. Please wait...\n\n";
+
+		#Extract
+		$ae->extract( to => $Bin );
+		if ( $ae->error ) {
+			die
+"Unable to extract $archiveFile. The following error was encountered: $ae->error\n\n";
+		}
+
+		print "Extracting $archiveFile has been completed.\n\n";
+
+		$jarFile = $ae->extract_path() . "/mysql-connector-java-$input-bin.jar";
+		if ( -e $jarFile ) {
+			$cfg->param( "general.dbJDBCJar", $jarFile );
+		}
+		else {
+			die
+"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually.";
+		}
+
+	}
+	elsif ( $dbType eq "PostgreSQL" ) {
+		$jarFile = $archiveFile;
+		if ( -e $jarFile ) {
+			$cfg->param( "general.dbJDBCJar", $jarFile );
+		}
+		else {
+			die
+"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually.";
 		}
 	}
 }
@@ -1271,7 +1408,7 @@ sub installCrowd {
 		"start_crowd.sh", "stop_crowd.sh" );
 
 	#If set to run as a service, set to run on startup
-	if ( $globalConfig->param( "crowd.runAsService") eq "TRUE" ) {
+	if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
 		manageService( "INSTALL", $application );
 	}
 	print "Services configured successfully.\n\n";
@@ -1747,7 +1884,7 @@ sub generateSuiteConfig {
 		  . $defaultValue . "].";
 	}
 	else {
-		print "\n\nPlease make a selection: \n\n";
+		print "\n\nPlease make a selection: ";
 	}
 
 	my $LOOP = 1;
@@ -1756,6 +1893,7 @@ sub generateSuiteConfig {
 
 		$input = <STDIN>;
 		chomp $input;
+		print "\n\n";
 
 		if (   ( lc $input ) eq "1"
 			|| ( lc $input ) eq "mysql" )
@@ -1815,6 +1953,18 @@ sub generateSuiteConfig {
 		}
 	}
 	@parameterNull = $cfg->param("general.dbJDBCJar");
+
+	if ( $cfg->param("general.targetDBType") eq "MySQL" &
+		( $#parameterNull == -1 ) )
+	{
+		downloadJDBCConnector("MySQL", $cfg);
+	}
+	elsif ( $cfg->param("general.targetDBType") eq
+		"PostgreSQL" & ( $#parameterNull == -1 ) )
+	{
+		downloadJDBCConnector("PostgreSQL", $cfg);
+	}
+
 	if (
 		(
 			   $cfg->param("general.targetDBType") eq "Oracle"
@@ -1829,6 +1979,7 @@ sub generateSuiteConfig {
 		print "In order to support your target database type ["
 		  . $cfg->param("general.targetDBType")
 		  . "] you need to download the appropriate JAR file.\n\n";
+
 		if ( $cfg->param("general.targetDBType") eq "Oracle" ) {
 			print
 "Please visit http://www.oracle.com/technetwork/database/features/jdbc/index-091264.html and download the appropriate JDBC JAR File\n";
@@ -1925,7 +2076,9 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-installCrowd();
+#installCrowd();
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
+
+#downloadJDBCConnector("PostgreSQL");
