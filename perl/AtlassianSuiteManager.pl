@@ -868,6 +868,9 @@ sub genConfigItem {
 	if ( $input eq "default" ) {
 		$cfg->param( $configParam, $defaultValue );
 	}
+	elsif ( lc($input) eq "null" ) {
+		$cfg->param( $configParam, "" );
+	}
 	else {
 		$cfg->param( $configParam, $input );
 	}
@@ -1894,8 +1897,8 @@ sub generateJiraConfig {
 		$mode,
 		$cfg,
 		"jira.appContext",
-"Enter the context that Jira should run under (i.e. /jira or /bugtraq). Leave blank to keep default context.",
-		""
+"Enter the context that Jira should run under (i.e. /jira or /bugtraq). Write NULL to blank out the context.",
+		"/jira"
 	);
 	genConfigItem(
 		$mode,
@@ -1953,7 +1956,7 @@ sub generateCrowdConfig {
 		$mode,
 		$cfg,
 		"crowd.appContext",
-"Enter the context that Crowd should run under (i.e. /crowd or /login). Leave blank to keep default context.",
+"Enter the context that Crowd should run under (i.e. /crowd or /login). Write NULL to blank out the context.",
 		"/crowd"
 	);
 	genConfigItem(
@@ -2052,8 +2055,8 @@ sub generateConfluenceConfig {
 		$mode,
 		$cfg,
 		"confluence.appContext",
-"Enter the context that Confluence should run under (i.e. /wiki or /confluence). Leave blank to keep default context.",
-		""
+"Enter the context that Confluence should run under (i.e. /wiki or /confluence). Write NULL to blank out the context.",
+		"/confluence"
 	);
 	genConfigItem(
 		$mode,
