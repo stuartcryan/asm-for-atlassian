@@ -130,19 +130,20 @@ sub createOSUser {
 sub createDirectory {
 	my $directory;
 	my $osUser;
-	my @folderList;
 	my @uidGid;
 
 	$directory = $_[0];
 	$osUser    = $_[1];
 
-	@folderList = ($directory);
-
+    #Get UID and GID for the user
 	@uidGid = getUserUidGid($osUser);
+	
+	#Check if the directory exists if so just chown it
 	if ( -d $directory ) {
-		chown $uidGid[0], $uidGid[1], @folderList;
-
+		chownRecursive( $uidGid[0], $uidGid[1], $directory );
 	}
+	
+	#If the directory doesn't exist make the path to the directory (including any missing folders)
 	else {
 		make_path(
 			$directory,
@@ -151,8 +152,8 @@ sub createDirectory {
 				mode    => 0755,
 			}
 		);
-
-		chown $uidGid[0], $uidGid[1], @folderList;
+        #Then chown the directory recursively
+		chownRecursive( $uidGid[0], $uidGid[1], $directory );
 	}
 }
 
