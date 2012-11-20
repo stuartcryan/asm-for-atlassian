@@ -67,6 +67,49 @@ sub testOSArchitecture {
 }
 
 ########################################
+#GetUserCreatedByInstaller             #
+#The atlassian BIN installers for      #
+#Confluence and JIRA currently create  #
+#their own users, we need to get this  #
+#following installation so that we can #
+#chmod files correctly.                #
+########################################
+sub getUserCreatedByInstaller {
+	my $parameterName;
+	my $lineReference;
+	my $searchFor;
+	my @data;
+	my $fileName;
+	my $userName;
+
+	$parameterName = $_[0];
+	$lineReference = $_[1];
+
+	$fileName = $globalConfig->param($parameterName) . "/bin/user.sh";
+
+	open( FILE, $fileName ) or die("Unable to open file: $fileName.");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		die "Unable to get username from $fileName";
+	}
+	else {
+		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
+			my $result1 = $1;
+            return $result1
+		}
+	}
+}
+
+########################################
 #getUserUidGid                         #
 ########################################
 sub getUserUidGid {
@@ -1402,6 +1445,8 @@ sub installJira {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
+	my $varfile =
+	  $globalConfig->param("general.rootInstallDir") . "/jira-install.varfile";
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -1495,8 +1540,14 @@ sub installJira {
 	}
 
 	#chmod the file to be executable
+	chmod 0755, $downloadDetails[2]
+	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
+
+	#Generate the kickstart as we have all the information necessary
+	generateJiraKickstart( $varfile, "INSTALL" );
 
 	#install
+	system( $downloadDetails[2] . " -q -varfile $varfile" );
 
 	#getTheUserItWasInstalledAs - Save and reload config
 
@@ -2735,4 +2786,6 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-generateJiraKickstart( "/opt/atlassian/jira-response.varfile", "INSTALL" );
+#installJira();
+
+#print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
