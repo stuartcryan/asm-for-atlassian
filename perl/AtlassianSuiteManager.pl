@@ -1583,15 +1583,34 @@ sub installJira {
 		print "The current installation directory ("
 		  . $globalConfig->param("jira.installDir")
 		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
-		  $input = getBooleanInput();
+		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			backupDirectoryAndChown( $globalConfig->param("jira.installDir"),
-				"root" ); #we have to use root here as due to the way Jira installs no way to know if user exists or not.
+				"root" )
+			  ; #we have to use root here as due to the way Jira installs no way to know if user exists or not.
 		}
 		else {
 			die
 "Cannot proceed installing JIRA if the directory already has an install, please remove this manually and try again.\n\n";
+		}
+	}
+
+	if ( -d $globalConfig->param("jira.dataDir") ) {
+		print "The current installation directory ("
+		  . $globalConfig->param("jira.dataDir")
+		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			backupDirectoryAndChown( $globalConfig->param("jira.dataDir"),
+				"root" )
+			  ; #we have to use root here as due to the way Jira installs no way to know if user exists or not.
+		}
+		else {
+			die "Cannot proceed installing JIRA if the data directory ("
+			  . $globalConfig->param("jira.dataDir")
+			  . ")already has data from a previous install, please remove this manually and try again.\n\n";
 		}
 
 	}
@@ -1601,6 +1620,7 @@ sub installJira {
 
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser = getUserCreatedByInstaller( "jira.installDir", "JIRA_USER" );
+	$globalConfig->param( "jira.osUser", $osUser );
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
@@ -1615,9 +1635,6 @@ sub installJira {
 		  )
 		  or die
 		  "Unable to copy MySQL JDBC connector to Jira lib directory: $!";
-
-		#Get UID and GID for the user
-		@uidGid = getUserUidGid($osUser);
 
 		#Chown the files again
 		chownRecursive( $osUser,
@@ -1636,6 +1653,11 @@ sub installJira {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
+
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "jira.installedVersion", $version );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 }
 
 ########################################
@@ -2184,9 +2206,6 @@ sub generateJiraConfig {
 		"Please enter the directory Jira's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/jira"
 	);
-
-	genConfigItem( $mode, $cfg, "jira.osUser",
-		"Enter the user that Jira will run under.", "jira" );
 
 	genConfigItem(
 		$mode,
@@ -2839,6 +2858,6 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-#installJira();
+installJira();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
