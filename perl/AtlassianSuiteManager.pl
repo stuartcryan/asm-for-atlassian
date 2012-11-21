@@ -113,24 +113,19 @@ sub getUserCreatedByInstaller {
 #Backup Folder and Chown                 #
 ########################################
 sub backupFolderAndChown {
-my $originalDir;
-my $osUser;
-my $backupDirName;
+	my $originalDir;
+	my $osUser;
+	my $backupDirName;
 
-$originalDir = $_[0];
-$osUser = $_[1];
+	$originalDir = $_[0];
+	$osUser      = $_[1];
 
-$backupDirName = $originalDir . "_backup_" . $date;
-moveDirectory( $originalDir,
-						$backupDirName);
-					print "Folder moved to "
-					  . $backupDirName . "\n\n";
-					chownRecursive( $uidGid[0], $uidGid[1],
-						$expectedFolderName );
+	$backupDirName = $originalDir . "_backup_" . $date;
+	moveDirectory( $originalDir, $backupDirName );
+	print "Folder moved to " . $backupDirName . "\n\n";
+	chownRecursive( $osUser, $expectedFolderName );
 
 }
-
-					
 
 ########################################
 #getUserUidGid                         #
@@ -156,19 +151,21 @@ sub getUserUidGid {
 #ChownRecursive                        #
 ########################################
 sub chownRecursive {
-	my $uid;
-	my $gid;
 	my $directory;
+	my $osUser;
+	my @uidGid;
 
-	$uid       = $_[0];
-	$gid       = $_[1];
-	$directory = $_[2];
+	$osUser    = $_[0];
+	$directory = $_[1];
+
+	#Get UID and GID for the user
+	@uidGid = getUserUidGid($osUser);
 
 	print "Chowning files to correct user. Please wait.\n\n";
 
 	find(
 		sub {
-			chown $uid, $gid, $_
+			chown $uidGid[0], $uidGid[1], $_
 			  or die "could not chown '$_': $!";
 		},
 		$directory
@@ -181,17 +178,19 @@ sub chownRecursive {
 #ChownFile                             #
 ########################################
 sub chownFile {
-	my $uid;
-	my $gid;
-	my $file;
+	my $directory;
+	my $osUser;
+	my @uidGid;
 
-	$uid  = $_[0];
-	$gid  = $_[1];
-	$file = $_[2];
+	$osUser = $_[0];
+	$file   = $_[1];
+
+	#Get UID and GID for the user
+	@uidGid = getUserUidGid($osUser);
 
 	print "Chowning file to correct user. Please wait.\n\n";
 
-	chown $uid, $gid, $file
+	chown $uidGid[0], $uidGid[1], $file
 	  or die "could not chown '$_': $!";
 
 	print "File chowned successfully.\n\n";
@@ -431,7 +430,7 @@ sub createDirectory {
 	#Check if the directory exists if so just chown it
 	if ( -d $directory ) {
 		print "Directory exists...\n\n";
-		chownRecursive( $uidGid[0], $uidGid[1], $directory );
+		chownRecursive( $osUser, $directory );
 	}
 
 #If the directory doesn't exist make the path to the directory (including any missing folders)
@@ -447,7 +446,7 @@ sub createDirectory {
 
 		#Then chown the directory recursively
 		print "Chowning files for good measure...\n\n";
-		chownRecursive( $uidGid[0], $uidGid[1], $directory );
+		chownRecursive( $osUser, $directory );
 	}
 }
 
@@ -883,7 +882,7 @@ sub extractAndMoveDownload {
 			print "Old installation successfully backed up.\n\n";
 			print "Moving new installation into place...\n\n";
 			moveDirectory( $ae->extract_path(), $expectedFolderName );
-			chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
+			chownRecursive( $osUser, $expectedFolderName );
 
 		}
 		else {
@@ -911,8 +910,7 @@ sub extractAndMoveDownload {
 					  . $expectedFolderName
 					  . $date . "\n\n";
 					moveDirectory( $ae->extract_path(), $expectedFolderName );
-					chownRecursive( $uidGid[0], $uidGid[1],
-						$expectedFolderName );
+					chownRecursive( $osUser, $expectedFolderName );
 
 				}
 
@@ -925,8 +923,7 @@ sub extractAndMoveDownload {
 					rmtree( ["$expectedFolderName"] );
 
 					moveDirectory( $ae->extract_path(), $expectedFolderName );
-					chownRecursive( $uidGid[0], $uidGid[1],
-						$expectedFolderName );
+					chownRecursive( $osUser, $expectedFolderName );
 				}
 
 				#Input was not recognised, ask user for input again
@@ -941,7 +938,7 @@ sub extractAndMoveDownload {
 	#Directory does not exist, move new directory in place.
 	else {
 		moveDirectory( $ae->extract_path(), $expectedFolderName );
-		chownRecursive( $uidGid[0], $uidGid[1], $expectedFolderName );
+		chownRecursive( $osUser, $expectedFolderName );
 	}
 
 }
@@ -1610,7 +1607,7 @@ sub installJira {
 		@uidGid = getUserUidGid($osUser);
 
 		#Chown the files again
-		chownRecursive( $uidGid[0], $uidGid[1],
+		chownRecursive( $osUser,
 			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
 
 		#RestartService
@@ -1810,7 +1807,7 @@ sub installCrowd {
 		@uidGid = getUserUidGid($osUser);
 
 		#Chown the files again
-		chownRecursive( $uidGid[0], $uidGid[1],
+		chownRecursive( $osUser,
 			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
 	}
 
@@ -2060,7 +2057,7 @@ sub upgradeCrowd {
 		@uidGid = getUserUidGid($osUser);
 
 		#Chown the files again
-		chownRecursive( $uidGid[0], $uidGid[1],
+		chownRecursive( $osUser,
 			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
 	}
 
