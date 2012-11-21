@@ -110,9 +110,12 @@ sub getUserCreatedByInstaller {
 }
 
 ########################################
-#Backup Folder and Chown                 #
+#BackupDirectoryAndChown               #
+#NOTE This will MOVE to a backup, not  #
+#copy...                               #
 ########################################
-sub backupFolderAndChown {
+sub backupDirectoryAndChown {
+	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 	my $originalDir;
 	my $osUser;
 	my $backupDirName;
@@ -123,8 +126,7 @@ sub backupFolderAndChown {
 	$backupDirName = $originalDir . "_backup_" . $date;
 	moveDirectory( $originalDir, $backupDirName );
 	print "Folder moved to " . $backupDirName . "\n\n";
-	chownRecursive( $osUser, $expectedFolderName );
-
+	chownRecursive( $osUser, $backupDirName );
 }
 
 ########################################
@@ -178,9 +180,9 @@ sub chownRecursive {
 #ChownFile                             #
 ########################################
 sub chownFile {
-	my $directory;
 	my $osUser;
 	my @uidGid;
+	my $file;
 
 	$osUser = $_[0];
 	$file   = $_[1];
@@ -877,13 +879,7 @@ sub extractAndMoveDownload {
 			  . "_upgrade_"
 			  . $date
 			  . ", please wait...\n\n";
-			moveDirectory( $expectedFolderName,
-				$expectedFolderName . "_upgrade_" . $date );
-			print "Old installation successfully backed up.\n\n";
-			print "Moving new installation into place...\n\n";
-			moveDirectory( $ae->extract_path(), $expectedFolderName );
-			chownRecursive( $osUser, $expectedFolderName );
-
+			moveDirectoryAndChown( $expectedFolderName, $osUser );
 		}
 		else {
 			my $LOOP = 1;
@@ -1582,6 +1578,23 @@ sub installJira {
 
 	#Generate the kickstart as we have all the information necessary
 	generateJiraKickstart( $varfile, "INSTALL" );
+
+	if ( -d $globalConfig->param("jira.installDir") ) {
+		print "The current installation directory ("
+		  . $globalConfig->param("jira.installDir")
+		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
+		  $input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			backupDirectoryAndChown( $globalConfig->param("jira.installDir"),
+				"root" ); #we have to use root here as due to the way Jira installs no way to know if user exists or not.
+		}
+		else {
+			die
+"Cannot proceed installing JIRA if the directory already has an install, please remove this manually and try again.\n\n";
+		}
+
+	}
 
 	#install
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
