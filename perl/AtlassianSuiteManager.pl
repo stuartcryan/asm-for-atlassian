@@ -104,10 +104,33 @@ sub getUserCreatedByInstaller {
 	else {
 		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
 			my $result1 = $1;
-            return $result1
+			return $result1;
 		}
 	}
 }
+
+########################################
+#Backup Folder and Chown                 #
+########################################
+sub backupFolderAndChown {
+my $originalDir;
+my $osUser;
+my $backupDirName;
+
+$originalDir = $_[0];
+$osUser = $_[1];
+
+$backupDirName = $originalDir . "_backup_" . $date;
+moveDirectory( $originalDir,
+						$backupDirName);
+					print "Folder moved to "
+					  . $backupDirName . "\n\n";
+					chownRecursive( $uidGid[0], $uidGid[1],
+						$expectedFolderName );
+
+}
+
+					
 
 ########################################
 #getUserUidGid                         #
@@ -441,6 +464,23 @@ sub moveDirectory {
 	if ( move( $origDirectory, $newDirectory ) == 0 ) {
 		die
 "Unable to move folder $origDirectory to $newDirectory. Unknown error occured.\n\n";
+	}
+
+}
+
+########################################
+#CopyDirectory                         #
+########################################
+sub copyDirectory {
+	my $origDirectory;
+	my $newDirectory;
+
+	$origDirectory = $_[0];
+	$newDirectory  = $_[1];
+
+	if ( copy( $origDirectory, $newDirectory ) == 0 ) {
+		die
+"Unable to copy folder $origDirectory to $newDirectory. Unknown error occured.\n\n";
 	}
 
 }
@@ -1549,9 +1589,12 @@ sub installJira {
 	#install
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
 
-	#getTheUserItWasInstalledAs - Save and reload config
+	#getTheUserItWasInstalledAs - Write to config and reload
+	$osUser = getUserCreatedByInstaller( "jira.installDir", "JIRA_USER" );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
-	#CopyMySQLDriver
+	#If MySQL is the Database, Jira does not come with the driver so copy it
 
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
 		print
@@ -1573,7 +1616,7 @@ sub installJira {
 		#RestartService
 	}
 
-	#Check if user wants to remove the downloaded archive
+	#Check if user wants to remove the downloaded installer
 	print "Do you wish to delete the downloaded installer "
 	  . $downloadDetails[2]
 	  . "? [yes]: ";
