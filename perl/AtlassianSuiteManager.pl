@@ -44,6 +44,8 @@ use File::Find;
 use Archive::Extract;
 use FindBin '$Bin';
 use XML::Twig;
+use Socket qw( PF_INET SOCK_STREAM INADDR_ANY sockaddr_in );
+use Errno  qw( EADDRINUSE );
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
@@ -107,6 +109,30 @@ sub getUserCreatedByInstaller {
 			return $result1;
 		}
 	}
+}
+
+########################################
+#Check if port is available            #
+########################################
+sub isPortAvailable {
+	#Adapted from ikegami's example on http://www.perlmonks.org/?node_id=759131
+	#1 is available, 0 is in use
+    my $family = PF_INET;
+    my $type   = SOCK_STREAM;
+    my $proto  = getprotobyname('tcp')  or die "getprotobyname: $!";
+    my $host   = INADDR_ANY;  # Use inet_aton for a specific interface
+    my $port;
+    my $name;
+    
+    $port = $_[0];
+
+    socket(my $sock, $family, $type, $proto) or die "socket: $!";
+    $name = sockaddr_in($port, $host)     or die "sockaddr_in: $!";
+
+    bind($sock, $name) and return 1;
+    $! == EADDRINUSE   and return 0;
+    return $!;
+    die "bind: $!";
 }
 
 ########################################
@@ -2884,3 +2910,4 @@ bootStrapper();
 #installJira();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
+print isPortAvailable("22");
