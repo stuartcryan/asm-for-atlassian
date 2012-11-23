@@ -2021,6 +2021,29 @@ sub upgradeCrowd {
 			whichApplicationArchitecture() );
 	}
 
+	#Prompt user to stop existing service
+	print
+"We will now stop the existing Crowd service, please press enter to continue...";
+	$input = <STDIN>;
+	print "\n";
+	if ( -e "/etc/init.d/crowd" ) {
+		system("service crowd stop")
+		  or die "Could not stop Crowd: $!";
+	}
+	else {
+		if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" ) {
+			system( $globalConfig->param("crowd.installDir")
+				  . "/stop_crowd.sh" )
+			  or die
+"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n";
+		}
+		else {
+			die
+"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again"
+			  ;
+		}
+	}
+
 	#Extract the download and move into place
 	extractAndMoveDownload( $downloadDetails[2],
 		$globalConfig->param("crowd.installDir"),
@@ -2858,6 +2881,6 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-installJira();
+#installJira();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
