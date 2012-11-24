@@ -1619,7 +1619,7 @@ sub installJira {
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
 		die
-"One or more of the ports configured for Jira is currently in use. Cannot continue installing. "
+"One or more of the ports configured for Jira are currently in use. Cannot continue installing. "
 		  . "Please ensure the ports configured are available and not in use.\n\n";
 	}
 
@@ -1783,6 +1783,8 @@ sub installCrowd {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
+	my $serverPortAvailCode;
+	my $connectorPortAvailCode;
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -1821,6 +1823,27 @@ sub installCrowd {
 
 	#Check the user exists or create if not
 	createOSUser($osUser);
+
+	$serverPortAvailCode =
+	  isPortAvailable( $globalConfig->param("crowd.serverPort") );
+
+	$connectorPortAvailCode =
+	  isPortAvailable( $globalConfig->param("crowd.connectorPort") );
+
+	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+		print
+"One or more of the ports configured for Crowd are currently in use. We can procced however there is a very good chance"
+		  . " that Crowd will not start correctly.\n\n";
+		print
+"Would you like to continue even though the ports are in use? yes/no [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "no" ) {
+			die "Install will not proceed. Exiting script. \n\n";
+		}
+
+	}
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
 
