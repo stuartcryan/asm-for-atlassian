@@ -1792,6 +1792,193 @@ sub installJira {
 }
 
 ########################################
+#UpgradeJira                          #
+########################################
+sub upgradeJira {
+	my $input;
+	my $mode;
+	my $version;
+	my $application = "jira";
+	my @downloadDetails;
+	my @downloadVersionCheck;
+	my $archiveLocation;
+	my $osUser;
+	my $VERSIONLOOP = 1;
+	my @uidGid;
+	my $varfile =
+	  $globalConfig->param("general.rootInstallDir") . "/jira-upgrade.varfile";
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"jira.appContext",   "jira.enable",
+		"jira.dataDir",      "jira.installDir",
+		"jira.runAsService", "jira.serverPort",
+		"jira.connectorPort"
+	);
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		print
+"Some of the Jira config parameters are incomplete. You must review the Jira configuration before continuing: \n\n";
+		generateJiraConfig( "UPDATE", $globalConfig );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#Otherwise provide the option to update the configuration before proceeding
+	else {
+		print
+"Would you like to review the Jira config before upgrading? Yes/No [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			generateJiraConfig( "UPDATE", $globalConfig );
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+		}
+	}
+
+	#We are upgrading, get the latest version
+	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$mode = "LATEST";
+	}
+	else {
+		$mode = "SPECIFIC";
+	}
+
+	#If a specific version is selected, ask for the version number
+	if ( $mode eq "SPECIFIC" ) {
+		while ( $VERSIONLOOP == 1 ) {
+			print
+			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+
+			$version = <STDIN>;
+			print "\n";
+			chomp $version;
+
+			#Check that the input version actually exists
+			print
+"Please wait, checking that version $version of Jira exists (may take a few moments)... \n\n";
+
+			#get the version specific URL to test
+			@downloadDetails =
+			  getVersionDownloadURL( $application,
+				whichApplicationArchitecture(), $version );
+
+			#Try to get the header of the version URL to ensure it exists
+			if ( head( $downloadDetails[0] ) ) {
+				$VERSIONLOOP = 0;
+				print "Jira version $version found. Continuing...\n\n";
+			}
+			else {
+				print
+"No such version of Jira exists. Please visit http://www.atlassian.com/software/jira/download-archives and pick a valid version number and try again.\n\n";
+			}
+		}
+
+	}
+
+	#Get the URL for the version we want to download
+	if ( $mode eq "LATEST" ) {
+		@downloadVersionCheck =
+		  getLatestDownloadURL( $application, whichApplicationArchitecture() );
+		my $versionSupported =
+		  compareTwoVersions( $globalConfig->param("jira.installedVersion"),
+			$downloadVersionCheck[1] );
+		if ( $versionSupported eq "GREATER" ) {
+			die "The version to be downloaded ("
+			  . $downloadVersionCheck[1]
+			  . ") is older than the currently installed version ("
+			  . $globalConfig->param("jira.installedVersion")
+			  . "). Downgrading is not supported and this script will now exit.\n\n";
+		}
+	}
+	elsif ( $mode eq "SPECIFIC" ) {
+		my $versionSupported =
+		  compareTwoVersions( $globalConfig->param("jira.installedVersion"),
+			$version );
+		if ( $versionSupported eq "GREATER" ) {
+			die "The version to be downloaded (" 
+			  . $version
+			  . ") is older than the currently installed version ("
+			  . $globalConfig->param("jira.installedVersion")
+			  . "). Downgrading is not supported and this script will now exit.\n\n";
+		}
+	}
+
+	#Download the latest version
+	if ( $mode eq "LATEST" ) {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, "",
+			whichApplicationArchitecture() );
+
+	}
+
+	#Download a specific version
+	else {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, $version,
+			whichApplicationArchitecture() );
+	}
+
+	#chmod the file to be executable
+	chmod 0755, $downloadDetails[2]
+	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
+
+	#Generate the kickstart as we have all the information necessary
+	generateJiraKickstart( $varfile, "UPGRADE" );
+
+	#install
+	system( $downloadDetails[2] . " -q -varfile $varfile" );
+
+	#getTheUserItWasInstalledAs - Write to config and reload
+	$osUser = getUserCreatedByInstaller( "jira.installDir", "JIRA_USER" );
+	$globalConfig->param( "jira.osUser", $osUser );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
+	#If MySQL is the Database, Jira does not come with the driver so copy it
+
+	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		print
+"Database is configured as MySQL, copying the JDBC connector to Jira install.\n\n";
+		copy(
+			$globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param("jira.installDir") . "/lib/"
+		  )
+		  or die
+		  "Unable to copy MySQL JDBC connector to Jira lib directory: $!";
+
+		#Chown the files again
+		chownRecursive( $osUser,
+			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
+
+	}
+
+	#Check if user wants to remove the downloaded installer
+	print "Do you wish to delete the downloaded installer "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "jira.installedVersion", $version );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+}
+
+########################################
 #InstallCrowd                          #
 ########################################
 sub installCrowd {
@@ -3068,7 +3255,8 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-installJira();
+#installJira();
+upgradeJira();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
 #print isPortAvailable("22");
