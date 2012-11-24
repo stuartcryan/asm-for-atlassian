@@ -45,7 +45,7 @@ use Archive::Extract;
 use FindBin '$Bin';
 use XML::Twig;
 use Socket qw( PF_INET SOCK_STREAM INADDR_ANY sockaddr_in );
-use Errno  qw( EADDRINUSE );
+use Errno qw( EADDRINUSE );
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
@@ -115,24 +115,92 @@ sub getUserCreatedByInstaller {
 #Check if port is available            #
 ########################################
 sub isPortAvailable {
+
 	#Adapted from ikegami's example on http://www.perlmonks.org/?node_id=759131
 	#1 is available, 0 is in use
-    my $family = PF_INET;
-    my $type   = SOCK_STREAM;
-    my $proto  = getprotobyname('tcp')  or die "getprotobyname: $!";
-    my $host   = INADDR_ANY;  # Use inet_aton for a specific interface
-    my $port;
-    my $name;
-    
-    $port = $_[0];
+	my $family = PF_INET;
+	my $type   = SOCK_STREAM;
+	my $proto  = getprotobyname('tcp') or die "getprotobyname: $!";
+	my $host = INADDR_ANY;    # Use inet_aton for a specific interface
+	my $port;
+	my $name;
 
-    socket(my $sock, $family, $type, $proto) or die "socket: $!";
-    $name = sockaddr_in($port, $host)     or die "sockaddr_in: $!";
+	$port = $_[0];
 
-    bind($sock, $name) and return 1;
-    $! == EADDRINUSE   and return 0;
-    return $!;
-    die "bind: $!";
+	socket( my $sock, $family, $type, $proto ) or die "socket: $!";
+	$name = sockaddr_in( $port, $host ) or die "sockaddr_in: $!";
+
+	bind( $sock, $name ) and return 1;
+	$! == EADDRINUSE and return 0;
+	return $!;
+	die "bind: $!";
+}
+
+########################################
+#Check configured port                 #
+########################################
+sub checkConfiguredPort {
+	my $cfg;
+	my $configItem;
+	my $availCode;
+	my $configValue;
+	my $input;
+
+	$configItem = $_[0];
+	if ( defined( $_[1] ) ) {
+		$cfg = $_[1];
+	}
+	else {
+		$cfg = $globalConfig;
+	}
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+		$configValue = $cfg->param($configItem);
+		if ( !defined($configValue) ) {
+			die
+"No port has been configured for the config item '$configItem'. Please enter a configuration value and try again. This script will now exit.\n\n";
+		}
+		elsif ( $configValue eq "" ) {
+			genConfigItem(
+				"UPDATE",
+				$cfg,
+				$configItem,
+"No port number has been entered. Please enter the new port number for $configItem",
+				""
+			);
+		}
+		else {
+			$availCode = isPortAvailable($configValue);
+
+			if ( $availCode == 1 ) {
+
+				#port is available
+				$LOOP = 0;
+			}
+			else {
+
+				#port is in use
+				print
+"The port you have configured ($configValue) for $configItem is currently in use, this may be expected if you are already running the application."
+				  . "\nOtherwise you may need to configure another port.\n\nWould you like to configure a different port? yes/no [yes]: ";
+				$input = getBooleanInput();
+				print "\n";
+				if (   $input eq "yes"
+					|| $input eq "default" )
+				{
+					genConfigItem( "UPDATE", $cfg, $configItem,
+						"Please enter the new port number to configure", "" );
+
+				}
+				elsif ( $input eq "no" ) {
+					$LOOP = 0;
+				}
+
+			}
+		}
+	}
+
 }
 
 ########################################
@@ -937,7 +1005,9 @@ sub extractAndMoveDownload {
 				}
 
 #If user selects, overwrite existing folder by deleting and then moving new directory in place
-				elsif ( ( lc $input ) eq "overwrite" || ( lc $input ) eq "o" ) {
+				elsif (( lc $input ) eq "overwrite"
+					|| ( lc $input ) eq "o" )
+				{
 					$LOOP = 0;
 
 #Considered failure handling for rmtree however based on http://perldoc.perl.org/File/Path.html used
@@ -1504,6 +1574,8 @@ sub installJira {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
+	my $connectorPortAvailCode;
+	my $serverPortAvailCode;
 	my $varfile =
 	  $globalConfig->param("general.rootInstallDir") . "/jira-install.varfile";
 
@@ -1537,6 +1609,18 @@ sub installJira {
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
+	}
+
+	$serverPortAvailCode =
+	  isPortAvailable( $globalConfig->param("jira.serverPort") );
+
+	$connectorPortAvailCode =
+	  isPortAvailable( $globalConfig->param("jira.connectorPort") );
+
+	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+		die
+"One or more of the ports configured for Jira is currently in use. Cannot continue installing. "
+		  . "Please ensure the ports configured are available and not in use.\n\n";
 	}
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
@@ -2065,8 +2149,7 @@ sub upgradeCrowd {
 		}
 		else {
 			die
-"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again"
-			  ;
+"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again";
 		}
 	}
 
@@ -2272,6 +2355,8 @@ sub generateJiraConfig {
 		"8080"
 	);
 
+	checkConfiguredPort( "jira.connectorPort", $cfg );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -2279,6 +2364,8 @@ sub generateJiraConfig {
 "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).",
 		"8000"
 	);
+
+	checkConfiguredPort( "jira.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -2336,6 +2423,8 @@ sub generateCrowdConfig {
 "Please enter the Connector port Crowd will run on (note this is the port you will access in the browser).",
 		"8095"
 	);
+	checkConfiguredPort( "crowd.connectorPort", $cfg );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -2343,6 +2432,7 @@ sub generateCrowdConfig {
 "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).",
 		"8000"
 	);
+	checkConfiguredPort( "crowd.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -2619,11 +2709,12 @@ sub generateSuiteConfig {
 
 	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
 		print
-		  "Do you wish to set up/update the Crowd configuration now? [no] \n\n";
+		  "Do you wish to set up/update the Crowd configuration now? [no]: ";
 
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
+			print "\n";
 			generateCrowdConfig( $mode, $cfg );
 		}
 
@@ -2634,12 +2725,12 @@ sub generateSuiteConfig {
 		"Do you wish to install/manage Jira? yes/no ", "yes" );
 
 	if ( $cfg->param("jira.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Jira configuration now? [no] \n\n";
+		print "Do you wish to set up/update the Jira configuration now? [no]: ";
 
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
+			print "\n";
 			generateJiraConfig( $mode, $cfg );
 		}
 	}
@@ -2650,11 +2741,12 @@ sub generateSuiteConfig {
 
 	if ( $cfg->param("confluence.enable") eq "TRUE" ) {
 		print
-"Do you wish to set up/update the Confluence configuration now? [no] \n\n";
+"Do you wish to set up/update the Confluence configuration now? [no]: ";
 
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
+			print "\n";
 			generateConfluenceConfig( $mode, $cfg );
 		}
 	}
@@ -2665,11 +2757,12 @@ sub generateSuiteConfig {
 
 	if ( $cfg->param("fisheye.enable") eq "TRUE" ) {
 		print
-"Do you wish to set up/update the Fisheye configuration now? [no] \n\n";
+		  "Do you wish to set up/update the Fisheye configuration now? [no]: ";
 
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
+			print "\n";
 			generateJiraConfig( $mode, $cfg );
 		}
 	}
@@ -2873,6 +2966,7 @@ END_TXT
 bootStrapper();
 
 #generateSuiteConfig();
+
 #getVersionDownloadURL( "confluence", whichApplicationArchitecture(), "4.2.7" );
 
 #updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
@@ -2907,7 +3001,7 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-#installJira();
+installJira();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
-print isPortAvailable("22");
+#print isPortAvailable("22");
