@@ -510,9 +510,9 @@ sub findDistro {
 }
 
 ########################################
-#CreateDirectory                       #
+#createAndChownDirectory               #
 ########################################
-sub createDirectory {
+sub createAndChownDirectory {
 	my $directory;
 	my $osUser;
 	my @uidGid;
@@ -543,6 +543,27 @@ sub createDirectory {
 		#Then chown the directory recursively
 		print "Chowning files for good measure...\n\n";
 		chownRecursive( $osUser, $directory );
+	}
+}
+
+########################################
+#createDirectory                       #
+########################################
+sub createDirectory {
+	my $directory;
+
+	$directory = $_[0];
+
+	#If the directory does not exist... create it
+	if ( !-d $directory ) {
+		print "Directory does not exist, creating...\n\n";
+		make_path(
+			$directory,
+			{
+				verbose => 1,
+				mode    => 0755,
+			}
+		);
 	}
 }
 
@@ -946,7 +967,7 @@ sub extractAndMoveDownload {
 	print "Preparing to extract $inputFile...\n\n";
 
 	#Make sure directory exists
-	createDirectory( $globalConfig->param("general.rootInstallDir"), "root" );
+	createDirectory( $globalConfig->param("general.rootInstallDir"));
 
 	#Make sure file exists
 	if ( !-e $inputFile ) {
@@ -1982,7 +2003,7 @@ sub installCrowd {
 	#Create home/data directory if it does not exist
 	print
 "Checking if data directory exists and creating if not, please wait...\n\n";
-	createDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
+	createAndChownDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
 
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
@@ -2616,7 +2637,7 @@ sub downloadAtlassianInstaller {
 
 	#Check that the install/download directory exists, if not create it
 	print "Checking that root install dir exists...\n\n";
-	createDirectory( $globalConfig->param("general.rootInstallDir"), "root" );
+	createDirectory( $globalConfig->param("general.rootInstallDir") );
 
 	#Download the file and store the HTTP response code
 	print "Downloading file from Atlassian...\n\n";
@@ -3024,7 +3045,7 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-installJira();
+#installJira();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
 #print isPortAvailable("22");
