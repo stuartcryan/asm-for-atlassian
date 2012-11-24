@@ -967,7 +967,7 @@ sub extractAndMoveDownload {
 	print "Preparing to extract $inputFile...\n\n";
 
 	#Make sure directory exists
-	createDirectory( $globalConfig->param("general.rootInstallDir"));
+	createDirectory( $globalConfig->param("general.rootInstallDir") );
 
 	#Make sure file exists
 	if ( !-e $inputFile ) {
@@ -2599,6 +2599,7 @@ sub downloadAtlassianInstaller {
 	my @downloadDetails;
 	my $input;
 	my $downloadResponseCode;
+	my $absoluteFilePath;
 
 	$type         = $_[0];
 	$product      = $_[1];
@@ -2638,25 +2639,47 @@ sub downloadAtlassianInstaller {
 	#Check that the install/download directory exists, if not create it
 	print "Checking that root install dir exists...\n\n";
 	createDirectory( $globalConfig->param("general.rootInstallDir") );
+	
+	$absoluteFilePath = $globalConfig->param("general.rootInstallDir") . "/"
+		. $bits[ @bits - 1 ];
 
-	#Download the file and store the HTTP response code
-	print "Downloading file from Atlassian...\n\n";
-	$downloadResponseCode = getstore( $downloadDetails[0],
-		    $globalConfig->param("general.rootInstallDir") . "/"
-		  . $bits[ @bits - 1 ] );
+#Check if local file already exists and if it does, provide the option to skip downloading
+	if ( -e $absoluteFilePath )
+	{
+		print "The local install file "
+		  . $absoluteFilePath
+		  . " already exists. Would you like to skip re-downloading the file: [yes]";
 
-#Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
-	if ( is_success($downloadResponseCode) ) {
+		$input = getBooleanInput();
 		print "\n";
-		print "Download completed successfully.\n\n";
-		$downloadDetails[2] =
-		    $globalConfig->param("general.rootInstallDir") . "/"
-		  . $bits[ @bits - 1 ];
-		return @downloadDetails;
+		if ( $input eq "yes" || $input eq "default" ) {
+			$downloadDetails[2] =
+			    $globalConfig->param("general.rootInstallDir") . "/"
+			  . $bits[ @bits - 1 ];
+			return @downloadDetails;
+		}
 	}
 	else {
-		die
+
+		#Download the file and store the HTTP response code
+		print "Downloading file from Atlassian...\n\n";
+		$downloadResponseCode = getstore( $downloadDetails[0],
+			    $globalConfig->param("general.rootInstallDir") . "/"
+			  . $bits[ @bits - 1 ] );
+
+#Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
+		if ( is_success($downloadResponseCode) ) {
+			print "\n";
+			print "Download completed successfully.\n\n";
+			$downloadDetails[2] =
+			    $globalConfig->param("general.rootInstallDir") . "/"
+			  . $bits[ @bits - 1 ];
+			return @downloadDetails;
+		}
+		else {
+			die
 "Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'";
+		}
 	}
 
 }
@@ -3045,7 +3068,7 @@ bootStrapper();
 
 #print compareTwoVersions("5.1.1","5.1.1");
 
-#installJira();
+installJira();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
 #print isPortAvailable("22");
