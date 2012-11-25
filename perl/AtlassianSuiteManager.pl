@@ -112,6 +112,26 @@ sub getUserCreatedByInstaller {
 }
 
 ########################################
+#getConfigItem                         #
+########################################
+sub getConfigItem {
+
+#This function can be used if a config item may have a NULL defined deliberately to return the correct value.
+	my $configItem;
+	my $cfg;
+
+	$configItem = $_[0];
+	$cfg        = $_[1];
+
+	if ( $cfg->param($configItem) eq "NULL" ) {
+		return "";
+	}
+	else {
+		return $cfg->param($configItem);
+	}
+}
+
+########################################
 #Check if port is available            #
 ########################################
 sub isPortAvailable {
@@ -1209,7 +1229,7 @@ sub genConfigItem {
 		$cfg->param( $configParam, $defaultValue );
 	}
 	elsif ( lc($input) eq "null" ) {
-		$cfg->param( $configParam, "" );
+		$cfg->param( $configParam, "NULL" );
 	}
 	else {
 		$cfg->param( $configParam, $input );
@@ -2574,7 +2594,8 @@ sub installCrowd {
 		system("service $application start");
 		print "\nCrowd can now be accessed on http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
-		  . $globalConfig->param("crowd.appContext") . ".\n\n";
+		  . getConfigItem( "crowd.appContext", $globalConfig )
+		  . ".\n\n";
 		print "If you have any issues please check the log at "
 		  . $globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/logs/catalina.out\n\n";
@@ -2858,7 +2879,7 @@ sub upgradeCrowd {
 		system("service $application start");
 		print "\nCrowd can now be accessed on http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
-		  . $globalConfig->param("crowd.appContext") . ".\n\n";
+		  . getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
 		print "If you have any issues please check the log at "
 		  . $globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/logs/catalina.out\n\n";
