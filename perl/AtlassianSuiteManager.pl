@@ -644,7 +644,6 @@ sub checkRequiredConfigItems {
 sub manageService {
 	my $application;
 	my $mode;
-
 	$application = $_[0];
 	$mode        = $_[1];
 
@@ -1759,6 +1758,11 @@ sub installJira {
 	#install
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
 
+	if ( $? == -1 ) {
+		die
+"Jira install did not complete successfully. Please check the install logs and try again: $!\n";
+	}
+
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser = getUserCreatedByInstaller( "jira.installDir", "JIRA_USER" );
 	$globalConfig->param( "jira.osUser", $osUser );
@@ -1927,7 +1931,7 @@ sub upgradeJira {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, "",
 			whichApplicationArchitecture() );
-			$version = $downloadDetails[1];
+		$version = $downloadDetails[1];
 
 	}
 
@@ -1947,7 +1951,11 @@ sub upgradeJira {
 
 	#upgrade
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
-	
+	if ( $? == -1 ) {
+		die
+"Jira upgrade did not complete successfully. Please check the install logs and try again: $!\n";
+	}
+
 	#Update config to reflect new version that is installed
 	$globalConfig->param( "jira.installedVersion", $version );
 	$globalConfig->write($configFile);
