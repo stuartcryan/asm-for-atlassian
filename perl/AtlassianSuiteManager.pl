@@ -2051,6 +2051,55 @@ sub upgradeJira {
 }
 
 ########################################
+#Uninstall Jira                        #
+########################################
+sub uninstallJira {
+	my $application = "jira";
+	my $input;
+
+	print
+"This will uninstall Jira using the Atlassian provided uninstall script.\n";
+	print
+"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
+	print "Do you really want to continue? yes/no [no]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "yes" ) {
+
+	system( $globalConfig->param("jira.installDir") . "/uninstall -q" );
+	if ( $? == -1 ) {
+		die
+"Jira uninstall did not complete successfully. Please check the logs and complete manually: $!\n";
+	}
+
+		#Check if you REALLY want to remove data directory
+		print
+"We will now remove the data directory (Jira home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "yes" ) {
+			rmtree( [ $globalConfig->param("jira.dataDir") ] );
+		}
+		else {
+			print
+"The data directory has not been deleted and is still available at "
+			  . $globalConfig->param("jira.dataDir") . ".\n\n";
+		}
+		
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "jira.installedVersion", "" );
+	$globalConfig->param( "jira.enable", "FALSE" );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
+		print
+"Jira has been uninstalled successfully and the config file updated to reflect Jira as disabled. Press enter to continue...\n\n";
+		$input = <STDIN>;
+	}
+}
+
+########################################
 #InstallCrowd                          #
 ########################################
 sub installCrowd {
@@ -2628,8 +2677,9 @@ sub uninstallCrowd {
 			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
 		}
 		
-	#Update config to reflect new version that is installed
+	#Update config to null out the Crowd config
 	$globalConfig->param( "crowd.installedVersion", "" );
+	$globalConfig->param( "crowd.enable", "FALSE" );
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
