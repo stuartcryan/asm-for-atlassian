@@ -2324,7 +2324,8 @@ sub installConfluence {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"confluence.enable",     "confluence.dataDir",
+		"confluence.appContext", "confluence.enable",
+		"confluence.dataDir",
 		"confluence.installDir", "confluence.runAsService",
 		"confluence.serverPort", "confluence.connectorPort"
 	);
@@ -2337,6 +2338,29 @@ sub installConfluence {
 
 	#Run any additional steps
 
+}
+
+########################################
+#UpgradeConfluence                     #
+########################################
+sub upgradeConfluence {
+	my $application = "Confluence";
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/confluence/download-archives";
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"confluence.appContext",   "confluence.enable",
+		"confluence.dataDir",      "confluence.installDir",
+		"confluence.runAsService", "confluence.serverPort",
+		"confluence.connectorPort"
+	);
+
+	upgradeGenericAtlassianBinary(
+		$application, $downloadArchivesUrl,
+		"CONF_USER",  \@requiredConfigItems
+	);
 }
 
 ########################################
