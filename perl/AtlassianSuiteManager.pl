@@ -313,15 +313,21 @@ sub createOSUser {
 ########################################
 sub generateJiraKickstart {
 	my $filename;    #Must contain absolute path
-	my $mode;        #"INSTALL" or "UPDATE"
+	my $mode;        #"INSTALL" or "UPGRADE"
 
 	$filename = $_[0];
 	$mode     = $_[1];
 
 	open FH, ">$filename" or die "Unable to open $filename for writing.";
 	print FH "#install4j response file for JIRA\n";
-	print FH 'rmiPort$Long=' . $globalConfig->param("jira.serverPort") . "\n";
-	print FH "app.jiraHome=" . $globalConfig->param("jira.dataDir") . "\n";
+	if ( $mode eq "UPGRADE" ) {
+		print FH 'backupJira$Boolean=true\n';
+	}
+	if ( $mode eq "INSTALL" ) {
+		print FH 'rmiPort$Long='
+		  . $globalConfig->param("jira.serverPort") . "\n";
+		print FH "app.jiraHome=" . $globalConfig->param("jira.dataDir") . "\n";
+	}
 	if ( $globalConfig->param("jira.runAsService") eq "TRUE" ) {
 		print FH 'app.install.service$Boolean=true' . "\n";
 	}
@@ -331,19 +337,23 @@ sub generateJiraKickstart {
 	print FH "existingInstallationDir="
 	  . $globalConfig->param("jira.installDir") . "\n";
 
-	if ( $mode eq "UPDATE" ) {
+	if ( $mode eq "UPGRADE" ) {
 		print FH "sys.confirmedUpdateInstallationString=true" . "\n";
 	}
 	else {
 		print FH "sys.confirmedUpdateInstallationString=false" . "\n";
 	}
 	print FH "sys.languageId=en" . "\n";
-	print FH "sys.installationDir="
-	  . $globalConfig->param("jira.installDir") . "\n";
+	if ( $mode eq "INSTALL" ) {
+		print FH "sys.installationDir="
+		  . $globalConfig->param("jira.installDir") . "\n";
+	}
 	print FH 'executeLauncherAction$Boolean=true' . "\n";
-	print FH 'httpPort$Long='
-	  . $globalConfig->param("jira.connectorPort") . "\n";
-	print FH "portChoice=custom" . "\n";
+	if ( $mode eq "INSTALL" ) {
+		print FH 'httpPort$Long='
+		  . $globalConfig->param("jira.connectorPort") . "\n";
+		print FH "portChoice=custom" . "\n";
+	}
 
 	close FH;
 
@@ -1917,6 +1927,7 @@ sub upgradeJira {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, "",
 			whichApplicationArchitecture() );
+			$version = $downloadDetails[1];
 
 	}
 
@@ -1934,8 +1945,13 @@ sub upgradeJira {
 	#Generate the kickstart as we have all the information necessary
 	generateJiraKickstart( $varfile, "UPGRADE" );
 
-	#install
+	#upgrade
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
+	
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "jira.installedVersion", $version );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser = getUserCreatedByInstaller( "jira.installDir", "JIRA_USER" );
@@ -1971,11 +1987,6 @@ sub upgradeJira {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
-
-	#Update config to reflect new version that is installed
-	$globalConfig->param( "jira.installedVersion", $version );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
 }
 
 ########################################
@@ -2826,13 +2837,12 @@ sub downloadAtlassianInstaller {
 	#Check that the install/download directory exists, if not create it
 	print "Checking that root install dir exists...\n\n";
 	createDirectory( $globalConfig->param("general.rootInstallDir") );
-	
-	$absoluteFilePath = $globalConfig->param("general.rootInstallDir") . "/"
-		. $bits[ @bits - 1 ];
+
+	$absoluteFilePath =
+	  $globalConfig->param("general.rootInstallDir") . "/" . $bits[ @bits - 1 ];
 
 #Check if local file already exists and if it does, provide the option to skip downloading
-	if ( -e $absoluteFilePath )
-	{
+	if ( -e $absoluteFilePath ) {
 		print "The local install file "
 		  . $absoluteFilePath
 		  . " already exists. Would you like to skip re-downloading the file: [yes]";
