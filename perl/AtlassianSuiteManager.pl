@@ -2364,6 +2364,14 @@ sub upgradeConfluence {
 }
 
 ########################################
+#Uninstall Confluence                  #
+########################################
+sub uninstallConfluence {
+	my $application = "Confluence";
+	uninstallGenericAtlassianBinary($application);
+}
+
+########################################
 #Install Jira                          #
 ########################################
 sub installJira {
