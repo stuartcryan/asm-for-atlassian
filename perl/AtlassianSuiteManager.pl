@@ -1392,33 +1392,39 @@ sub compareTwoVersions {
 				$midVersionStatus = "GREATER";
 			}
 		}
-		elsif ( $count == 2 & defined( $splitVersion1[$count] ) &
-			defined( $splitVersion2[$count] ) )
-		{
-			if ( $splitVersion1[$count] < $splitVersion2[$count] ) {
-				$minVersionStatus = "LESS";
+		elsif ( $count == 2 ) {
+			if (
+				defined( $splitVersion1[$count] ) &
+				defined( $splitVersion2[$count] ) )
+			{
+				if ( $splitVersion1[$count] < $splitVersion2[$count] ) {
+					$minVersionStatus = "LESS";
+				}
+				elsif ( $splitVersion1[$count] == $splitVersion2[$count] ) {
+					$minVersionStatus = "EQUAL";
+				}
+				elsif ( $splitVersion1[$count] > $splitVersion2[$count] ) {
+					$minVersionStatus = "GREATER";
+				}
 			}
-			elsif ( $splitVersion1[$count] == $splitVersion2[$count] ) {
-				$minVersionStatus = "EQUAL";
+			elsif (
+				defined( $splitVersion1[$count] ) &
+				!defined( $splitVersion2[$count] ) )
+			{
+				$minVersionStatus = "NEWERNULL";
 			}
-			elsif ( $splitVersion1[$count] > $splitVersion2[$count] ) {
-				$minVersionStatus = "GREATER";
+			elsif (
+				!defined( $splitVersion1[$count] ) &
+				defined( $splitVersion2[$count] )
+			  )
+			{
+				$minVersionStatus = "CURRENTNULL";
 			}
-		}
-		elsif ( $count == 2 & defined( $splitVersion1[$count] ) &
-			!defined( $splitVersion2[$count] ) )
-		{
-			$minVersionStatus = "NEWERNULL";
-		}
-		elsif ( $count == 2 & !defined( $splitVersion1[$count] ) &
-			defined( $splitVersion2[$count] ) )
-		{
-			$minVersionStatus = "CURRENTNULL";
-		}
-		elsif ( $count == 2 & !defined( $splitVersion1[$count] ) &
-			!defined( $splitVersion2[$count] ) )
-		{
-			$minVersionStatus = "BOTHNULL";
+			elsif ( !defined( $splitVersion1[$count] ) &
+				!defined( $splitVersion2[$count] ) )
+			{
+				$minVersionStatus = "BOTHNULL";
+			}
 		}
 	}
 
@@ -1853,6 +1859,7 @@ sub upgradeJira {
 	my @uidGid;
 	my $varfile =
 	  $globalConfig->param("general.rootInstallDir") . "/jira-upgrade.varfile";
+	my @parameterNull;
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -1884,6 +1891,22 @@ sub upgradeJira {
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
+	}
+
+	#Set up list of config items that are requred for this install to run
+	@requiredConfigItems = ("jira.installedVersion");
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		genConfigItem(
+			$mode,
+			$globalConfig,
+			"jira.installedVersion",
+"There is no version listed in the config file for the currently installed version of Jira . Please enter the version of Jira that is CURRENTLY installed.",
+			""
+		);
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 	}
 
 	#We are upgrading, get the latest version
