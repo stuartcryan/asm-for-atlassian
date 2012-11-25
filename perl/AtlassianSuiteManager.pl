@@ -2067,11 +2067,11 @@ sub uninstallJira {
 	print "\n";
 	if ( $input eq "yes" ) {
 
-	system( $globalConfig->param("jira.installDir") . "/uninstall -q" );
-	if ( $? == -1 ) {
-		die
+		system( $globalConfig->param("jira.installDir") . "/uninstall -q" );
+		if ( $? == -1 ) {
+			die
 "Jira uninstall did not complete successfully. Please check the logs and complete manually: $!\n";
-	}
+		}
 
 		#Check if you REALLY want to remove data directory
 		print
@@ -2086,12 +2086,12 @@ sub uninstallJira {
 "The data directory has not been deleted and is still available at "
 			  . $globalConfig->param("jira.dataDir") . ".\n\n";
 		}
-		
-	#Update config to reflect new version that is installed
-	$globalConfig->param( "jira.installedVersion", "" );
-	$globalConfig->param( "jira.enable", "FALSE" );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+
+		#Update config to reflect new version that is installed
+		$globalConfig->param( "jira.installedVersion", "" );
+		$globalConfig->param( "jira.enable",           "FALSE" );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 
 		print
 "Jira has been uninstalled successfully and the config file updated to reflect Jira as disabled. Press enter to continue...\n\n";
@@ -2676,12 +2676,12 @@ sub uninstallCrowd {
 "The data directory has not been deleted and is still available at "
 			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
 		}
-		
-	#Update config to null out the Crowd config
-	$globalConfig->param( "crowd.installedVersion", "" );
-	$globalConfig->param( "crowd.enable", "FALSE" );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+
+		#Update config to null out the Crowd config
+		$globalConfig->param( "crowd.installedVersion", "" );
+		$globalConfig->param( "crowd.enable",           "FALSE" );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 
 		print
 "Crowd has been uninstalled successfully and the config file updated to reflect Crowd as disabled. Press enter to continue...\n\n";
