@@ -1985,7 +1985,6 @@ sub upgradeGenericAtlassianBinary {
 	my $configUser;
 	my $lcApplication;
 
-	#3 downloadArchivesUrl
 	$application         = $_[0];
 	$downloadArchivesUrl = $_[1];
 	$configUser =
@@ -2147,7 +2146,7 @@ sub upgradeGenericAtlassianBinary {
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
-	#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
+#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
 		print
@@ -2197,6 +2196,61 @@ sub upgradeGenericAtlassianBinary {
 	if ( $input eq "default" || $input eq "yes" ) {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+}
+
+########################################
+#UninstallGenericAtlassianBinary       #
+########################################
+sub uninstallGenericAtlassianBinary {
+	my $application;
+	my $lcApplication;
+	my $input;
+
+	$application = $_[0];
+
+	$lcApplication = lc($application);
+
+	print
+"This will uninstall $application using the Atlassian provided uninstall script.\n";
+	print
+"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
+	print "Do you really want to continue? yes/no [no]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "yes" ) {
+
+		system( $globalConfig->param("$lcApplication.installDir")
+			  . "/uninstall -q" );
+		if ( $? == -1 ) {
+			die
+"$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n";
+		}
+
+		#Check if you REALLY want to remove data directory
+		print
+"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY (REALLY) sure you want to do this? (not recommended) yes/no [no]: \n";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "yes" ) {
+			rmtree( [ $globalConfig->param("$lcApplication.dataDir") ] );
+		}
+		else {
+			print
+"The data directory has not been deleted and is still available at "
+			  . $globalConfig->param("$lcApplication.dataDir") . ".\n\n";
+		}
+
+		#Update config to reflect that no version is installed
+		$globalConfig->param( "$lcApplication.installedVersion", "" );
+		$globalConfig->param( "$lcApplication.enable",           "FALSE" );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+
+		print
+"$application has been uninstalled successfully and the config file updated to reflect $application as disabled. Press enter to continue...\n\n";
+		$input = <STDIN>;
 	}
 }
 
@@ -2269,57 +2323,18 @@ sub upgradeJira {
 		"jira.connectorPort"
 	);
 
-upgradeGenericAtlassianBinary( $application, $downloadArchivesURL, "JIRA_USER",
-        \@requiredConfigItems );
+	upgradeGenericAtlassianBinary(
+		$application, $downloadArchivesURL,
+		"JIRA_USER",  \@requiredConfigItems
+	);
 }
 
 ########################################
 #Uninstall Jira                        #
 ########################################
 sub uninstallJira {
-	my $application = "jira";
-	my $input;
-
-	print
-"This will uninstall Jira using the Atlassian provided uninstall script.\n";
-	print
-"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	print "Do you really want to continue? yes/no [no]: ";
-
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "yes" ) {
-
-		system( $globalConfig->param("jira.installDir") . "/uninstall -q" );
-		if ( $? == -1 ) {
-			die
-"Jira uninstall did not complete successfully. Please check the logs and complete manually: $!\n";
-		}
-
-		#Check if you REALLY want to remove data directory
-		print
-"We will now remove the data directory (Jira home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "yes" ) {
-			rmtree( [ $globalConfig->param("jira.dataDir") ] );
-		}
-		else {
-			print
-"The data directory has not been deleted and is still available at "
-			  . $globalConfig->param("jira.dataDir") . ".\n\n";
-		}
-
-		#Update config to reflect new version that is installed
-		$globalConfig->param( "jira.installedVersion", "" );
-		$globalConfig->param( "jira.enable",           "FALSE" );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-
-		print
-"Jira has been uninstalled successfully and the config file updated to reflect Jira as disabled. Press enter to continue...\n\n";
-		$input = <STDIN>;
-	}
+	my $application = "JIRA";
+	uninstallGenericAtlassianBinary($application);
 }
 
 ########################################
@@ -3638,10 +3653,10 @@ bootStrapper();
 
 my @requiredConfigItems;
 @requiredConfigItems = (
-        "jira.enable",     "jira.dataDir",
-        "jira.installDir", "jira.runAsService",
-        "jira.serverPort", "jira.connectorPort"
+	"jira.enable",     "jira.dataDir",
+	"jira.installDir", "jira.runAsService",
+	"jira.serverPort", "jira.connectorPort"
 );
 
 upgradeGenericAtlassianBinary( "Jira", "URL", "JIRA_USER",
-        \@requiredConfigItems );
+	\@requiredConfigItems );
