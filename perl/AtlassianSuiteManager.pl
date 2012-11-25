@@ -1745,13 +1745,10 @@ sub installGenericAtlassianBinary {
 	my $downloadArchivesUrl;
 	my $configUser;
 
-	#Inputs Needed
-	#1 Application Name (correct case)
-	#2 requiredConfigItems Array
-	#3 downloadArchivesUrl
 	$application         = $_[0];
 	$downloadArchivesUrl = $_[1];
-	$configUser          = $_[2];
+	$configUser =
+	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
 	@requiredConfigItems = @{ $_[3] };
 
 	$lcApplication = lc($application);
@@ -1968,61 +1965,9 @@ sub installGenericAtlassianBinary {
 }
 
 ########################################
-#Install Confluence                    #
+#UpgradeGenericAtlassianBinary         #
 ########################################
-sub installConfluence {
-	my $application = "Confluence";
-	my $downloadArchivesUrl =
-	  "http://www.atlassian.com/software/confluence/download-archives";
-
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"confluence.enable",     "confluence.dataDir",
-		"confluence.installDir", "confluence.runAsService",
-		"confluence.serverPort", "confluence.connectorPort"
-	);
-
-	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
-	);
-
-	#Run any additional steps
-
-}
-
-########################################
-#Install Jira                          #
-########################################
-sub installJira {
-	my $application = "Jira";
-	my $downloadArchivesUrl =
-	  "http://www.atlassian.com/software/jira/download-archives";
-
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"jira.appContext",   "jira.enable",
-		"jira.dataDir",      "jira.installDir",
-		"jira.runAsService", "jira.serverPort",
-		"jira.connectorPort"
-	);
-
-	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
-	);
-
-	#Run any additional steps
-}
-
-########################################
-#UpgradeJira                          #
-########################################
-sub upgradeJira {
+sub upgradeGenericAtlassianBinary {
 	my $input;
 	my $mode;
 	my $version;
@@ -2033,52 +1978,55 @@ sub upgradeJira {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
-	my $varfile =
-	  $globalConfig->param("general.rootInstallDir") . "/jira-upgrade.varfile";
 	my @parameterNull;
-
-	#Set up list of config items that are requred for this install to run
+	my $varfile;
 	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"jira.appContext",   "jira.enable",
-		"jira.dataDir",      "jira.installDir",
-		"jira.runAsService", "jira.serverPort",
-		"jira.connectorPort"
-	);
+	my $downloadArchivesUrl;
+	my $configUser;
+	my $lcApplication;
+
+	#3 downloadArchivesUrl
+	$application         = $_[0];
+	$downloadArchivesUrl = $_[1];
+	$configUser =
+	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
+	@requiredConfigItems = @{ $_[3] };
+
+	$lcApplication = lc($application);
+	$varfile =
+	    $globalConfig->param("general.rootInstallDir") . "/"
+	  . $lcApplication
+	  . "-install.varfile";
 
 #Iterate through required config items, if an are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		print
-"Some of the Jira config parameters are incomplete. You must review the Jira configuration before continuing: \n\n";
-		generateJiraConfig( "UPDATE", $globalConfig );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
+"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
+		generateApplicationConfig( $application, "UPDATE", $globalConfig );
 	}
 
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		print
-"Would you like to review the Jira config before upgrading? Yes/No [yes]: ";
+"Would you like to review the $application config before upgrading? Yes/No [yes]: ";
 
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
-			generateJiraConfig( "UPDATE", $globalConfig );
-			$globalConfig->write($configFile);
-			loadSuiteConfig();
+			generateApplicationConfig( $application, "UPDATE", $globalConfig );
 		}
 	}
 
 	#Set up list of config items that are requred for this install to run
-	@requiredConfigItems = ("jira.installedVersion");
+	@requiredConfigItems = ("$lcApplication.installedVersion");
 
 #Iterate through required config items, if an are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		genConfigItem(
 			$mode,
 			$globalConfig,
-			"jira.installedVersion",
-"There is no version listed in the config file for the currently installed version of Jira . Please enter the version of Jira that is CURRENTLY installed.",
+			"$lcApplication.installedVersion",
+"There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
 			""
 		);
 		$globalConfig->write($configFile);
@@ -2109,21 +2057,21 @@ sub upgradeJira {
 
 			#Check that the input version actually exists
 			print
-"Please wait, checking that version $version of Jira exists (may take a few moments)... \n\n";
+"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
 
 			#get the version specific URL to test
 			@downloadDetails =
-			  getVersionDownloadURL( $application,
+			  getVersionDownloadURL( $lcApplication,
 				whichApplicationArchitecture(), $version );
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
 				$VERSIONLOOP = 0;
-				print "Jira version $version found. Continuing...\n\n";
+				print "$application version $version found. Continuing...\n\n";
 			}
 			else {
 				print
-"No such version of Jira exists. Please visit http://www.atlassian.com/software/jira/download-archives and pick a valid version number and try again.\n\n";
+"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
 			}
 		}
 
@@ -2132,27 +2080,27 @@ sub upgradeJira {
 	#Get the URL for the version we want to download
 	if ( $mode eq "LATEST" ) {
 		@downloadVersionCheck =
-		  getLatestDownloadURL( $application, whichApplicationArchitecture() );
-		my $versionSupported =
-		  compareTwoVersions( $globalConfig->param("jira.installedVersion"),
+		  getLatestDownloadURL( $lcApplication,
+			whichApplicationArchitecture() );
+		my $versionSupported = compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"),
 			$downloadVersionCheck[1] );
 		if ( $versionSupported eq "GREATER" ) {
 			die "The version to be downloaded ("
 			  . $downloadVersionCheck[1]
 			  . ") is older than the currently installed version ("
-			  . $globalConfig->param("jira.installedVersion")
+			  . $globalConfig->param("$lcApplication.installedVersion")
 			  . "). Downgrading is not supported and this script will now exit.\n\n";
 		}
 	}
 	elsif ( $mode eq "SPECIFIC" ) {
-		my $versionSupported =
-		  compareTwoVersions( $globalConfig->param("jira.installedVersion"),
-			$version );
+		my $versionSupported = compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), $version );
 		if ( $versionSupported eq "GREATER" ) {
 			die "The version to be downloaded (" 
 			  . $version
 			  . ") is older than the currently installed version ("
-			  . $globalConfig->param("jira.installedVersion")
+			  . $globalConfig->param("$lcApplication.installedVersion")
 			  . "). Downgrading is not supported and this script will now exit.\n\n";
 		}
 	}
@@ -2160,7 +2108,7 @@ sub upgradeJira {
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "",
+		  downloadAtlassianInstaller( $mode, $lcApplication, "",
 			whichApplicationArchitecture() );
 		$version = $downloadDetails[1];
 
@@ -2169,7 +2117,7 @@ sub upgradeJira {
 	#Download a specific version
 	else {
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
+		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			whichApplicationArchitecture() );
 	}
 
@@ -2178,44 +2126,65 @@ sub upgradeJira {
 	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
 
 	#Generate the kickstart as we have all the information necessary
-	generateJiraKickstart( $varfile, "UPGRADE" );
+	generateGenericKickstart( $varfile, "UPGRADE", $lcApplication );
 
 	#upgrade
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
 	if ( $? == -1 ) {
 		die
-"Jira upgrade did not complete successfully. Please check the install logs and try again: $!\n";
+"$application upgrade did not complete successfully. Please check the install logs and try again: $!\n";
 	}
 
 	#Update config to reflect new version that is installed
-	$globalConfig->param( "jira.installedVersion", $version );
+	$globalConfig->param( "$lcApplication.installedVersion", $version );
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
 	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser = getUserCreatedByInstaller( "jira.installDir", "JIRA_USER" );
-	$globalConfig->param( "jira.osUser", $osUser );
+	$osUser =
+	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser );
+	$globalConfig->param( "$lcApplication.osUser", $osUser );
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
-	#If MySQL is the Database, Jira does not come with the driver so copy it
+	#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
 		print
-"Database is configured as MySQL, copying the JDBC connector to Jira install.\n\n";
-		copy(
-			$globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("jira.installDir") . "/lib/"
-		  )
+"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
+		copy( $globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param("$lcApplication.installDir") . "/lib/" )
 		  or die
-		  "Unable to copy MySQL JDBC connector to Jira lib directory: $!";
+"Unable to copy MySQL JDBC connector to $application lib directory: $!";
 
 		#Chown the files again
 		chownRecursive( $osUser,
-			$globalConfig->param("jira.installDir") . "/lib/" );
+			$globalConfig->param("$lcApplication.installDir") . "/lib/" );
 
-		system( "service " . $globalConfig->param("jira.osUser") . " restart" )
-		  or die "Could not restart Jira: $!";
+#restartService - We do a stop start here as JIRA's init file does not have a restart function
+		print
+		  "Please wait, restarting $application after copying JDBC jar...\n\n";
+		print
+"Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
+		sleep(60);
+		system( "service "
+			  . $globalConfig->param( $lcApplication . ".osUser" )
+			  . " stop" );
+		if ( $? == -1 ) {
+			warn
+"Could not restart $application successfully. Please make sure to do this manually and the service is still running: $!\n\n";
+		}
+		else {
+			system( "service "
+				  . $globalConfig->param( $lcApplication . ".osUser" )
+				  . " start" );
+			if ( $? == -1 ) {
+				warn
+"Could not restart $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
+			}
+		}
+
+		print "\n\n";
 
 	}
 
@@ -2229,6 +2198,79 @@ sub upgradeJira {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
+}
+
+########################################
+#Install Confluence                    #
+########################################
+sub installConfluence {
+	my $application = "Confluence";
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/confluence/download-archives";
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"confluence.enable",     "confluence.dataDir",
+		"confluence.installDir", "confluence.runAsService",
+		"confluence.serverPort", "confluence.connectorPort"
+	);
+
+	#Run generic installer steps
+	installGenericAtlassianBinary(
+		$application, $downloadArchivesUrl,
+		"CONF_USER",  \@requiredConfigItems
+	);
+
+	#Run any additional steps
+
+}
+
+########################################
+#Install Jira                          #
+########################################
+sub installJira {
+	my $application = "JIRA";
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/jira/download-archives";
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"jira.appContext",   "jira.enable",
+		"jira.dataDir",      "jira.installDir",
+		"jira.runAsService", "jira.serverPort",
+		"jira.connectorPort"
+	);
+
+	#Run generic installer steps
+	installGenericAtlassianBinary(
+		$application, $downloadArchivesUrl,
+		"JIRA_USER",  \@requiredConfigItems
+	);
+
+	#Run any additional steps
+}
+
+########################################
+#UpgradeJira                          #
+########################################
+sub upgradeJira {
+	my $application = "JIRA";
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/jira/download-archives";
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"jira.appContext",   "jira.enable",
+		"jira.dataDir",      "jira.installDir",
+		"jira.runAsService", "jira.serverPort",
+		"jira.connectorPort"
+	);
+
+upgradeGenericAtlassianBinary( $application, $downloadArchivesURL, "JIRA_USER",
+        \@requiredConfigItems );
 }
 
 ########################################
@@ -3593,3 +3635,13 @@ bootStrapper();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
 #print isPortAvailable("22");
+
+my @requiredConfigItems;
+@requiredConfigItems = (
+        "jira.enable",     "jira.dataDir",
+        "jira.installDir", "jira.runAsService",
+        "jira.serverPort", "jira.connectorPort"
+);
+
+upgradeGenericAtlassianBinary( "Jira", "URL", "JIRA_USER",
+        \@requiredConfigItems );
