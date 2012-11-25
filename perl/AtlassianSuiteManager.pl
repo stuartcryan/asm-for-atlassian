@@ -360,6 +360,62 @@ sub generateJiraKickstart {
 }
 
 ########################################
+#Generate Generic Kickstart File       #
+########################################
+sub generateGenericKickstart {
+	my $filename;    #Must contain absolute path
+	my $mode;        #"INSTALL" or "UPGRADE"
+	my $application;
+	my $lcApplication;
+
+	$filename      = $_[0];
+	$mode          = $_[1];
+	$application   = $_[2];
+	$lcApplication = lc($application);
+
+	open FH, ">$filename" or die "Unable to open $filename for writing.";
+	print FH "#install4j response file for $application\n";
+	if ( $mode eq "UPGRADE" ) {
+		print FH 'backup' . $application . '$Boolean=true\n';
+	}
+	if ( $mode eq "INSTALL" ) {
+		print FH 'rmiPort$Long='
+		  . $globalConfig->param( $lcApplication . ".serverPort" ) . "\n";
+		print FH "app.confHome="
+		  . $globalConfig->param( $lcApplication . ".dataDir" ) . "\n";
+	}
+	if ( $globalConfig->param( $lcApplication . ".runAsService" ) eq "TRUE" ) {
+		print FH 'app.install.service$Boolean=true' . "\n";
+	}
+	else {
+		print FH 'app.install.service$Boolean=false' . "\n";
+	}
+	print FH "existingInstallationDir="
+	  . $globalConfig->param( $lcApplication . ".installDir" ) . "\n";
+
+	if ( $mode eq "UPGRADE" ) {
+		print FH "sys.confirmedUpdateInstallationString=true" . "\n";
+	}
+	else {
+		print FH "sys.confirmedUpdateInstallationString=false" . "\n";
+	}
+	print FH "sys.languageId=en" . "\n";
+	if ( $mode eq "INSTALL" ) {
+		print FH "sys.installationDir="
+		  . $globalConfig->param( $lcApplication . ".installDir" ) . "\n";
+	}
+	print FH 'executeLauncherAction$Boolean=true' . "\n";
+	if ( $mode eq "INSTALL" ) {
+		print FH 'httpPort$Long='
+		  . $globalConfig->param( $lcApplication . ".connectorPort" ) . "\n";
+		print FH "portChoice=custom" . "\n";
+	}
+
+	close FH;
+
+}
+
+########################################
 #downloadJDBCConnector                 #
 ########################################
 sub downloadJDBCConnector {
@@ -517,6 +573,47 @@ sub findDistro {
 	}
 
 	return $distribution;
+}
+
+########################################
+#generateApplicationConfig             #
+########################################
+sub generateApplicationConfig {
+	my $application;
+	my $lcApplication;
+	my $mode;
+	my $cfg;
+
+	$application = $_[0];
+	$mode        = $_[1];
+	$cfg         = $_[2];
+
+	$lcApplication = lc($application);
+
+	if ( $lcApplication eq "jira" ) {
+		generateJiraConfig( $mode, $cfg );
+	}
+	elsif ( $lcApplication eq "confluence" ) {
+		generateConfluenceConfig( $mode, $cfg );
+	}
+	elsif ( $lcApplication eq "crowd" ) {
+		generateCrowdConfig( $mode, $cfg );
+	}
+	elsif ( $lcApplication eq "fisheye" ) {
+		generateFisheyeConfig( $mode, $cfg );
+	}
+	elsif ( $lcApplication eq "bamboo" ) {
+		generateBambooConfig( $mode, $cfg );
+	}
+	elsif ( $lcApplication eq "stash" ) {
+		generateCrowdConfig( $mode, $cfg );
+	}
+	elsif ( $lcApplication eq "bamboo" ) {
+		generateBambooConfig( $mode, $cfg );
+	}
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
 }
 
 ########################################
@@ -1491,7 +1588,7 @@ sub isSupportedVersion {
 
 	#Set up maximum supported versions
 	my $jiraSupportedVerHigh       = "5.2";
-	my $confluenceSupportedVerHigh = "4.3.2";
+	my $confluenceSupportedVerHigh = "4.3.3";
 	my $crowdSupportedVerHigh      = "2.5.2";
 	my $fisheyeSupportedVerHigh    = "2.9.0";
 	my $bambooSupportedVerHigh     = "4.3.1";
@@ -1625,6 +1722,463 @@ sub loadSuiteConfig {
 	if ( -e $configFile ) {
 		$globalConfig = new Config::Simple($configFile);
 	}
+}
+
+########################################
+#Install Generic Atlassian Binary      #
+########################################
+sub installGenericAtlassianBinary {
+	my $input;
+	my $mode;
+	my $version;
+	my $application;
+	my $lcApplication;
+	my @downloadDetails;
+	my $archiveLocation;
+	my $osUser;
+	my $VERSIONLOOP = 1;
+	my @uidGid;
+	my $connectorPortAvailCode;
+	my $serverPortAvailCode;
+	my $varfile;
+	my @requiredConfigItems;
+	my $downloadArchivesUrl;
+	my $configUser;
+
+	#Inputs Needed
+	#1 Application Name (correct case)
+	#2 requiredConfigItems Array
+	#3 downloadArchivesUrl
+	$application         = $_[0];
+	$downloadArchivesUrl = $_[1];
+	$configUser          = $_[2];
+	@requiredConfigItems = @{ $_[3] };
+
+	$lcApplication = lc($application);
+	$varfile =
+	    $globalConfig->param("general.rootInstallDir") . "/"
+	  . $lcApplication
+	  . "-install.varfile";
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		print
+"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
+		generateApplicationConfig( $application, "UPDATE", $globalConfig );
+	}
+
+	#Otherwise provide the option to update the configuration before proceeding
+	else {
+		print
+"Would you like to review the $application config before installing? Yes/No [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			generateApplicationConfig( $application, "UPDATE", $globalConfig );
+		}
+	}
+
+	$serverPortAvailCode =
+	  isPortAvailable( $globalConfig->param( $lcApplication . ".serverPort" ) );
+
+	$connectorPortAvailCode = isPortAvailable(
+		$globalConfig->param( $lcApplication . ".connectorPort" ) );
+
+	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+		die
+"One or more of the ports configured for $application are currently in use. Cannot continue installing. "
+		  . "Please ensure the ports configured are available and not in use.\n\n";
+	}
+
+	print "Would you like to install the latest version? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$mode = "LATEST";
+	}
+	else {
+		$mode = "SPECIFIC";
+	}
+
+	#If a specific version is selected, ask for the version number
+	if ( $mode eq "SPECIFIC" ) {
+		while ( $VERSIONLOOP == 1 ) {
+			print
+			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+
+			$version = <STDIN>;
+			print "\n";
+			chomp $version;
+
+			#Check that the input version actually exists
+			print
+"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
+
+			#get the version specific URL to test
+			@downloadDetails =
+			  getVersionDownloadURL( $lcApplication,
+				whichApplicationArchitecture(), $version );
+
+			#Try to get the header of the version URL to ensure it exists
+			if ( head( $downloadDetails[0] ) ) {
+				$VERSIONLOOP = 0;
+				print "$application version $version found. Continuing...\n\n";
+			}
+			else {
+				print
+"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
+			}
+		}
+
+	}
+
+	#Download the latest version
+	if ( $mode eq "LATEST" ) {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $lcApplication, "",
+			whichApplicationArchitecture() );
+		$version = $downloadDetails[1];
+
+	}
+
+	#Download a specific version
+	else {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
+			whichApplicationArchitecture() );
+	}
+
+	#chmod the file to be executable
+	chmod 0755, $downloadDetails[2]
+	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
+
+	#Generate the kickstart as we have all the information necessary
+	generateGenericKickstart( $varfile, "INSTALL", $lcApplication );
+
+	if ( -d $globalConfig->param( $lcApplication . ".installDir" ) ) {
+		print "The current installation directory ("
+		  . $globalConfig->param( $lcApplication . ".installDir" )
+		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			backupDirectoryAndChown(
+				$globalConfig->param( $lcApplication . ".installDir" ),
+				"root" )
+			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
+		}
+		else {
+			die
+"Cannot proceed installing $application if the directory already has an install, please remove this manually and try again.\n\n";
+		}
+	}
+
+	if ( -d $globalConfig->param( $lcApplication . ".dataDir" ) ) {
+		print "The current installation directory ("
+		  . $globalConfig->param( $lcApplication . ".dataDir" )
+		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			backupDirectoryAndChown(
+				$globalConfig->param( $lcApplication . ".dataDir" ), "root" )
+			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
+		}
+		else {
+			die "Cannot proceed installing $application if the data directory ("
+			  . $globalConfig->param( $lcApplication . ".dataDir" )
+			  . ")already has data from a previous install, please remove this manually and try again.\n\n";
+		}
+
+	}
+
+	#install
+	system( $downloadDetails[2] . " -q -varfile $varfile" );
+
+	if ( $? == -1 ) {
+		die
+"$application install did not complete successfully. Please check the install logs and try again: $!\n";
+	}
+
+	#getTheUserItWasInstalledAs - Write to config and reload
+	$osUser =
+	  getUserCreatedByInstaller( $lcApplication . ".installDir", $configUser );
+	$globalConfig->param( $lcApplication . ".osUser", $osUser );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
+#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
+
+	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		print
+"Database is configured as MySQL, copying the JDBC connector to Confluence install.\n\n";
+		copy( $globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" )
+		  or die
+"Unable to copy MySQL JDBC connector to $application lib directory: $!";
+
+		#Chown the files again
+		chownRecursive( $osUser,
+			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
+
+#restartService - We do a stop start here as JIRA's init file does not have a restart function
+		print
+		  "Please wait, restarting $application after copying JDBC jar...\n\n";
+		 print "Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
+		 sleep(60);
+		system( "service "
+			  . $globalConfig->param( $lcApplication . ".osUser" )
+			  . " stop" );
+		if ( $? == -1 ) {
+			warn
+"Could not restart $application successfully. Please make sure to do this manually and the service is still running: $!\n\n";
+		}
+		else {
+			system( "service "
+				  . $globalConfig->param( $lcApplication . ".osUser" )
+				  . " start" );
+			if ( $? == -1 ) {
+				warn
+"Could not restart $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
+			}
+		}
+
+		print "\n\n";
+
+	}
+
+	#Check if user wants to remove the downloaded installer
+	print "Do you wish to delete the downloaded installer "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
+	#Update config to reflect new version that is installed
+	$globalConfig->param( $lcApplication . ".installedVersion", $version );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+}
+
+########################################
+#Install Confluence                    #
+########################################
+sub installConfluence {
+	my $input;
+	my $mode;
+	my $version;
+	my $application = "confluence";
+	my @downloadDetails;
+	my $archiveLocation;
+	my $osUser;
+	my $VERSIONLOOP = 1;
+	my @uidGid;
+	my $connectorPortAvailCode;
+	my $serverPortAvailCode;
+	my $varfile = $globalConfig->param("general.rootInstallDir")
+	  . "/confluence-install.varfile";
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"confluence.enable",     "confluence.dataDir",
+		"confluence.installDir", "confluence.runAsService",
+		"confluence.serverPort", "confluence.connectorPort"
+	);
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		print
+"Some of the Confluence config parameters are incomplete. You must review the Confluence configuration before continuing: \n\n";
+		generateConfluenceConfig( "UPDATE", $globalConfig );
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#Otherwise provide the option to update the configuration before proceeding
+	else {
+		print
+"Would you like to review the Confluence config before installing? Yes/No [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			generateConfluenceConfig( "UPDATE", $globalConfig );
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+		}
+	}
+
+	$serverPortAvailCode =
+	  isPortAvailable( $globalConfig->param("confluence.serverPort") );
+
+	$connectorPortAvailCode =
+	  isPortAvailable( $globalConfig->param("confluence.connectorPort") );
+
+	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+		die
+"One or more of the ports configured for Confluence are currently in use. Cannot continue installing. "
+		  . "Please ensure the ports configured are available and not in use.\n\n";
+	}
+
+	print "Would you like to install the latest version? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$mode = "LATEST";
+	}
+	else {
+		$mode = "SPECIFIC";
+	}
+
+	#If a specific version is selected, ask for the version number
+	if ( $mode eq "SPECIFIC" ) {
+		while ( $VERSIONLOOP == 1 ) {
+			print
+			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+
+			$version = <STDIN>;
+			print "\n";
+			chomp $version;
+
+			#Check that the input version actually exists
+			print
+"Please wait, checking that version $version of Confluence exists (may take a few moments)... \n\n";
+
+			#get the version specific URL to test
+			@downloadDetails =
+			  getVersionDownloadURL( $application,
+				whichApplicationArchitecture(), $version );
+
+			#Try to get the header of the version URL to ensure it exists
+			if ( head( $downloadDetails[0] ) ) {
+				$VERSIONLOOP = 0;
+				print "Confluence version $version found. Continuing...\n\n";
+			}
+			else {
+				print
+"No such version of Confluence exists. Please visit http://www.atlassian.com/software/confluence/download-archives and pick a valid version number and try again.\n\n";
+			}
+		}
+
+	}
+
+	#Download the latest version
+	if ( $mode eq "LATEST" ) {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, "",
+			whichApplicationArchitecture() );
+		$version = $downloadDetails[1];
+
+	}
+
+	#Download a specific version
+	else {
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $application, $version,
+			whichApplicationArchitecture() );
+	}
+
+	#chmod the file to be executable
+	chmod 0755, $downloadDetails[2]
+	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
+
+	#Generate the kickstart as we have all the information necessary
+	generateConfluenceKickstart( $varfile, "INSTALL" );
+
+	if ( -d $globalConfig->param("confluence.installDir") ) {
+		print "The current installation directory ("
+		  . $globalConfig->param("confluence.installDir")
+		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			backupDirectoryAndChown(
+				$globalConfig->param("confluence.installDir"), "root" )
+			  ; #we have to use root here as due to the way Confluence installs no way to know if user exists or not.
+		}
+		else {
+			die
+"Cannot proceed installing Confluence if the directory already has an install, please remove this manually and try again.\n\n";
+		}
+	}
+
+	if ( -d $globalConfig->param("confluence.dataDir") ) {
+		print "The current installation directory ("
+		  . $globalConfig->param("confluence.dataDir")
+		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			backupDirectoryAndChown( $globalConfig->param("confluence.dataDir"),
+				"root" )
+			  ; #we have to use root here as due to the way Confluence installs no way to know if user exists or not.
+		}
+		else {
+			die "Cannot proceed installing Confluence if the data directory ("
+			  . $globalConfig->param("confluence.dataDir")
+			  . ")already has data from a previous install, please remove this manually and try again.\n\n";
+		}
+
+	}
+
+	#install
+	system( $downloadDetails[2] . " -q -varfile $varfile" );
+
+	if ( $? == -1 ) {
+		die
+"Confluence install did not complete successfully. Please check the install logs and try again: $!\n";
+	}
+
+	#getTheUserItWasInstalledAs - Write to config and reload
+	$osUser = getUserCreatedByInstaller( "confluence.installDir", "CONF_USER" );
+	$globalConfig->param( "confluence.osUser", $osUser );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
+	#If MySQL is the Database, Jira does not come with the driver so copy it
+
+	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		print
+"Database is configured as MySQL, copying the JDBC connector to Confluence install.\n\n";
+		copy( $globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param("confluence.installDir") . "/lib/" )
+		  or die
+		  "Unable to copy MySQL JDBC connector to Confluence lib directory: $!";
+
+		#Chown the files again
+		chownRecursive( $osUser,
+			$globalConfig->param("confluence.installDir") . "/lib/" );
+
+		#restartService
+		system( "service "
+			  . $globalConfig->param("confluence.osUser")
+			  . " restart" )
+		  or die "Could not stop Confluence: $!";
+	}
+
+	#Check if user wants to remove the downloaded installer
+	print "Do you wish to delete the downloaded installer "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "jira.installedVersion", $version );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 }
 
 ########################################
@@ -1821,7 +2375,8 @@ sub installJira {
 		chownRecursive( $osUser,
 			$globalConfig->param("jira.installDir") . "/lib/" );
 
-		#RestartService
+		system( "service " . $globalConfig->param("jira.osUser") . " restart" )
+		  or die "Could not restart Jira: $!";
 	}
 
 	#Check if user wants to remove the downloaded installer
@@ -2035,6 +2590,9 @@ sub upgradeJira {
 		#Chown the files again
 		chownRecursive( $osUser,
 			$globalConfig->param("jira.installDir") . "/lib/" );
+
+		system( "service " . $globalConfig->param("jira.osUser") . " restart" )
+		  or die "Could not restart Jira: $!";
 
 	}
 
@@ -2899,6 +3457,8 @@ sub generateConfluenceConfig {
 "Please enter the Connector port Confluence will run on (note this is the port you will access in the browser).",
 		"8090"
 	);
+	checkConfiguredPort( "confluence.connectorPort", $cfg );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -2906,6 +3466,9 @@ sub generateConfluenceConfig {
 "Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).",
 		"8000"
 	);
+
+	checkConfiguredPort( "confluence.serverPort", $cfg );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -2913,6 +3476,9 @@ sub generateConfluenceConfig {
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
 		""
 	);
+
+	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
+		"Would you like to run Confluence as a service? yes/no.", "yes" );
 
 }
 
@@ -3398,7 +3964,9 @@ bootStrapper();
 #print compareTwoVersions("5.1.1","5.1.1");
 
 #installJira();
-upgradeJira();
+#upgradeJira();
+
+#installConfluence();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
 #print isPortAvailable("22");
