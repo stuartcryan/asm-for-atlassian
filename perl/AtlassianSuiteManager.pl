@@ -1392,7 +1392,9 @@ sub compareTwoVersions {
 				$midVersionStatus = "GREATER";
 			}
 		}
-		elsif ( $count == 2 ) {
+		elsif ( $count == 2 & defined( $splitVersion1[$count] ) &
+			defined( $splitVersion2[$count] ) )
+		{
 			if ( $splitVersion1[$count] < $splitVersion2[$count] ) {
 				$minVersionStatus = "LESS";
 			}
@@ -1402,6 +1404,21 @@ sub compareTwoVersions {
 			elsif ( $splitVersion1[$count] > $splitVersion2[$count] ) {
 				$minVersionStatus = "GREATER";
 			}
+		}
+		elsif ( $count == 2 & defined( $splitVersion1[$count] ) &
+			!defined( $splitVersion2[$count] ) )
+		{
+			$minVersionStatus = "NEWERNULL";
+		}
+		elsif ( $count == 2 & !defined( $splitVersion1[$count] ) &
+			defined( $splitVersion2[$count] ) )
+		{
+			$minVersionStatus = "CURRENTNULL";
+		}
+		elsif ( $count == 2 & !defined( $splitVersion1[$count] ) &
+			!defined( $splitVersion2[$count] ) )
+		{
+			$minVersionStatus = "BOTHNULL";
 		}
 	}
 
@@ -1434,6 +1451,21 @@ sub compareTwoVersions {
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "EQUAL" )
+	{
+		return "EQUAL";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
+		$minVersionStatus eq "NEWERNULL" )
+	{
+		return "GREATER";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
+		$minVersionStatus eq "CURRENTNULL" )
+	{
+		return "LESS";
+	}
+	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
+		$minVersionStatus eq "BOTHULL" )
 	{
 		return "EQUAL";
 	}
