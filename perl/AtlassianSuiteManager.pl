@@ -1973,7 +1973,7 @@ sub upgradeJira {
 
 		#Chown the files again
 		chownRecursive( $osUser,
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
+			$globalConfig->param("jira.installDir") . "/lib/" );
 
 	}
 
