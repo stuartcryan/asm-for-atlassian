@@ -1926,8 +1926,9 @@ sub installGenericAtlassianBinary {
 #restartService - We do a stop start here as JIRA's init file does not have a restart function
 		print
 		  "Please wait, restarting $application after copying JDBC jar...\n\n";
-		 print "Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-		 sleep(60);
+		print
+"Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
+		sleep(60);
 		system( "service "
 			  . $globalConfig->param( $lcApplication . ".osUser" )
 			  . " stop" );
@@ -1970,8 +1971,9 @@ sub installGenericAtlassianBinary {
 #Install Confluence                    #
 ########################################
 sub installConfluence {
-	my $mode;
 	my $application = "Confluence";
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/confluence/download-archives";
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -1980,30 +1982,24 @@ sub installConfluence {
 		"confluence.installDir", "confluence.runAsService",
 		"confluence.serverPort", "confluence.connectorPort"
 	);
+
 	#Run generic installer steps
-	installGenericAtlassianBinary( $application, "http://www.atlassian.com/software/confluence/download-archives", "CONF_USER",
-	\@requiredConfigItems );
-	
+	installGenericAtlassianBinary(
+		$application, $downloadArchivesUrl,
+		"CONF_USER",  \@requiredConfigItems
+	);
+
 	#Run any additional steps
+
 }
 
 ########################################
 #Install Jira                          #
 ########################################
 sub installJira {
-	my $input;
-	my $mode;
-	my $version;
-	my $application = "jira";
-	my @downloadDetails;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my $connectorPortAvailCode;
-	my $serverPortAvailCode;
-	my $varfile =
-	  $globalConfig->param("general.rootInstallDir") . "/jira-install.varfile";
+	my $application = "Jira";
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/jira/download-archives";
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -2014,192 +2010,13 @@ sub installJira {
 		"jira.connectorPort"
 	);
 
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		print
-"Some of the Jira config parameters are incomplete. You must review the Jira configuration before continuing: \n\n";
-		generateJiraConfig( "UPDATE", $globalConfig );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
+	#Run generic installer steps
+	installGenericAtlassianBinary(
+		$application, $downloadArchivesUrl,
+		"CONF_USER",  \@requiredConfigItems
+	);
 
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		print
-"Would you like to review the Jira config before installing? Yes/No [yes]: ";
-
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			generateJiraConfig( "UPDATE", $globalConfig );
-			$globalConfig->write($configFile);
-			loadSuiteConfig();
-		}
-	}
-
-	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param("jira.serverPort") );
-
-	$connectorPortAvailCode =
-	  isPortAvailable( $globalConfig->param("jira.connectorPort") );
-
-	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-		die
-"One or more of the ports configured for Jira are currently in use. Cannot continue installing. "
-		  . "Please ensure the ports configured are available and not in use.\n\n";
-	}
-
-	print "Would you like to install the latest version? yes/no [yes]: ";
-
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$mode = "LATEST";
-	}
-	else {
-		$mode = "SPECIFIC";
-	}
-
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
-
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
-
-			#Check that the input version actually exists
-			print
-"Please wait, checking that version $version of Jira exists (may take a few moments)... \n\n";
-
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $application,
-				whichApplicationArchitecture(), $version );
-
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$VERSIONLOOP = 0;
-				print "Jira version $version found. Continuing...\n\n";
-			}
-			else {
-				print
-"No such version of Jira exists. Please visit http://www.atlassian.com/software/jira/download-archives and pick a valid version number and try again.\n\n";
-			}
-		}
-
-	}
-
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "",
-			whichApplicationArchitecture() );
-		$version = $downloadDetails[1];
-
-	}
-
-	#Download a specific version
-	else {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
-			whichApplicationArchitecture() );
-	}
-
-	#chmod the file to be executable
-	chmod 0755, $downloadDetails[2]
-	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
-
-	#Generate the kickstart as we have all the information necessary
-	generateJiraKickstart( $varfile, "INSTALL" );
-
-	if ( -d $globalConfig->param("jira.installDir") ) {
-		print "The current installation directory ("
-		  . $globalConfig->param("jira.installDir")
-		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			backupDirectoryAndChown( $globalConfig->param("jira.installDir"),
-				"root" )
-			  ; #we have to use root here as due to the way Jira installs no way to know if user exists or not.
-		}
-		else {
-			die
-"Cannot proceed installing JIRA if the directory already has an install, please remove this manually and try again.\n\n";
-		}
-	}
-
-	if ( -d $globalConfig->param("jira.dataDir") ) {
-		print "The current installation directory ("
-		  . $globalConfig->param("jira.dataDir")
-		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			backupDirectoryAndChown( $globalConfig->param("jira.dataDir"),
-				"root" )
-			  ; #we have to use root here as due to the way Jira installs no way to know if user exists or not.
-		}
-		else {
-			die "Cannot proceed installing JIRA if the data directory ("
-			  . $globalConfig->param("jira.dataDir")
-			  . ")already has data from a previous install, please remove this manually and try again.\n\n";
-		}
-
-	}
-
-	#install
-	system( $downloadDetails[2] . " -q -varfile $varfile" );
-
-	if ( $? == -1 ) {
-		die
-"Jira install did not complete successfully. Please check the install logs and try again: $!\n";
-	}
-
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser = getUserCreatedByInstaller( "jira.installDir", "JIRA_USER" );
-	$globalConfig->param( "jira.osUser", $osUser );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#If MySQL is the Database, Jira does not come with the driver so copy it
-
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
-"Database is configured as MySQL, copying the JDBC connector to Jira install.\n\n";
-		copy(
-			$globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("jira.installDir") . "/lib/"
-		  )
-		  or die
-		  "Unable to copy MySQL JDBC connector to Jira lib directory: $!";
-
-		#Chown the files again
-		chownRecursive( $osUser,
-			$globalConfig->param("jira.installDir") . "/lib/" );
-
-		system( "service " . $globalConfig->param("jira.osUser") . " restart" )
-		  or die "Could not restart Jira: $!";
-	}
-
-	#Check if user wants to remove the downloaded installer
-	print "Do you wish to delete the downloaded installer "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
-
-	#Update config to reflect new version that is installed
-	$globalConfig->param( "jira.installedVersion", $version );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+	#Run any additional steps
 }
 
 ########################################
