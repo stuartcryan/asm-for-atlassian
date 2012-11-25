@@ -2627,6 +2627,11 @@ sub uninstallCrowd {
 "The data directory has not been deleted and is still available at "
 			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
 		}
+		
+	#Update config to reflect new version that is installed
+	$globalConfig->param( "crowd.installedVersion", "" );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 		print
 "Crowd has been uninstalled successfully and the config file updated to reflect Crowd as disabled. Press enter to continue...\n\n";
