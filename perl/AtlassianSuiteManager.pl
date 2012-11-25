@@ -1413,10 +1413,8 @@ sub compareTwoVersions {
 			{
 				$minVersionStatus = "NEWERNULL";
 			}
-			elsif (
-				!defined( $splitVersion1[$count] ) &
-				defined( $splitVersion2[$count] )
-			  )
+			elsif ( !defined( $splitVersion1[$count] ) &
+				defined( $splitVersion2[$count] ) )
 			{
 				$minVersionStatus = "CURRENTNULL";
 			}
@@ -2341,6 +2339,22 @@ sub upgradeCrowd {
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
+	}
+
+	#Set up list of config items that are requred for this install to run
+	@requiredConfigItems = ("crowd.installedVersion");
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		genConfigItem(
+			$mode,
+			$globalConfig,
+			"crowd.installedVersion",
+"There is no version listed in the config file for the currently installed version of Crowd . Please enter the version of Crowd that is CURRENTLY installed.",
+			""
+		);
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 	}
 
 	#Get the user Crowd will run as
