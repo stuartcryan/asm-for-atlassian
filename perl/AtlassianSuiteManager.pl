@@ -1919,6 +1919,18 @@ sub installGenericAtlassianBinary {
 "$application install did not complete successfully. Please check the install logs and try again: $!\n";
 	}
 
+	#Stop the application so we can apply additional configuration
+	print
+"Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
+	sleep(60);
+	system( "service "
+		  . $globalConfig->param( $lcApplication . ".osUser" )
+		  . " stop" );
+	if ( $? == -1 ) {
+		warn
+"Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
+	}
+
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser =
 	  getUserCreatedByInstaller( $lcApplication . ".installDir", $configUser );
@@ -1940,32 +1952,26 @@ sub installGenericAtlassianBinary {
 		chownRecursive( $osUser,
 			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
 
-#restartService - We do a stop start here as JIRA's init file does not have a restart function
-		print
-		  "Please wait, restarting $application after copying JDBC jar...\n\n";
-		print
-"Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-		sleep(60);
-		system( "service "
-			  . $globalConfig->param( $lcApplication . ".osUser" )
-			  . " stop" );
-		if ( $? == -1 ) {
-			warn
-"Could not restart $application successfully. Please make sure to do this manually and the service is still running: $!\n\n";
-		}
-		else {
-			system( "service "
-				  . $globalConfig->param( $lcApplication . ".osUser" )
-				  . " start" );
-			if ( $? == -1 ) {
-				warn
-"Could not restart $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-			}
-		}
-
-		print "\n\n";
-
 	}
+
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	print "Creating backup of config files...\n\n";
+
+	backupFile( $globalConfig->param("$lcApplication.installDir")
+		  . "/conf/server.xml" );
+
+	print "Applying the configured application context...\n\n";
+
+	#Update the server config with the configured connector port
+	updateXMLAttribute(
+		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		"//////Context",
+		"path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig )
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Check if user wants to remove the downloaded installer
 	print "Do you wish to delete the downloaded installer "
@@ -1976,6 +1982,20 @@ sub installGenericAtlassianBinary {
 	if ( $input eq "default" || $input eq "yes" ) {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
+	print "Do you wish to start the $application service? yes/no [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		system( "service "
+			  . $globalConfig->param( $lcApplication . ".osUser" )
+			  . " start" );
+		if ( $? == -1 ) {
+			warn
+"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
+		}
+		print "\n\n";
 	}
 
 	#Update config to reflect new version that is installed
@@ -2154,6 +2174,18 @@ sub upgradeGenericAtlassianBinary {
 "$application upgrade did not complete successfully. Please check the install logs and try again: $!\n";
 	}
 
+	#Stop the application so we can apply additional configuration
+	print
+"Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
+	sleep(60);
+	system( "service "
+		  . $globalConfig->param( $lcApplication . ".osUser" )
+		  . " stop" );
+	if ( $? == -1 ) {
+		warn
+"Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
+	}
+
 	#Update config to reflect new version that is installed
 	$globalConfig->param( "$lcApplication.installedVersion", $version );
 	$globalConfig->write($configFile);
@@ -2179,33 +2211,26 @@ sub upgradeGenericAtlassianBinary {
 		#Chown the files again
 		chownRecursive( $osUser,
 			$globalConfig->param("$lcApplication.installDir") . "/lib/" );
-
-#restartService - We do a stop start here as JIRA's init file does not have a restart function
-		print
-		  "Please wait, restarting $application after copying JDBC jar...\n\n";
-		print
-"Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-		sleep(60);
-		system( "service "
-			  . $globalConfig->param( $lcApplication . ".osUser" )
-			  . " stop" );
-		if ( $? == -1 ) {
-			warn
-"Could not restart $application successfully. Please make sure to do this manually and the service is still running: $!\n\n";
-		}
-		else {
-			system( "service "
-				  . $globalConfig->param( $lcApplication . ".osUser" )
-				  . " start" );
-			if ( $? == -1 ) {
-				warn
-"Could not restart $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-			}
-		}
-
-		print "\n\n";
-
 	}
+
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	print "Creating backup of config files...\n\n";
+
+	backupFile( $globalConfig->param("$lcApplication.installDir")
+		  . "/conf/server.xml" );
+
+	print "Applying the configured application context...\n\n";
+
+	#Update the server config with the configured connector port
+	updateXMLAttribute(
+		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		"//////Context",
+		"path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig )
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Check if user wants to remove the downloaded installer
 	print "Do you wish to delete the downloaded installer "
@@ -2216,6 +2241,20 @@ sub upgradeGenericAtlassianBinary {
 	if ( $input eq "default" || $input eq "yes" ) {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
+	print "Do you wish to start the $application service? yes/no [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		system( "service "
+			  . $globalConfig->param( $lcApplication . ".osUser" )
+			  . " start" );
+		if ( $? == -1 ) {
+			warn
+"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
+		}
+		print "\n\n";
 	}
 }
 
@@ -2344,7 +2383,7 @@ sub upgradeJira {
 	);
 
 	upgradeGenericAtlassianBinary(
-		$application, $downloadArchivesURL,
+		$application, $downloadArchivesUrl,
 		"JIRA_USER",  \@requiredConfigItems
 	);
 }
@@ -2419,7 +2458,7 @@ sub installCrowd {
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
 		print
-"One or more of the ports configured for Crowd are currently in use. We can procced however there is a very good chance"
+"One or more of the ports configured for Crowd are currently in use. We can proceed however there is a very good chance"
 		  . " that Crowd will not start correctly.\n\n";
 		print
 "Would you like to continue even though the ports are in use? yes/no [yes]: ";
@@ -2524,19 +2563,23 @@ sub installCrowd {
 
 	print "Applying port numbers to server config...\n\n";
 
-	#Update the server config with the configured connector port
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
-	);
-
 	#Update the server config with the configured server port
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/conf/server.xml",
 		"/Server", "port", $globalConfig->param("crowd.serverPort")
 	);
+
+	#Apply application context
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		"//////Context",
+		"path",
+		getConfigItem( "crowd.appContext", $globalConfig )
+	);
+
 	print "Applying home directory location to config...\n\n";
 
 	#Edit Crowd config file to reference homedir
@@ -2594,8 +2637,7 @@ sub installCrowd {
 		system("service $application start");
 		print "\nCrowd can now be accessed on http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig )
-		  . ".\n\n";
+		  . getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
 		print "If you have any issues please check the log at "
 		  . $globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/logs/catalina.out\n\n";
@@ -3651,7 +3693,7 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-#installCrowd();
+installCrowd();
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
@@ -3665,19 +3707,10 @@ bootStrapper();
 #print compareTwoVersions("5.1.1","5.1.1");
 
 #installJira();
+
 #upgradeJira();
 
 #installConfluence();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
 #print isPortAvailable("22");
-
-my @requiredConfigItems;
-@requiredConfigItems = (
-	"jira.enable",     "jira.dataDir",
-	"jira.installDir", "jira.runAsService",
-	"jira.serverPort", "jira.connectorPort"
-);
-
-upgradeGenericAtlassianBinary( "Jira", "URL", "JIRA_USER",
-	\@requiredConfigItems );
