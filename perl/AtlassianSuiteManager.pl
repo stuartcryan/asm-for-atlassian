@@ -46,6 +46,7 @@ use FindBin '$Bin';
 use XML::Twig;
 use Socket qw( PF_INET SOCK_STREAM INADDR_ANY sockaddr_in );
 use Errno qw( EADDRINUSE );
+use Getopt::Long;
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
@@ -55,6 +56,12 @@ use warnings;                  # Good practice
 my $globalConfig;
 my $configFile = "settings.cfg";
 my $distro;
+my $silent = ''; #global flag for command line paramaters
+my $debug = ''; #global flag for command line paramaters
+my $unsupported = ''; #global flag for command line paramaters
+my $ignore_version_warnings = ''; #global flag for command line paramaters
+my $disable_config_checks = ''; #global flag for command line paramaters
+my $vebose = ''; #global flag for command line paramaters
 
 ########################################
 #TestOSArchitecture                    #
@@ -890,6 +897,35 @@ sub bootStrapper {
 			}
 		}
 	}
+	
+	my $help = ''; #commandOption
+	my $gen_config  = ''; #commandOption
+	my $install_crowd = ''; #commandOption
+	my $install_jira = ''; #commandOption
+	my $install_confluence = ''; #commandOption
+	my $install_fisheye = ''; #commandOption
+	my $install_bamboo = ''; #commandOption
+	my $install_stash = ''; #commandOption
+	my $upgrade_crowd = ''; #commandOption
+	my $upgrade_jira = ''; #commandOption
+	my $upgrade_confluence = ''; #commandOption
+	my $upgrade_fisheye = ''; #commandOption
+	my $upgrade_bamboo = ''; #commandOption
+	my $upgrade_stash = ''; #commandOption
+	my $tar_crowd_logs = ''; #commandOption
+	my $tar_confluence_logs = ''; #commandOption
+	my $tar_jira_logs = ''; #commandOption
+	my $tar_fisheye_logs = ''; #commandOption
+	my $tar_bamboo_logs = ''; #commandOption
+	my $tar_stash_logs = ''; #commandOption
+	my $disable_service = ''; #commandOption
+	my $enable_service = ''; #commandOption
+	my $check_service = ''; #commandOption
+	my $update_sh_script = ''; #commandOption
+	my $verify_config = ''; #commandOption
+	
+	
+    GetOptions ('tag=s' => \$tag);
 
 }
 
