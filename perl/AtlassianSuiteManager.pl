@@ -50,6 +50,8 @@ use Getopt::Long;
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
+Getopt::Long::Configure ("bundling");
+
 ########################################
 #Set Up Variables                      #
 ########################################
@@ -924,8 +926,53 @@ sub bootStrapper {
 	my $update_sh_script = ''; #commandOption
 	my $verify_config = ''; #commandOption
 	
-	
-    GetOptions ('tag=s' => \$tag);
+    GetOptions ('help|h+' => \$help);
+    GetOptions ('gen-config+' => \$gen_config);
+    GetOptions ('install-crowd+' => \$install_crowd);
+    GetOptions ('install-confluence+' => \$install_confluence);
+    GetOptions ('install-jira+' => \$install_jira);
+    GetOptions ('install-fisheye+' => \$install_fisheye);
+    GetOptions ('install-stash+' => \$install_stash);
+    GetOptions ('install-bamboo+' => \$install_bamboo);
+    GetOptions ('upgrade-crowd+' => \$upgrade_crowd);
+    GetOptions ('upgrade-confluence+' => \$upgrade_confluence);
+    GetOptions ('upgrade-jira+' => \$upgrade_jira);
+    GetOptions ('upgrade-fisheye+' => \$upgrade_fisheye);
+    GetOptions ('upgrade-bamboo+' => \$upgrade_bamboo);
+    GetOptions ('upgrade-stash+' => \$upgrade_stash);
+    GetOptions ('tar-crowd-logs+' => \$tar_crowd_logs);
+    GetOptions ('tar-confluence-logs+' => \$tar_confluence_logs);
+    GetOptions ('tar-jira-logs+' => \$tar_jira_logs);
+    GetOptions ('tar-fisheye-logs+' => \$tar_fisheye_logs);
+    GetOptions ('tar-bamboo-logs+' => \$tar_bamboo_logs);
+    GetOptions ('tar-stash-logs+' => \$tar_stash_logs);
+    GetOptions ('disable-service=s' => \$disable_service);
+    GetOptions ('enable-service=s' => \$enable_service);
+    GetOptions ('check-service=s' => \$check_service);
+    GetOptions ('update-sh-script+' => \$update_sh_script);
+    GetOptions ('verify-config+' => \$update_sh_script);
+    GetOptions ('silent|s+' => \$silent);
+    GetOptions ('debug|d+' => \$debug);
+    GetOptions ('unsupported|u+' => \$unsupported);
+    GetOptions ('ignore-version-warnings|i+' => \$ignore_version_warnings);
+    GetOptions ('disable-config-checks|c+' => \$disable_config_checks);
+    GetOptions ('verbose|v+' => \$verbose);
+    
+    my $options_count = 0;
+    
+    #check to ensure if any of the install or upgrade options are used that only one is used at a time
+    $options_count = $options_count + $install_crowd + $install_confluence + $install_jira + $install_fisheye + $install_bamboo + $install_stash + 
+    $upgrade_crowd + $upgrade_confluence + $upgrade_jira + $upgrade_fisheye + $upgrade_bamboo + $upgrade_stash;
+    
+    if ($options_count > 1){
+       #print out that you can only use one of the install or upgrade commands at a time	
+    } elsif ($options_count == 1 && #checkAllOtherOptions){
+       #print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others	
+    } elsif ($options_count == 1){
+       #print out that you can only use one of the install or upgrade commands at a time	
+    } else {
+    	#processTheRemainingCommandLineParams
+    }
 
 }
 
