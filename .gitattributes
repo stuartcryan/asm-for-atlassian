@@ -2,4 +2,5 @@
 /.project -text svneol=unset#text/plain
 /COPYING -text
 /atlassianSuiteManager.sh -text
+/log4j.conf -text
 perl/AtlassianSuiteManager.pl -text svneol=unset#text/plain

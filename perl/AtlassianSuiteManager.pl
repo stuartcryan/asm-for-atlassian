@@ -51,7 +51,8 @@ use Log::Log4perl;
 use strict;                    # Good practice
 use warnings;                  # Good practice
 
-Getopt::Long::Configure ("bundling");
+Getopt::Long::Configure("bundling");
+Log::Log4perl->init("log4j.conf");
 
 ########################################
 #Set Up Variables                      #
@@ -59,12 +60,13 @@ Getopt::Long::Configure ("bundling");
 my $globalConfig;
 my $configFile = "settings.cfg";
 my $distro;
-my $silent = ''; #global flag for command line paramaters
-my $debug = ''; #global flag for command line paramaters
-my $unsupported = ''; #global flag for command line paramaters
-my $ignore_version_warnings = ''; #global flag for command line paramaters
-my $disable_config_checks = ''; #global flag for command line paramaters
-my $vebose = ''; #global flag for command line paramaters
+my $silent                  = '';    #global flag for command line paramaters
+my $debug                   = '';    #global flag for command line paramaters
+my $unsupported             = '';    #global flag for command line paramaters
+my $ignore_version_warnings = '';    #global flag for command line paramaters
+my $disable_config_checks   = '';    #global flag for command line paramaters
+my $vebose                  = '';    #global flag for command line paramaters
+my $log = Log::Log4perl->get_logger("");
 
 ########################################
 #TestOSArchitecture                    #
@@ -93,13 +95,21 @@ sub getUserCreatedByInstaller {
 	my @data;
 	my $fileName;
 	my $userName;
+	my $subname = ( caller(0) )[3];
+
+	$logger->debug("BEGIN: $subname");
 
 	$parameterName = $_[0];
 	$lineReference = $_[1];
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname_parameterName", $parameterName );
+	dumpSingleVarToLog( "$subname_lineReference", $lineReference );
 
 	$fileName = $globalConfig->param($parameterName) . "/bin/user.sh";
 
-	open( FILE, $fileName ) or die("Unable to open file: $fileName.");
+	dumpSingleVarToLog( "$subname_fileName", $fileName );
+
+	open( FILE, $fileName ) or $log->logdie("Unable to open file: $fileName.");
 
 	# read file into an array
 	@data = <FILE>;
@@ -111,7 +121,7 @@ sub getUserCreatedByInstaller {
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
-		die "Unable to get username from $fileName";
+		$log->logdie("Unable to get username from $fileName.");
 	}
 	else {
 		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
@@ -119,6 +129,32 @@ sub getUserCreatedByInstaller {
 			return $result1;
 		}
 	}
+}
+
+########################################
+#dumpVarsToLog                         #
+########################################
+sub dumpVarsToLog {
+
+	@varNames  = $_[0];
+	@varValues = $_[1];
+
+	my $counter = 0;
+	while ( $counter <= $#varNames ) {
+		$logger->debug("$varNames[$counter]: $varValues[$counter]");
+		$counter++;
+	}
+}
+
+########################################
+#dumpsingleVarToLog                    #
+########################################
+sub dumpSingleVarToLog {
+
+	$varName  = $_[0];
+	$varValue = $_[1];
+
+	$logger->debug("$varName: $varValue");
 }
 
 ########################################
@@ -900,80 +936,99 @@ sub bootStrapper {
 			}
 		}
 	}
-	
-	my $help = ''; #commandOption
-	my $gen_config  = ''; #commandOption
-	my $install_crowd = ''; #commandOption
-	my $install_jira = ''; #commandOption
-	my $install_confluence = ''; #commandOption
-	my $install_fisheye = ''; #commandOption
-	my $install_bamboo = ''; #commandOption
-	my $install_stash = ''; #commandOption
-	my $upgrade_crowd = ''; #commandOption
-	my $upgrade_jira = ''; #commandOption
-	my $upgrade_confluence = ''; #commandOption
-	my $upgrade_fisheye = ''; #commandOption
-	my $upgrade_bamboo = ''; #commandOption
-	my $upgrade_stash = ''; #commandOption
-	my $tar_crowd_logs = ''; #commandOption
-	my $tar_confluence_logs = ''; #commandOption
-	my $tar_jira_logs = ''; #commandOption
-	my $tar_fisheye_logs = ''; #commandOption
-	my $tar_bamboo_logs = ''; #commandOption
-	my $tar_stash_logs = ''; #commandOption
-	my $disable_service = ''; #commandOption
-	my $enable_service = ''; #commandOption
-	my $check_service = ''; #commandOption
-	my $update_sh_script = ''; #commandOption
-	my $verify_config = ''; #commandOption
-	
-    GetOptions ('help|h+' => \$help);
-    GetOptions ('gen-config+' => \$gen_config);
-    GetOptions ('install-crowd+' => \$install_crowd);
-    GetOptions ('install-confluence+' => \$install_confluence);
-    GetOptions ('install-jira+' => \$install_jira);
-    GetOptions ('install-fisheye+' => \$install_fisheye);
-    GetOptions ('install-stash+' => \$install_stash);
-    GetOptions ('install-bamboo+' => \$install_bamboo);
-    GetOptions ('upgrade-crowd+' => \$upgrade_crowd);
-    GetOptions ('upgrade-confluence+' => \$upgrade_confluence);
-    GetOptions ('upgrade-jira+' => \$upgrade_jira);
-    GetOptions ('upgrade-fisheye+' => \$upgrade_fisheye);
-    GetOptions ('upgrade-bamboo+' => \$upgrade_bamboo);
-    GetOptions ('upgrade-stash+' => \$upgrade_stash);
-    GetOptions ('tar-crowd-logs+' => \$tar_crowd_logs);
-    GetOptions ('tar-confluence-logs+' => \$tar_confluence_logs);
-    GetOptions ('tar-jira-logs+' => \$tar_jira_logs);
-    GetOptions ('tar-fisheye-logs+' => \$tar_fisheye_logs);
-    GetOptions ('tar-bamboo-logs+' => \$tar_bamboo_logs);
-    GetOptions ('tar-stash-logs+' => \$tar_stash_logs);
-    GetOptions ('disable-service=s' => \$disable_service);
-    GetOptions ('enable-service=s' => \$enable_service);
-    GetOptions ('check-service=s' => \$check_service);
-    GetOptions ('update-sh-script+' => \$update_sh_script);
-    GetOptions ('verify-config+' => \$update_sh_script);
-    GetOptions ('silent|s+' => \$silent);
-    GetOptions ('debug|d+' => \$debug);
-    GetOptions ('unsupported|u+' => \$unsupported);
-    GetOptions ('ignore-version-warnings|i+' => \$ignore_version_warnings);
-    GetOptions ('disable-config-checks|c+' => \$disable_config_checks);
-    GetOptions ('verbose|v+' => \$verbose);
-    
-    my $options_count = 0;
-    
-    #check to ensure if any of the install or upgrade options are used that only one is used at a time
-    $options_count = $options_count + $install_crowd + $install_confluence + $install_jira + $install_fisheye + $install_bamboo + $install_stash + 
-    $upgrade_crowd + $upgrade_confluence + $upgrade_jira + $upgrade_fisheye + $upgrade_bamboo + $upgrade_stash;
-    
-    if ($options_count > 1){
-       #print out that you can only use one of the install or upgrade commands at a time	
-    } elsif ($options_count == 1 && #checkAllOtherOptions){
-       #print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others	
-    } elsif ($options_count == 1){
-       #print out that you can only use one of the install or upgrade commands at a time	
-    } else {
-    	#processTheRemainingCommandLineParams
-    }
+
+	my $help                = '';    #commandOption
+	my $gen_config          = '';    #commandOption
+	my $install_crowd       = '';    #commandOption
+	my $install_jira        = '';    #commandOption
+	my $install_confluence  = '';    #commandOption
+	my $install_fisheye     = '';    #commandOption
+	my $install_bamboo      = '';    #commandOption
+	my $install_stash       = '';    #commandOption
+	my $upgrade_crowd       = '';    #commandOption
+	my $upgrade_jira        = '';    #commandOption
+	my $upgrade_confluence  = '';    #commandOption
+	my $upgrade_fisheye     = '';    #commandOption
+	my $upgrade_bamboo      = '';    #commandOption
+	my $upgrade_stash       = '';    #commandOption
+	my $tar_crowd_logs      = '';    #commandOption
+	my $tar_confluence_logs = '';    #commandOption
+	my $tar_jira_logs       = '';    #commandOption
+	my $tar_fisheye_logs    = '';    #commandOption
+	my $tar_bamboo_logs     = '';    #commandOption
+	my $tar_stash_logs      = '';    #commandOption
+	my $disable_service     = '';    #commandOption
+	my $enable_service      = '';    #commandOption
+	my $check_service       = '';    #commandOption
+	my $update_sh_script    = '';    #commandOption
+	my $verify_config       = '';    #commandOption
+
+	GetOptions( 'help|h+'                    => \$help );
+	GetOptions( 'gen-config+'                => \$gen_config );
+	GetOptions( 'install-crowd+'             => \$install_crowd );
+	GetOptions( 'install-confluence+'        => \$install_confluence );
+	GetOptions( 'install-jira+'              => \$install_jira );
+	GetOptions( 'install-fisheye+'           => \$install_fisheye );
+	GetOptions( 'install-stash+'             => \$install_stash );
+	GetOptions( 'install-bamboo+'            => \$install_bamboo );
+	GetOptions( 'upgrade-crowd+'             => \$upgrade_crowd );
+	GetOptions( 'upgrade-confluence+'        => \$upgrade_confluence );
+	GetOptions( 'upgrade-jira+'              => \$upgrade_jira );
+	GetOptions( 'upgrade-fisheye+'           => \$upgrade_fisheye );
+	GetOptions( 'upgrade-bamboo+'            => \$upgrade_bamboo );
+	GetOptions( 'upgrade-stash+'             => \$upgrade_stash );
+	GetOptions( 'tar-crowd-logs+'            => \$tar_crowd_logs );
+	GetOptions( 'tar-confluence-logs+'       => \$tar_confluence_logs );
+	GetOptions( 'tar-jira-logs+'             => \$tar_jira_logs );
+	GetOptions( 'tar-fisheye-logs+'          => \$tar_fisheye_logs );
+	GetOptions( 'tar-bamboo-logs+'           => \$tar_bamboo_logs );
+	GetOptions( 'tar-stash-logs+'            => \$tar_stash_logs );
+	GetOptions( 'disable-service=s'          => \$disable_service );
+	GetOptions( 'enable-service=s'           => \$enable_service );
+	GetOptions( 'check-service=s'            => \$check_service );
+	GetOptions( 'update-sh-script+'          => \$update_sh_script );
+	GetOptions( 'verify-config+'             => \$update_sh_script );
+	GetOptions( 'silent|s+'                  => \$silent );
+	GetOptions( 'debug|d+'                   => \$debug );
+	GetOptions( 'unsupported|u+'             => \$unsupported );
+	GetOptions( 'ignore-version-warnings|i+' => \$ignore_version_warnings );
+	GetOptions( 'disable-config-checks|c+'   => \$disable_config_checks );
+	GetOptions( 'verbose|v+'                 => \$verbose );
+
+	my $options_count = 0;
+
+#check to ensure if any of the install or upgrade options are used that only one is used at a time
+	$options_count =
+	  $options_count +
+	  $install_crowd +
+	  $install_confluence +
+	  $install_jira +
+	  $install_fisheye +
+	  $install_bamboo +
+	  $install_stash +
+	  $upgrade_crowd +
+	  $upgrade_confluence +
+	  $upgrade_jira +
+	  $upgrade_fisheye +
+	  $upgrade_bamboo +
+	  $upgrade_stash;
+
+	if ( $options_count > 1 ) {
+
+#print out that you can only use one of the install or upgrade commands at a time
+	}
+	elsif (
+		$options_count == 1 &&    #checkAllOtherOptions){
+		 #print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others
+	}
+	elsif ( $options_count == 1 ) {
+
+#print out that you can only use one of the install or upgrade commands at a time
+	}
+	else {
+
+		#processTheRemainingCommandLineParams
+	}
 
 }
 
@@ -2408,10 +2463,10 @@ sub installConfluence {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"confluence.appContext", "confluence.enable",
-		"confluence.dataDir",
-		"confluence.installDir", "confluence.runAsService",
-		"confluence.serverPort", "confluence.connectorPort"
+		"confluence.appContext",   "confluence.enable",
+		"confluence.dataDir",      "confluence.installDir",
+		"confluence.runAsService", "confluence.serverPort",
+		"confluence.connectorPort"
 	);
 
 	#Run generic installer steps
