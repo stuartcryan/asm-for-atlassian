@@ -65,7 +65,7 @@ my $debug                   = '';    #global flag for command line paramaters
 my $unsupported             = '';    #global flag for command line paramaters
 my $ignore_version_warnings = '';    #global flag for command line paramaters
 my $disable_config_checks   = '';    #global flag for command line paramaters
-my $vebose                  = '';    #global flag for command line paramaters
+my $verbose                 = '';    #global flag for command line paramaters
 my $log = Log::Log4perl->get_logger("");
 
 ########################################
@@ -97,17 +97,18 @@ sub getUserCreatedByInstaller {
 	my $userName;
 	my $subname = ( caller(0) )[3];
 
-	$logger->debug("BEGIN: $subname");
+	$log->info("BEGIN: $subname");
 
 	$parameterName = $_[0];
 	$lineReference = $_[1];
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname_parameterName", $parameterName );
-	dumpSingleVarToLog( "$subname_lineReference", $lineReference );
+	dumpSingleVarToLog( "$subname" . "_parameterName", $parameterName );
+	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
 
 	$fileName = $globalConfig->param($parameterName) . "/bin/user.sh";
 
-	dumpSingleVarToLog( "$subname_fileName", $fileName );
+	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
 
 	open( FILE, $fileName ) or $log->logdie("Unable to open file: $fileName.");
 
@@ -136,13 +137,15 @@ sub getUserCreatedByInstaller {
 ########################################
 sub dumpVarsToLog {
 
-	@varNames  = $_[0];
-	@varValues = $_[1];
+	my @varNames  = $_[0];
+	my @varValues = $_[1];
 
-	my $counter = 0;
-	while ( $counter <= $#varNames ) {
-		$logger->debug("$varNames[$counter]: $varValues[$counter]");
-		$counter++;
+	if ( $log->is_debug() ) {
+		my $counter = 0;
+		while ( $counter <= $#varNames ) {
+			$log->debug("$varNames[$counter]: $varValues[$counter]");
+			$counter++;
+		}
 	}
 }
 
@@ -151,10 +154,11 @@ sub dumpVarsToLog {
 ########################################
 sub dumpSingleVarToLog {
 
-	$varName  = $_[0];
-	$varValue = $_[1];
-
-	$logger->debug("$varName: $varValue");
+	my $varName  = $_[0];
+	my $varValue = $_[1];
+	if ( $log->is_debug() ) {
+		$log->debug("$varName: $varValue");
+	}
 }
 
 ########################################
@@ -186,20 +190,23 @@ sub isPortAvailable {
 	#1 is available, 0 is in use
 	my $family = PF_INET;
 	my $type   = SOCK_STREAM;
-	my $proto  = getprotobyname('tcp') or die "getprotobyname: $!";
+	my $proto  = getprotobyname('tcp')
+	  or $log->logdie("Failed at getprotobyname: $!");
 	my $host = INADDR_ANY;    # Use inet_aton for a specific interface
 	my $port;
 	my $name;
 
 	$port = $_[0];
 
-	socket( my $sock, $family, $type, $proto ) or die "socket: $!";
-	$name = sockaddr_in( $port, $host ) or die "sockaddr_in: $!";
+	socket( my $sock, $family, $type, $proto )
+	  or $log->logdie("Unable to get socket: $!");
+	$name = sockaddr_in( $port, $host )
+	  or $log->logdie("Unable to get sockaddr_in: $!");
 
 	bind( $sock, $name ) and return 1;
 	$! == EADDRINUSE and return 0;
 	return $!;
-	die "bind: $!";
+	$log->logdie("While checking for available port bind failed: $!");
 }
 
 ########################################
@@ -211,21 +218,27 @@ sub checkConfiguredPort {
 	my $availCode;
 	my $configValue;
 	my $input;
+	my $subname = ( caller(0) )[3];
 
+	$log->info("BEGIN: $subname");
 	$configItem = $_[0];
 	if ( defined( $_[1] ) ) {
 		$cfg = $_[1];
+		$log->debug("Config has been passed to function.");
 	}
 	else {
 		$cfg = $globalConfig;
+		$log->debug(
+			"Config has not been passed to function, using global config.");
 	}
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
 		$configValue = $cfg->param($configItem);
 		if ( !defined($configValue) ) {
-			die
-"No port has been configured for the config item '$configItem'. Please enter a configuration value and try again. This script will now exit.\n\n";
+			$log->logdie(
+"No port has been configured for the config item '$configItem'. Please enter a configuration value and try again. This script will now exit."
+			);
 		}
 		elsif ( $configValue eq "" ) {
 			genConfigItem(
@@ -238,6 +251,7 @@ sub checkConfiguredPort {
 		}
 		else {
 			$availCode = isPortAvailable($configValue);
+			dumpSingleVarToLog( "\$availCode (1=AVAIL/2=INUSE)", $availCode );
 
 			if ( $availCode == 1 ) {
 
@@ -247,6 +261,7 @@ sub checkConfiguredPort {
 			else {
 
 				#port is in use
+
 				print
 "The port you have configured ($configValue) for $configItem is currently in use, this may be expected if you are already running the application."
 				  . "\nOtherwise you may need to configure another port.\n\nWould you like to configure a different port? yes/no [yes]: ";
@@ -255,18 +270,18 @@ sub checkConfiguredPort {
 				if (   $input eq "yes"
 					|| $input eq "default" )
 				{
+					$log->debug("User selected to configure new port.");
 					genConfigItem( "UPDATE", $cfg, $configItem,
 						"Please enter the new port number to configure", "" );
 
 				}
 				elsif ( $input eq "no" ) {
 					$LOOP = 0;
+					$log->debug("User selected to keep existing port.");
 				}
-
 			}
 		}
 	}
-
 }
 
 ########################################
@@ -279,11 +294,20 @@ sub backupDirectoryAndChown {
 	my $originalDir;
 	my $osUser;
 	my $backupDirName;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$originalDir = $_[0];
 	$osUser      = $_[1];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_originalDir", $originalDir );
+	dumpSingleVarToLog( "$subname" . "_osUser",      $osUser );
+
 	$backupDirName = $originalDir . "_backup_" . $date;
+	dumpSingleVarToLog( "$subname" . "_backupDirName", $backupDirName );
+
 	moveDirectory( $originalDir, $backupDirName );
 	print "Folder moved to " . $backupDirName . "\n\n";
 	chownRecursive( $osUser, $backupDirName );
@@ -299,13 +323,21 @@ sub getUserUidGid {
 	my $uid;
 	my $gid;
 	my @return;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$osUser = $_[0];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
+
 	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
-	  or die "$osUser not in passwd file";
+	  or $log->logdie("$osUser not in passwd file");
 
 	@return = ( $uid, $gid );
+	dumpSingleVarToLog( "$subname" . "_uid", $uid );
+	dumpSingleVarToLog( "$subname" . "_gid", $gid );
 	return @return;
 }
 
@@ -316,9 +348,16 @@ sub chownRecursive {
 	my $directory;
 	my $osUser;
 	my @uidGid;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$osUser    = $_[0];
 	$directory = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_osUser",    $osUser );
+	dumpSingleVarToLog( "$subname" . "_directory", $directory );
 
 	#Get UID and GID for the user
 	@uidGid = getUserUidGid($osUser);
@@ -328,7 +367,7 @@ sub chownRecursive {
 	find(
 		sub {
 			chown $uidGid[0], $uidGid[1], $_
-			  or die "could not chown '$_': $!";
+			  or $log->logdie("could not chown '$_': $!");
 		},
 		$directory
 	);
@@ -343,9 +382,16 @@ sub chownFile {
 	my $osUser;
 	my @uidGid;
 	my $file;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$osUser = $_[0];
 	$file   = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
+	dumpSingleVarToLog( "$subname" . "_file",   $file );
 
 	#Get UID and GID for the user
 	@uidGid = getUserUidGid($osUser);
@@ -353,7 +399,7 @@ sub chownFile {
 	print "Chowning file to correct user. Please wait.\n\n";
 
 	chown $uidGid[0], $uidGid[1], $file
-	  or die "could not chown '$_': $!";
+	  or $log->logdie("could not chown '$_': $!");
 
 	print "File chowned successfully.\n\n";
 }
@@ -363,13 +409,19 @@ sub chownFile {
 ########################################
 sub createOSUser {
 	my $osUser;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$osUser = $_[0];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 
 	if ( !getpwnam($osUser) ) {
 		system("useradd $osUser");
 		if ( $? == -1 ) {
-			die "could not create system user $osUser";
+			$log->logdie("could not create system user $osUser");
 		}
 	}
 }
@@ -380,11 +432,19 @@ sub createOSUser {
 sub generateJiraKickstart {
 	my $filename;    #Must contain absolute path
 	my $mode;        #"INSTALL" or "UPGRADE"
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$filename = $_[0];
 	$mode     = $_[1];
 
-	open FH, ">$filename" or die "Unable to open $filename for writing.";
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_filename", $filename );
+	dumpSingleVarToLog( "$subname" . "_mode",     $mode );
+
+	open FH, ">$filename"
+	  or $log->logdie("Unable to open $filename for writing.");
 	print FH "#install4j response file for JIRA\n";
 	if ( $mode eq "UPGRADE" ) {
 		print FH 'backupJira$Boolean=true\n';
@@ -433,13 +493,23 @@ sub generateGenericKickstart {
 	my $mode;        #"INSTALL" or "UPGRADE"
 	my $application;
 	my $lcApplication;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$filename      = $_[0];
 	$mode          = $_[1];
 	$application   = $_[2];
 	$lcApplication = lc($application);
 
-	open FH, ">$filename" or die "Unable to open $filename for writing.";
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_filename",      $filename );
+	dumpSingleVarToLog( "$subname" . "_mode",          $mode );
+	dumpSingleVarToLog( "$subname" . "_application",   $application );
+	dumpSingleVarToLog( "$subname" . "_lcApplication", $lcApplication );
+
+	open FH, ">$filename"
+	  or $log->logdie("Unable to open $filename for writing.");
 	print FH "#install4j response file for $application\n";
 	if ( $mode eq "UPGRADE" ) {
 		print FH 'backup' . $application . '$Boolean=true\n';
@@ -495,9 +565,15 @@ sub downloadJDBCConnector {
 	my $jarFile;
 	my $ae;
 	my $cfg;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$dbType = $_[0];
 	$cfg    = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_dbType", $dbType );
 
 	print
 "Not all the Atlassian products come with the $dbType connector so we need to download it.\n\n";
@@ -512,14 +588,20 @@ sub downloadJDBCConnector {
 "You did not enter anything, please enter a valid version number: ";
 			}
 			else {
+				dumpSingleVarToLog(
+					"MYSQL JDBC version number entered - $subname" . "_input",
+					$input );
 				$url =
 "http://cdn.mysql.com/Downloads/Connector-J/mysql-connector-java-"
 				  . $input
 				  . ".tar.gz";
+				dumpSingleVarToLog( "$subname" . "_url", $url );
 				if ( head($url) ) {
+					$log->info("MSQL JDBC Version entered $input is valid");
 					$LOOP = 0;
 				}
 				else {
+					$log->info("MSQL JDBC Version entered $input not valid");
 					print
 "That is not a valid version, no such URL with that version exists. Please try again: ";
 				}
@@ -561,8 +643,11 @@ sub downloadJDBCConnector {
 	$ua->show_progress(1);
 
 	$archiveFile = $Bin . "/" . $bits[ @bits - 1 ];
+	dumpSingleVarToLog( "$subname" . "_archiveFile", $archiveFile );
 	print "Downloading JDBC connector for $dbType...\n\n";
 	$downloadResponseCode = getstore( $url, $archiveFile );
+	dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
+		$downloadResponseCode );
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 	if ( is_success($downloadResponseCode) ) {
@@ -570,16 +655,18 @@ sub downloadJDBCConnector {
 		print "Download completed successfully.\n\n";
 	}
 	else {
-		die
-"Could not download $input. HTTP Response received was: '$downloadResponseCode'";
+		$log->logdie(
+"Could not download $input. HTTP Response received was: '$downloadResponseCode'"
+		);
 	}
 
 	if ( $dbType eq "MySQL" ) {
 
 		#Make sure file exists
 		if ( !-e $archiveFile ) {
-			die
-"File $archiveFile could not be extracted. File does not exist.\n\n";
+			$log->logdie(
+"File $archiveFile could not be extracted. File does not exist.\n\n"
+			);
 		}
 
 		#Set up extract object
@@ -589,19 +676,22 @@ sub downloadJDBCConnector {
 		#Extract
 		$ae->extract( to => $Bin );
 		if ( $ae->error ) {
-			die
-"Unable to extract $archiveFile. The following error was encountered: $ae->error\n\n";
+			$log->logdie(
+"Unable to extract $archiveFile. The following error was encountered: $ae->error\n\n"
+			);
 		}
 
 		print "Extracting $archiveFile has been completed.\n\n";
 
 		$jarFile = $ae->extract_path() . "/mysql-connector-java-$input-bin.jar";
+		dumpSingleVarToLog( "$subname" . "_jarFile", $jarFile );
 		if ( -e $jarFile ) {
 			$cfg->param( "general.dbJDBCJar", $jarFile );
 		}
 		else {
-			die
-"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually.";
+			$log->logdie(
+"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually."
+			);
 		}
 
 	}
@@ -622,19 +712,25 @@ sub downloadJDBCConnector {
 ########################################
 sub findDistro {
 	my $distribution;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Test for debian
 	if ( -e "/etc/debian_version" ) {
+		$log->info("OS is Debian");
 		$distribution = "debian";
 	}
 
 	#Test for redhat
 	elsif ( -f "/etc/redhat-release" ) {
+		$log->info("OS is Redhat");
 		$distribution = "redhat";
 	}
 
 	#Otherwise distro not supported
 	else {
+		$log->info("OS is unknown");
 		$distribution = "unknown";
 	}
 
@@ -649,12 +745,19 @@ sub generateApplicationConfig {
 	my $lcApplication;
 	my $mode;
 	my $cfg;
+	my $subname = ( caller(0) )[3];
 
-	$application = $_[0];
-	$mode        = $_[1];
-	$cfg         = $_[2];
+	$log->info("BEGIN: $subname");
 
+	$application   = $_[0];
+	$mode          = $_[1];
+	$cfg           = $_[2];
 	$lcApplication = lc($application);
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",          $mode );
+	dumpSingleVarToLog( "$subname" . "_application",   $application );
+	dumpSingleVarToLog( "$subname" . "_lcApplication", $lcApplication );
 
 	if ( $lcApplication eq "jira" ) {
 		generateJiraConfig( $mode, $cfg );
@@ -689,21 +792,31 @@ sub createAndChownDirectory {
 	my $directory;
 	my $osUser;
 	my @uidGid;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$directory = $_[0];
 	$osUser    = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_directory", $directory );
+	dumpSingleVarToLog( "$subname" . "_osUser",    $osUser );
 
 	#Get UID and GID for the user
 	@uidGid = getUserUidGid($osUser);
 
 	#Check if the directory exists if so just chown it
 	if ( -d $directory ) {
+		$log->info("Directory $directory exists, just chowning.");
 		print "Directory exists...\n\n";
 		chownRecursive( $osUser, $directory );
 	}
 
 #If the directory doesn't exist make the path to the directory (including any missing folders)
 	else {
+		$log->info(
+			"Directory $directory does not exist, creating and chowning.");
 		print "Directory does not exist, creating...\n\n";
 		make_path(
 			$directory,
@@ -724,11 +837,18 @@ sub createAndChownDirectory {
 ########################################
 sub createDirectory {
 	my $directory;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$directory = $_[0];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_directory", $directory );
+
 	#If the directory does not exist... create it
 	if ( !-d $directory ) {
+		$log->debug("Directory $directory does not exist, creating.");
 		print "Directory does not exist, creating...\n\n";
 		make_path(
 			$directory,
@@ -746,13 +866,21 @@ sub createDirectory {
 sub moveDirectory {
 	my $origDirectory;
 	my $newDirectory;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$origDirectory = $_[0];
 	$newDirectory  = $_[1];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_origDirectory", $origDirectory );
+	dumpSingleVarToLog( "$subname" . "_newDirectory",  $newDirectory );
+
 	if ( move( $origDirectory, $newDirectory ) == 0 ) {
-		die
-"Unable to move folder $origDirectory to $newDirectory. Unknown error occured.\n\n";
+		$log->logdie(
+"Unable to move folder $origDirectory to $newDirectory. Unknown error occured.\n\n"
+		);
 	}
 
 }
@@ -763,13 +891,21 @@ sub moveDirectory {
 sub copyDirectory {
 	my $origDirectory;
 	my $newDirectory;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$origDirectory = $_[0];
 	$newDirectory  = $_[1];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_origDirectory", $origDirectory );
+	dumpSingleVarToLog( "$subname" . "_newDirectory",  $newDirectory );
+
 	if ( copy( $origDirectory, $newDirectory ) == 0 ) {
-		die
-"Unable to copy folder $origDirectory to $newDirectory. Unknown error occured.\n\n";
+		$log->logdie(
+"Unable to copy folder $origDirectory to $newDirectory. Unknown error occured.\n\n"
+		);
 	}
 
 }
@@ -781,6 +917,9 @@ sub checkRequiredConfigItems {
 	my @requiredConfigItems;
 	my @parameterNull;
 	my $failureCount = 0;
+	my $subname      = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	@requiredConfigItems = @_;
 
@@ -792,6 +931,8 @@ sub checkRequiredConfigItems {
 			$failureCount++;
 		}
 	}
+
+	$log->info("Failure count of required config items: $failureCount");
 	if ( $failureCount > 0 ) {
 		return "FAIL";
 	}
@@ -807,33 +948,43 @@ sub checkRequiredConfigItems {
 sub manageService {
 	my $application;
 	my $mode;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
 	$application = $_[0];
 	$mode        = $_[1];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_mode",        $mode );
+
 	#Install the service
 	if ( $mode eq "INSTALL" ) {
+		$log->info("Installing Service for $application.");
 		print "Installing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --add $application") == 0
-			  or die "Adding $application as a service failed: $?";
+			  or $log->logdie("Adding $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
 			system("update-rc.d $application defaults") == 0
-			  or die "Adding $application as a service failed: $?";
+			  or $log->logdie("Adding $application as a service failed: $?");
 		}
 		print "Service installed successfully...\n\n";
 	}
 
 	#Remove the service
 	elsif ( $mode eq "UNINSTALL" ) {
+		$log->info("Removing Service for $application.");
 		print "Removing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --del $application") == 0
-			  or die "Removing $application as a service failed: $?";
+			  or $log->logdie("Removing $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
 			system("update-rc.d -f $application remove") == 0
-			  or die "Removing $application as a service failed: $?";
+			  or $log->logdie("Removing $application as a service failed: $?");
 
 		}
 		print "Service removed successfully...\n\n";
@@ -939,18 +1090,18 @@ sub bootStrapper {
 
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
-	my $install_crowd       = '';    #commandOption
-	my $install_jira        = '';    #commandOption
-	my $install_confluence  = '';    #commandOption
-	my $install_fisheye     = '';    #commandOption
-	my $install_bamboo      = '';    #commandOption
-	my $install_stash       = '';    #commandOption
-	my $upgrade_crowd       = '';    #commandOption
-	my $upgrade_jira        = '';    #commandOption
-	my $upgrade_confluence  = '';    #commandOption
-	my $upgrade_fisheye     = '';    #commandOption
-	my $upgrade_bamboo      = '';    #commandOption
-	my $upgrade_stash       = '';    #commandOption
+	my $install_crowd       = 0;     #commandOption
+	my $install_jira        = 0;     #commandOption
+	my $install_confluence  = 0;     #commandOption
+	my $install_fisheye     = 0;     #commandOption
+	my $install_bamboo      = 0;     #commandOption
+	my $install_stash       = 0;     #commandOption
+	my $upgrade_crowd       = 0;     #commandOption
+	my $upgrade_jira        = 0;     #commandOption
+	my $upgrade_confluence  = 0;     #commandOption
+	my $upgrade_fisheye     = 0;     #commandOption
+	my $upgrade_bamboo      = 0;     #commandOption
+	my $upgrade_stash       = 0;     #commandOption
 	my $tar_crowd_logs      = '';    #commandOption
 	my $tar_confluence_logs = '';    #commandOption
 	my $tar_jira_logs       = '';    #commandOption
@@ -1018,8 +1169,11 @@ sub bootStrapper {
 #print out that you can only use one of the install or upgrade commands at a time
 	}
 	elsif (
-		$options_count == 1 &&    #checkAllOtherOptions){
-		 #print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others
+		$options_count == 1    #&&    checkAllOtherOptions
+	  )
+	{
+
+#print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others
 	}
 	elsif ( $options_count == 1 ) {
 
@@ -3864,7 +4018,7 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-installCrowd();
+#installCrowd();
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
@@ -3885,3 +4039,5 @@ installCrowd();
 
 #print getUserCreatedByInstaller("jira.installDir","JIRA_USER") . "\n\n";
 #print isPortAvailable("22");
+
+#dumpSingleVarToLog( "var1", "varvalue" );
