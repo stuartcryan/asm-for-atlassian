@@ -701,8 +701,8 @@ sub downloadJDBCConnector {
 			$cfg->param( "general.dbJDBCJar", $jarFile );
 		}
 		else {
-			die
-"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually.";
+			$log->logdie(
+"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually.");
 		}
 	}
 }
@@ -1243,7 +1243,7 @@ sub getLatestDownloadURL {
 
 	#Try and download the feed
 	my $json = get($versionurl);
-	die "Could not get $versionurl!" unless defined $json;
+	 $log->logdie("JSON Download: Could not get $versionurl!") unless defined $json;
 
  #We have to rework the string slightly as Atlassian is not returning valid JSON
 	$json = substr( $json, 10, -1 );
@@ -1335,7 +1335,7 @@ sub getBooleanInput {
 	my $input;
 		my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->trace("BEGIN: $subname"); #we only want this on trace or it makes the script unusable
 
 	while ( $LOOP == 1 ) {
 
@@ -1415,7 +1415,7 @@ sub extractAndMoveDownload {
 
 	#Make sure file exists
 	if ( !-e $inputFile ) {
-		die "File $inputFile could not be extracted. File does not exist.\n\n";
+		$log->logdie("File $inputFile could not be extracted. File does not exist.\n\n");
 	}
 
 	#Set up extract object
@@ -1425,8 +1425,8 @@ sub extractAndMoveDownload {
 	#Extract
 	$ae->extract( to => $globalConfig->param("general.rootInstallDir") );
 	if ( $ae->error ) {
-		die
-"Unable to extract $inputFile. The following error was encountered: $ae->error\n\n";
+		$log->logdie(
+"Unable to extract $inputFile. The following error was encountered: $ae->error\n\n");
 	}
 
 	print "Extracting $inputFile has been completed.\n\n";
@@ -1673,7 +1673,7 @@ sub updateJavaOpts {
 	$javaOpts  = $_[1];
 
 	#Try to open the provided file
-	open( FILE, $inputFile ) or die("Unable to open file: $inputFile");
+	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
 	@data = <FILE>;
@@ -1729,7 +1729,7 @@ sub updateJavaOpts {
 	}
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile" or die $!;
+	open FILE, ">$inputFile" or $log->logdie("Unable to open file $inputFile $!");
 	print FILE @data;
 	close FILE;
 
@@ -1754,7 +1754,7 @@ sub updateLineInFile {
 	$newLine        = $_[2];
 	$lineReference2 = $_[3];
 
-	open( FILE, $inputFile ) or die("Unable to open file: $inputFile.");
+	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
 	@data = <FILE>;
@@ -1770,7 +1770,7 @@ sub updateLineInFile {
 			my ($index1) =
 			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
 			if ( !defined($index1) ) {
-				die(
+				$log->logdie(
 "No line containing \"$lineReference\" found in file $inputFile\n\n"
 				);
 			}
@@ -1781,7 +1781,7 @@ sub updateLineInFile {
 			}
 		}
 		else {
-			die(
+			$log->logdie(
 "No line containing \"$lineReference\" found in file $inputFile\n\n"
 			);
 		}
@@ -1791,7 +1791,7 @@ sub updateLineInFile {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile" or die $!;
+	open FILE, ">$inputFile" or $log->logdie("Unable to open file: $inputFile: $!");;
 	print FILE @data;
 	close FILE;
 
@@ -2004,7 +2004,7 @@ sub backupFile {
 
 	#Create copy of input file with date_time appended to the end of filename
 	copy( $inputFile, $inputFile . "_" . $date )
-	  or die "Copy failed: $!";
+	  or $log->logdie("File copy failed for $inputFile, ". $inputFile . "_" . $date .": $!");
 }
 
 ########################################
@@ -2068,13 +2068,13 @@ sub generateInitD {
 	);
 
 	#Write out file to /etc/init.d
-	open FILE, ">/etc/init.d/$product" or die $!;
+	open FILE, ">/etc/init.d/$product" or $log->logdie("Unable to open file /etc/init.d/$product: $!");
 	print FILE @initFile;
 	close FILE;
 
 	#Make the new init.d file executable
 	chmod 0755, "/etc/init.d/$product"
-	  or die "Couldn't chmod /etc/init.d/$product: $!";
+	  or $log->logdie("Couldn't chmod /etc/init.d/$product: $!");
 
 }
 
@@ -2151,9 +2151,9 @@ sub installGenericAtlassianBinary {
 		$globalConfig->param( $lcApplication . ".connectorPort" ) );
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-		die
+		$log->logdie(
 "One or more of the ports configured for $application are currently in use. Cannot continue installing. "
-		  . "Please ensure the ports configured are available and not in use.\n\n";
+		  . "Please ensure the ports configured are available and not in use.\n\n");
 	}
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
@@ -2217,7 +2217,7 @@ sub installGenericAtlassianBinary {
 
 	#chmod the file to be executable
 	chmod 0755, $downloadDetails[2]
-	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
+	  or  $log->logdie("Couldn't chmod " . $downloadDetails[2] . ": $!");
 
 	#Generate the kickstart as we have all the information necessary
 	generateGenericKickstart( $varfile, "INSTALL", $lcApplication );
@@ -2235,8 +2235,8 @@ sub installGenericAtlassianBinary {
 			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
 		}
 		else {
-			die
-"Cannot proceed installing $application if the directory already has an install, please remove this manually and try again.\n\n";
+			$log->logdie(
+"Cannot proceed installing $application if the directory already has an install, please remove this manually and try again.\n\n");
 		}
 	}
 
@@ -2252,9 +2252,9 @@ sub installGenericAtlassianBinary {
 			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
 		}
 		else {
-			die "Cannot proceed installing $application if the data directory ("
+			$log->logdie("Cannot proceed installing $application if the data directory ("
 			  . $globalConfig->param( $lcApplication . ".dataDir" )
-			  . ")already has data from a previous install, please remove this manually and try again.\n\n";
+			  . ")already has data from a previous install, please remove this manually and try again.\n\n");
 		}
 
 	}
@@ -2263,8 +2263,8 @@ sub installGenericAtlassianBinary {
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
 
 	if ( $? == -1 ) {
-		die
-"$application install did not complete successfully. Please check the install logs and try again: $!\n";
+		$log->logdie(
+"$application install did not complete successfully. Please check the install logs and try again: $!\n");
 	}
 
 	#Stop the application so we can apply additional configuration
@@ -2293,8 +2293,8 @@ sub installGenericAtlassianBinary {
 "Database is configured as MySQL, copying the JDBC connector to Confluence install.\n\n";
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" )
-		  or die
-"Unable to copy MySQL JDBC connector to $application lib directory: $!";
+		  or $log->logdie(
+"Unable to copy MySQL JDBC connector to $application lib directory: $!");
 
 		#Chown the files again
 		chownRecursive( $osUser,
@@ -2476,22 +2476,22 @@ sub upgradeGenericAtlassianBinary {
 			$globalConfig->param("$lcApplication.installedVersion"),
 			$downloadVersionCheck[1] );
 		if ( $versionSupported eq "GREATER" ) {
-			die "The version to be downloaded ("
+		$log->logdie( "The version to be downloaded ("
 			  . $downloadVersionCheck[1]
 			  . ") is older than the currently installed version ("
 			  . $globalConfig->param("$lcApplication.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n";
+			  . "). Downgrading is not supported and this script will now exit.\n\n");
 		}
 	}
 	elsif ( $mode eq "SPECIFIC" ) {
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"), $version );
 		if ( $versionSupported eq "GREATER" ) {
-			die "The version to be downloaded (" 
+			$log->logdie( "The version to be downloaded (" 
 			  . $version
 			  . ") is older than the currently installed version ("
 			  . $globalConfig->param("$lcApplication.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n";
+			  . "). Downgrading is not supported and this script will now exit.\n\n");
 		}
 	}
 
@@ -2513,7 +2513,7 @@ sub upgradeGenericAtlassianBinary {
 
 	#chmod the file to be executable
 	chmod 0755, $downloadDetails[2]
-	  or die "Couldn't chmod " . $downloadDetails[2] . ": $!";
+	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!");
 
 	#Generate the kickstart as we have all the information necessary
 	generateGenericKickstart( $varfile, "UPGRADE", $lcApplication );
@@ -2521,8 +2521,8 @@ sub upgradeGenericAtlassianBinary {
 	#upgrade
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
 	if ( $? == -1 ) {
-		die
-"$application upgrade did not complete successfully. Please check the install logs and try again: $!\n";
+	$log->logdie(
+"$application upgrade did not complete successfully. Please check the install logs and try again: $!\n");
 	}
 
 	#Stop the application so we can apply additional configuration
@@ -2556,8 +2556,8 @@ sub upgradeGenericAtlassianBinary {
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param("$lcApplication.installDir") . "/lib/" )
-		  or die
-"Unable to copy MySQL JDBC connector to $application lib directory: $!";
+		  or $log->logdie(
+"Unable to copy MySQL JDBC connector to $application lib directory: $!");
 
 		#Chown the files again
 		chownRecursive( $osUser,
@@ -2637,8 +2637,8 @@ sub uninstallGenericAtlassianBinary {
 		system( $globalConfig->param("$lcApplication.installDir")
 			  . "/uninstall -q" );
 		if ( $? == -1 ) {
-			die
-"$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n";
+			$log->logdie(
+"$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n");
 		}
 
 		#Check if you REALLY want to remove data directory
@@ -2873,7 +2873,7 @@ sub installCrowd {
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "no" ) {
-			die "Install will not proceed. Exiting script. \n\n";
+			$log->logdie( "User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n");
 		}
 
 	}
@@ -3005,8 +3005,8 @@ sub installCrowd {
 "Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
-		  or die
-		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!";
+		  or $log->logdie(
+		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -3175,11 +3175,11 @@ sub upgradeCrowd {
 		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
 			$downloadVersionCheck[1] );
 		if ( $versionSupported eq "GREATER" ) {
-			die "The version to be downloaded ("
+			$log->logdie( "The version to be downloaded ("
 			  . $downloadVersionCheck[1]
 			  . ") is older than the currently installed version ("
 			  . $globalConfig->param("crowd.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n";
+			  . "). Downgrading is not supported and this script will now exit.\n\n");
 		}
 	}
 	elsif ( $mode eq "SPECIFIC" ) {
@@ -3187,11 +3187,11 @@ sub upgradeCrowd {
 		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
 			$version );
 		if ( $versionSupported eq "GREATER" ) {
-			die "The version to be downloaded (" 
+			$log->logdie( "The version to be downloaded (" 
 			  . $version
 			  . ") is older than the currently installed version ("
 			  . $globalConfig->param("crowd.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n";
+			  . "). Downgrading is not supported and this script will now exit.\n\n");
 		}
 	}
 
@@ -3217,18 +3217,18 @@ sub upgradeCrowd {
 	print "\n";
 	if ( -e "/etc/init.d/crowd" ) {
 		system("service crowd stop")
-		  or die "Could not stop Crowd: $!";
+		  or $log->logdie( "Could not stop Crowd: $!");
 	}
 	else {
 		if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" ) {
 			system( $globalConfig->param("crowd.installDir")
 				  . "/stop_crowd.sh" )
-			  or die
-"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n";
+			  or $log->logdie(
+"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n");
 		}
 		else {
-			die
-"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again";
+			$log->logdie(
+"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again");
 		}
 	}
 
@@ -3296,8 +3296,8 @@ sub upgradeCrowd {
 "Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
-		  or die
-		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!";
+		  or $log->logdie(
+		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -3743,8 +3743,8 @@ sub downloadAtlassianInstaller {
 			return @downloadDetails;
 		}
 		else {
-			die
-"Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'";
+			$log->logdie(
+"Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'");
 		}
 	}
 
