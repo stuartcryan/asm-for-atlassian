@@ -224,7 +224,7 @@ sub checkConfiguredPort {
 	$configItem = $_[0];
 	if ( defined( $_[1] ) ) {
 		$cfg = $_[1];
-		$log->debug("Config has been passed to function.");
+		$log->debug("Config has been passed to $subname.");
 	}
 	else {
 		$cfg = $globalConfig;
@@ -1016,14 +1016,18 @@ sub bootStrapper {
 	my @parameterNull;
 	my @requiredConfigItems;
 	my $input;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Check for supported distribution of *nix
 	$distro = findDistro();
 
 #If distro unknown die as not supported (if you receive this in error please log a bug to me)
 	if ( $distro eq "unknown" ) {
-		die
-"This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.\n\n";
+		$log->logdie(
+"This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.\n\n"
+		);
 	}
 
 	#Try to load configuration file
@@ -1031,6 +1035,7 @@ sub bootStrapper {
 
 	#If no config found, force generation
 	if ( !$globalConfig ) {
+		$log->info("No config file found, forcing global config generation.");
 		generateSuiteConfig();
 	}
 
@@ -1042,6 +1047,8 @@ sub bootStrapper {
 			"general.targetDBType", "general.force32Bit"
 		);
 		if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+			$log->info(
+				"Some config items missing, kicking off config generation");
 			print
 "There are some global configuration items that are incomplete or missing. This may be due to new features or new config items.\n\nThe global config manager will now run to get all items, please press return/enter to begin.\n\n";
 			$input = <STDIN>;
@@ -1066,7 +1073,8 @@ sub bootStrapper {
 "In order to continue you must download the JDBC JAR file for "
 				  . $globalConfig->param("general.targetDBType")
 				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
-				die "This script will now exit.\n\n";
+				$log->logdie(
+					"JAR PARAM is NULL. This script will now exit.\n\n");
 			}
 			elsif (
 				(
@@ -1083,7 +1091,8 @@ sub bootStrapper {
 "In order to continue you must download the JDBC JAR file for "
 				  . $globalConfig->param("general.targetDBType")
 				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
-				die "This script will now exit.\n\n";
+				$log->logdie(
+					"JAR PARAM is NULL. This script will now exit.\n\n");
 			}
 		}
 	}
@@ -1164,6 +1173,7 @@ sub bootStrapper {
 	  $upgrade_bamboo +
 	  $upgrade_stash;
 
+	#logging needs to be added here. As this is only structs leaving till later.
 	if ( $options_count > 1 ) {
 
 #print out that you can only use one of the install or upgrade commands at a time
@@ -1194,6 +1204,9 @@ sub getLatestDownloadURL {
 	my $architecture;
 	my @returnArray;
 	my $decoded_json;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$product      = $_[0];
 	$architecture = $_[1];
@@ -1262,6 +1275,9 @@ sub getVersionDownloadURL {
 	my $version;
 	my @returnArray;
 	my $versionurl;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$product      = $_[0];
 	$architecture = $_[1];
@@ -1317,6 +1333,9 @@ sub getVersionDownloadURL {
 sub getBooleanInput {
 	my $LOOP = 1;
 	my $input;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	while ( $LOOP == 1 ) {
 
@@ -1350,6 +1369,9 @@ sub getBooleanInput {
 ########################################
 sub getGenericInput {
 	my $input;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$input = <STDIN>;
 	print "\n";
@@ -1374,6 +1396,9 @@ sub extractAndMoveDownload {
 	my @uidGid;
 	my $upgrade;
 	my $mode;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$inputFile          = $_[0];
 	$expectedFolderName = $_[1];
@@ -1487,6 +1512,9 @@ sub genConfigItem {
 	my $defaultValue;
 	my $input;
 	my @parameterNull;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$mode              = $_[0];
 	$cfg               = $_[1];
@@ -1542,6 +1570,9 @@ sub genBooleanConfigItem {
 	my $defaultValue;
 	my $input;
 	my @parameterNull;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$mode              = $_[0];
 	$cfg               = $_[1];
@@ -1600,6 +1631,9 @@ sub updateXMLAttribute {
 	my $searchString;
 	my $referenceAttribute;
 	my $attributeValue;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$xmlFile            = $_[0];
 	$searchString       = $_[1];
@@ -1631,6 +1665,9 @@ sub updateJavaOpts {
 	my $javaOpts;
 	my $searchFor;
 	my @data;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$inputFile = $_[0];
 	$javaOpts  = $_[1];
@@ -1708,6 +1745,9 @@ sub updateLineInFile {
 	my $searchFor;
 	my $lineReference2;
 	my @data;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$inputFile      = $_[0];
 	$lineReference  = $_[1];
@@ -1770,6 +1810,9 @@ sub compareTwoVersions {
 	my $majorVersionStatus;
 	my $midVersionStatus;
 	my $minVersionStatus;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$version1 = $_[0];
 	$version2 = $_[1];
@@ -1895,6 +1938,9 @@ sub isSupportedVersion {
 	my $productVersion;
 	my $count;
 	my $versionReturn;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$product = $_[0];
 	$version = $_[1];
@@ -1950,6 +1996,9 @@ sub isSupportedVersion {
 sub backupFile {
 	my $inputFile;
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$inputFile = $_[0];
 
@@ -1968,6 +2017,9 @@ sub generateInitD {
 	my $startCmd;
 	my $stopCmd;
 	my @initFile;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$product  = $_[0];
 	$runUser  = $_[1];
@@ -2057,6 +2109,9 @@ sub installGenericAtlassianBinary {
 	my @requiredConfigItems;
 	my $downloadArchivesUrl;
 	my $configUser;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$application         = $_[0];
 	$downloadArchivesUrl = $_[1];
@@ -2317,6 +2372,9 @@ sub upgradeGenericAtlassianBinary {
 	my $downloadArchivesUrl;
 	my $configUser;
 	my $lcApplication;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$application         = $_[0];
 	$downloadArchivesUrl = $_[1];
@@ -2558,6 +2616,9 @@ sub uninstallGenericAtlassianBinary {
 	my $application;
 	my $lcApplication;
 	my $input;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$application = $_[0];
 
@@ -2613,6 +2674,9 @@ sub installConfluence {
 	my $application = "Confluence";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
+	  	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -2640,6 +2704,9 @@ sub upgradeConfluence {
 	my $application = "Confluence";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
+	  	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -2661,6 +2728,9 @@ sub upgradeConfluence {
 ########################################
 sub uninstallConfluence {
 	my $application = "Confluence";
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 	uninstallGenericAtlassianBinary($application);
 }
 
@@ -2671,6 +2741,9 @@ sub installJira {
 	my $application = "JIRA";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
+	  	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -2697,6 +2770,9 @@ sub upgradeJira {
 	my $application = "JIRA";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
+	  	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -2718,6 +2794,9 @@ sub upgradeJira {
 ########################################
 sub uninstallJira {
 	my $application = "JIRA";
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 	uninstallGenericAtlassianBinary($application);
 }
 
@@ -2736,6 +2815,9 @@ sub installCrowd {
 	my @uidGid;
 	my $serverPortAvailCode;
 	my $connectorPortAvailCode;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -2983,6 +3065,9 @@ sub upgradeCrowd {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -3260,6 +3345,9 @@ sub uninstallCrowd {
 	my $application = "crowd";
 	my $initdFile   = "/etc/init.d/$application";
 	my $input;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	print
 "This will uninstall Crowd. This will delete the installation directory AND provide the option to delete the data directory.\n";
@@ -3323,6 +3411,9 @@ sub generateJiraConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -3388,6 +3479,9 @@ sub generateCrowdConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -3455,6 +3549,9 @@ sub generateFisheyeConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -3493,6 +3590,9 @@ sub generateConfluenceConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -3564,6 +3664,9 @@ sub downloadAtlassianInstaller {
 	my $input;
 	my $downloadResponseCode;
 	my $absoluteFilePath;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$type         = $_[0];
 	$product      = $_[1];
@@ -3656,6 +3759,9 @@ sub downloadLatestAtlassianSuite {
 	my $parsedURL;
 	my @downloadDetails;
 	my @suiteProducts;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	$architecture = $_[0];
 
@@ -3688,6 +3794,9 @@ sub generateSuiteConfig {
 	my $defaultValue;
 	my @parameterNull;
 	my $oldConfig;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	#Check if we have a valid config file already, if so we are updating it
 	if ($globalConfig) {
@@ -3950,6 +4059,9 @@ sub generateSuiteConfig {
 sub displayMenu {
 	my $choice;
 	my $main_menu;
+		my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
