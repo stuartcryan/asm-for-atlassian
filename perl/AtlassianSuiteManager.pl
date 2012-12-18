@@ -1678,10 +1678,10 @@ sub updateXMLAttribute {
 	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
 	dumpSingleVarToLog( "$subname" . "_referenceAttribute",
 		$referenceAttribute );
-	dumpSingleVarToLog( "$subname" . "_attributeValue", $attributeValue )
+	dumpSingleVarToLog( "$subname" . "_attributeValue", $attributeValue );
 
 	  #Set up new XML object, with "pretty" spacing (i.e. standard spacing)
-	  my $twig = new XML::Twig( pretty_print => 'indented', );
+	  my $twig = new XML::Twig( pretty_print => 'indented' );
 
 	#Parse the XML file
 	$twig->parsefile($xmlFile);
@@ -3893,10 +3893,10 @@ sub downloadLatestAtlassianSuite {
 
 	$log->info("BEGIN: $subname");
 
+	$architecture = $_[0];
+
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
-
-	dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
 	#Configure all products in the suite
 	@suiteProducts =
@@ -4297,3 +4297,4 @@ bootStrapper();
 #print isPortAvailable("22");
 
 #dumpSingleVarToLog( "var1", "varvalue" );
+downloadLatestAtlassianSuite(whichApplicationArchitecture());
