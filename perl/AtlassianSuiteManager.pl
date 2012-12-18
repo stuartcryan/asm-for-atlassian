@@ -4204,7 +4204,18 @@ sub displayMenu {
 
       Welcome to the Atlassian Suite Manager Script
 
-      AtlassianSuiteManager Copyright (C) 2012  Stuart Ryan
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with significantly discounted hosting without which I would not have been
+      able to write, and continue hosting the Atlassian Suite for my open source projects and
+      this script.
+      ###########################################################################################
+      
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
       under certain conditions; read the COPYING file included for details.
