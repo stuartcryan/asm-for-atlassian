@@ -254,13 +254,11 @@ sub checkConfiguredPort {
 			dumpSingleVarToLog( "\$availCode (1=AVAIL/2=INUSE)", $availCode );
 
 			if ( $availCode == 1 ) {
-
-				#port is available
+				$log->debug("Port is available.");
 				$LOOP = 0;
 			}
 			else {
-
-				#port is in use
+				$log->debug("Port is in use.");
 
 				print
 "The port you have configured ($configValue) for $configItem is currently in use, this may be expected if you are already running the application."
@@ -304,6 +302,7 @@ sub backupDirectoryAndChown {
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_originalDir", $originalDir );
 	dumpSingleVarToLog( "$subname" . "_osUser",      $osUser );
+	dumpSingleVarToLog( "$subname" . "_date",        $date );
 
 	$backupDirName = $originalDir . "_backup_" . $date;
 	dumpSingleVarToLog( "$subname" . "_backupDirName", $backupDirName );
@@ -363,9 +362,11 @@ sub chownRecursive {
 	@uidGid = getUserUidGid($osUser);
 
 	print "Chowning files to correct user. Please wait.\n\n";
+	$log->info("CHOWNING: $directory");
 
 	find(
 		sub {
+			$log->trace("CHOWNING: $_");
 			chown $uidGid[0], $uidGid[1], $_
 			  or $log->logdie("could not chown '$_': $!");
 		},
@@ -398,6 +399,7 @@ sub chownFile {
 
 	print "Chowning file to correct user. Please wait.\n\n";
 
+	$log->debug("CHOWNING: $file");
 	chown $uidGid[0], $uidGid[1], $file
 	  or $log->logdie("could not chown '$_': $!");
 
@@ -423,6 +425,12 @@ sub createOSUser {
 		if ( $? == -1 ) {
 			$log->logdie("could not create system user $osUser");
 		}
+		else {
+			$log->info("System user $osUser added successfully.");
+		}
+	}
+	else {
+		$log->info("System user $osUser already exists.");
 	}
 }
 
@@ -583,14 +591,15 @@ sub downloadJDBCConnector {
 		print "Enter the version number displayed on the page above: ";
 		while ( $LOOP == 1 ) {
 			$input = getGenericInput();
+			$log->info("MYSQL JDBC version number entered: $input");
 			if ( $input eq "default" ) {
+				$log->info("MYSQL JDBC null version entered.");
 				print
 "You did not enter anything, please enter a valid version number: ";
 			}
 			else {
-				dumpSingleVarToLog(
-					"MYSQL JDBC version number entered - $subname" . "_input",
-					$input );
+				$log->info( "MYSQL JDBC version number entered - $subname"
+					  . "_input: $input" );
 				$url =
 "http://cdn.mysql.com/Downloads/Connector-J/mysql-connector-java-"
 				  . $input
@@ -608,31 +617,6 @@ sub downloadJDBCConnector {
 			}
 		}
 
-	}
-	elsif ( $dbType eq "PostgreSQL" ) {
-		print
-"In a web browser please visit http://jdbc.postgresql.org/download.html and note down the version number of the JDBC4 driver (such as 9.2-1002).\n";
-		print "Enter the version number displayed on the page above: ";
-		while ( $LOOP == 1 ) {
-			$input = getGenericInput();
-			if ( $input eq "default" ) {
-				print
-"You did not enter anything, please enter a valid version number: ";
-			}
-			else {
-				$url =
-				    "http://jdbc.postgresql.org/download/postgresql-" 
-				  . $input
-				  . ".jdbc4.jar";
-				if ( head($url) ) {
-					$LOOP = 0;
-				}
-				else {
-					print
-"That is not a valid version, no such URL with that version exists. Please try again: ";
-				}
-			}
-		}
 	}
 
 	#Parse the URL so that we can get specific sections of it
@@ -653,6 +637,7 @@ sub downloadJDBCConnector {
 	if ( is_success($downloadResponseCode) ) {
 		print "\n";
 		print "Download completed successfully.\n\n";
+		$log->info("JDBC download succeeded.");
 	}
 	else {
 		$log->logdie(
@@ -672,6 +657,7 @@ sub downloadJDBCConnector {
 		#Set up extract object
 		$ae = Archive::Extract->new( archive => $archiveFile );
 		print "Extracting $archiveFile. Please wait...\n\n";
+		$log->info("Extracting $archiveFile.");
 
 		#Extract
 		$ae->extract( to => $Bin );
@@ -682,11 +668,14 @@ sub downloadJDBCConnector {
 		}
 
 		print "Extracting $archiveFile has been completed.\n\n";
+		$log->info("Extract completed successfully.");
 
 		$jarFile = $ae->extract_path() . "/mysql-connector-java-$input-bin.jar";
 		dumpSingleVarToLog( "$subname" . "_jarFile", $jarFile );
 		if ( -e $jarFile ) {
 			$cfg->param( "general.dbJDBCJar", $jarFile );
+			$log->info("Writing out config file to disk.");
+			$cfg->write($configFile);
 		}
 		else {
 			$log->logdie(
@@ -694,17 +683,6 @@ sub downloadJDBCConnector {
 			);
 		}
 
-	}
-	elsif ( $dbType eq "PostgreSQL" ) {
-		$jarFile = $archiveFile;
-		if ( -e $jarFile ) {
-			$cfg->param( "general.dbJDBCJar", $jarFile );
-		}
-		else {
-			$log->logdie(
-"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually."
-			);
-		}
 	}
 }
 
@@ -782,6 +760,7 @@ sub generateApplicationConfig {
 		generateBambooConfig( $mode, $cfg );
 	}
 
+	$log->info("Writing out config file to disk.");
 	$cfg->write($configFile);
 	loadSuiteConfig();
 }
@@ -1219,6 +1198,7 @@ sub getLatestDownloadURL {
 	#Build URL to check latest version for a particular product
 	my $versionurl =
 	  "https://my.atlassian.com/download/feeds/current/" . $product . ".json";
+	dumpSingleVarToLog( "$subname" . "_versionurl", $versionurl );
 	my $searchString;
 
  #For each product define the file type that we are looking for in the json feed
@@ -1246,6 +1226,8 @@ sub getLatestDownloadURL {
 		exit 2;
 	}
 
+	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
+
 	#Try and download the feed
 	my $json = get($versionurl);
 	$log->logdie("JSON Download: Could not get $versionurl!")
@@ -1263,8 +1245,9 @@ sub getLatestDownloadURL {
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
 				@returnArray = ( $item->{zipUrl}, $item->{version} );
+				dumpSingleVarToLog( "$subname" . "_zipUrl",  $item->{zipUrl} );
+				dumpSingleVarToLog( "$subname" . "_version", $item->{version} );
 				return @returnArray;
-
 			}
 		}
 	}
@@ -1297,6 +1280,7 @@ sub getVersionDownloadURL {
 	#Generate product specific URL
 	$versionurl =
 	  "http://www.atlassian.com/software/" . $product . "/downloads/binary";
+	dumpSingleVarToLog( "$subname" . "_versionurl", $versionurl );
 
 #For each product generate the file name based on known information and input data
 	if ( $product eq "confluence" ) {
@@ -1334,6 +1318,9 @@ sub getVersionDownloadURL {
 		exit 2;
 	}
 
+	dumpSingleVarToLog( "$subname" . "_fileExt",  $fileExt );
+	dumpSingleVarToLog( "$subname" . "_filename", $filename );
+
 	#Return the absolute URL to the version specific download
 	@returnArray = ( $versionurl . "/" . $filename, $version );
 }
@@ -1354,6 +1341,7 @@ sub getBooleanInput {
 		$input = <STDIN>;
 		print "\n";
 		chomp $input;
+		dumpSingleVarToLog( "$subname" . "_inputEntered", $input );
 
 		if (   ( lc $input ) eq "yes"
 			|| ( lc $input ) eq "y" )
@@ -1370,6 +1358,8 @@ sub getBooleanInput {
 			return "default";
 		}
 		else {
+			$log->info(
+				"$subname: Input not recognised, asking user for input again.");
 			print "Your input '" . $input
 			  . "'was not recognised. Please try again and write yes or no.\n";
 		}
@@ -1383,13 +1373,16 @@ sub getGenericInput {
 	my $input;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->trace("BEGIN: $subname")
+	  ;    #we only want this on trace or the script becomes unusable
 
 	$input = <STDIN>;
 	print "\n";
 	chomp $input;
+	dumpSingleVarToLog( "$subname" . "_inputEntered", $input );
 
 	if ( $input eq "" ) {
+		$log->debug("$subname: Input entered was null, returning 'default'.");
 		return "default";
 	}
 	else {
@@ -1413,7 +1406,7 @@ sub extractAndMoveDownload {
 	$log->info("BEGIN: $subname");
 
 	$inputFile          = $_[0];
-	$expectedFolderName = $_[1];
+	$expectedFolderName = $_[1];    #MustBeAbsolute
 	$osUser             = $_[2];
 	$mode               = $_[3];
 
@@ -1423,6 +1416,7 @@ sub extractAndMoveDownload {
 		$expectedFolderName );
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 	dumpSingleVarToLog( "$subname" . "_mode",   $mode );
+	dumpSingleVarToLog( "$subname" . "_date",   $date );
 
 	#Get the UID and GID for the user so that we can chown files
 	@uidGid = getUserUidGid($osUser);
@@ -1440,7 +1434,9 @@ sub extractAndMoveDownload {
 
 	#Set up extract object
 	my $ae = Archive::Extract->new( archive => $inputFile );
+
 	print "Extracting $inputFile. Please wait...\n\n";
+	$log->info("$subname: Extracting $inputFile");
 
 	#Extract
 	$ae->extract( to => $globalConfig->param("general.rootInstallDir") );
@@ -1451,6 +1447,7 @@ sub extractAndMoveDownload {
 	}
 
 	print "Extracting $inputFile has been completed.\n\n";
+	$log->info("$subname: Extract completed.");
 
 	#Check for existing folder and provide option to backup
 	if ( -d $expectedFolderName ) {
@@ -1464,7 +1461,7 @@ sub extractAndMoveDownload {
 		else {
 			my $LOOP = 1;
 			my $input;
-
+			$log->info("$subname: $expectedFolderName already exists.");
 			print "The destination directory '"
 			  . $expectedFolderName
 			  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
@@ -1472,6 +1469,7 @@ sub extractAndMoveDownload {
 
 				$input = <STDIN>;
 				chomp $input;
+				dumpSingleVarToLog( "$subname" . "_inputEntered", $input );
 				print "\n";
 
 				#If user selects, backup existing folder
@@ -1479,33 +1477,52 @@ sub extractAndMoveDownload {
 					|| ( lc $input ) eq "b"
 					|| $input eq "" )
 				{
+					$log->info("$subname: User opted to backup directory");
 					$LOOP = 0;
 					moveDirectory( $expectedFolderName,
 						$expectedFolderName . $date );
 					print "Folder backed up to "
 					  . $expectedFolderName
 					  . $date . "\n\n";
-					moveDirectory( $ae->extract_path(), $expectedFolderName );
-					chownRecursive( $osUser, $expectedFolderName );
+					$log->info( "$subname: Folder backed up to "
+						  . $expectedFolderName
+						  . $date );
 
+					$log->info(
+"$subname: Moving $ae->extract_path() to $expectedFolderName"
+					);
+					moveDirectory( $ae->extract_path(), $expectedFolderName );
+
+					$log->info(
+						"$subname: Chowning $expectedFolderName to $osUser");
+					chownRecursive( $osUser, $expectedFolderName );
 				}
 
 #If user selects, overwrite existing folder by deleting and then moving new directory in place
 				elsif (( lc $input ) eq "overwrite"
 					|| ( lc $input ) eq "o" )
 				{
+					$log->info("$subname: User opted to overwrite directory");
 					$LOOP = 0;
 
 #Considered failure handling for rmtree however based on http://perldoc.perl.org/File/Path.html used
 #recommended in built error handling.
 					rmtree( ["$expectedFolderName"] );
 
+					$log->info(
+"$subname: Moving $ae->extract_path() to $expectedFolderName"
+					);
 					moveDirectory( $ae->extract_path(), $expectedFolderName );
+					$log->info(
+						"$subname: Chowning $expectedFolderName to $osUser");
 					chownRecursive( $osUser, $expectedFolderName );
 				}
 
 				#Input was not recognised, ask user for input again
 				else {
+					$log->info(
+"$subname: User input not recognised, getting input again."
+					);
 					print "Your input '" . $input
 					  . "'was not recognised. Please try again and write either 'B' for backup or 'O' to overwrite [B].\n";
 				}
@@ -1515,7 +1532,10 @@ sub extractAndMoveDownload {
 
 	#Directory does not exist, move new directory in place.
 	else {
+		$log->info(
+			"$subname: Moving $ae->extract_path() to $expectedFolderName");
 		moveDirectory( $ae->extract_path(), $expectedFolderName );
+		$log->info("$subname: Chowning $expectedFolderName to $osUser");
 		chownRecursive( $osUser, $expectedFolderName );
 	}
 
@@ -1559,13 +1579,16 @@ sub genConfigItem {
 		if ( defined( $cfg->param($configParam) ) & !( $#parameterNull == -1 ) )
 		{
 			$defaultValue = $cfg->param($configParam);
+			dumpSingleVarToLog( "$subname" . "_defaultValue", $defaultValue );
 		}
 		else {
 			$defaultValue = $defaultInputValue;
+			dumpSingleVarToLog( "$subname" . "_defaultValue", $defaultValue );
 		}
 	}
 	else {
 		$defaultValue = $defaultInputValue;
+		dumpSingleVarToLog( "$subname" . "_defaultValue", $defaultValue );
 	}
 	print $messageText . " [" . $defaultValue . "]: ";
 
@@ -1575,12 +1598,17 @@ sub genConfigItem {
 #If default option is selected (i.e. just a return), use default value, otherwise use input
 	if ( $input eq "default" ) {
 		$cfg->param( $configParam, $defaultValue );
+		$log->debug(
+			"$subname: default selected, setting $configParam to $defaultValue"
+		);
 	}
 	elsif ( lc($input) eq "null" ) {
 		$cfg->param( $configParam, "NULL" );
+		$log->debug("$subname: NULL input, setting $configParam to 'NULL'");
 	}
 	else {
 		$cfg->param( $configParam, $input );
+		$log->debug("$subname: Setting $configParam to '$input'");
 	}
 
 }
@@ -1624,16 +1652,28 @@ sub genBooleanConfigItem {
 		{
 			if ( $cfg->param($configParam) eq "TRUE" ) {
 				$defaultValue = "yes";
+				$log->debug(
+"$subname: Current parameter $configParam is TRUE, returning 'yes'"
+				);
 			}
 			elsif ( $cfg->param($configParam) eq "FALSE" ) {
 				$defaultValue = "no";
+				$log->debug(
+"$subname: Current parameter $configParam is FALSE, returning 'no'"
+				);
 			}
 		}
 		else {
+			$log->debug(
+"$subname: Current parameter $configParam is undefined, returning '$defaultInputValue'"
+			);
 			$defaultValue = $defaultInputValue;
 		}
 	}
 	else {
+		$log->debug(
+"$subname: Current parameter $configParam is undefined, returning '$defaultInputValue'"
+		);
 		$defaultValue = $defaultInputValue;
 	}
 	print $messageText . " [" . $defaultValue . "]: ";
@@ -1645,11 +1685,15 @@ sub genBooleanConfigItem {
 	if ( $input eq "yes"
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
+		$log->debug(
+			"$subname: Input entered was 'yes' setting $configParam to 'TRUE'");
 		$cfg->param( $configParam, "TRUE" );
 	}
 	elsif ( $input eq "no"
 		|| ( $input eq "default" && $defaultValue eq "no" ) )
 	{
+		$log->debug(
+			"$subname: Input entered was 'no' setting $configParam to 'FALSE'");
 		$cfg->param( $configParam, "FALSE" );
 	}
 
@@ -1680,20 +1724,24 @@ sub updateXMLAttribute {
 		$referenceAttribute );
 	dumpSingleVarToLog( "$subname" . "_attributeValue", $attributeValue );
 
-	  #Set up new XML object, with "pretty" spacing (i.e. standard spacing)
-	  my $twig = new XML::Twig( pretty_print => 'indented' );
+	#Set up new XML object, with "pretty" spacing (i.e. standard spacing)
+	my $twig = new XML::Twig( pretty_print => 'indented' );
 
 	#Parse the XML file
 	$twig->parsefile($xmlFile);
 
 	#Find the node we are looking for based on the provided search string
 	for my $node ( $twig->findnodes($searchString) ) {
+		$log->info(
+"$subname: Found $searchString in $xmlFile. Setting $referenceAttribute to $attributeValue"
+		);
 
 		#Set the node to the new attribute value
 		$node->set_att( $referenceAttribute => $attributeValue );
 	}
 
 	#Print the new XML tree back to the original file
+	$log->info("$subname: Writing out updated xmlFile: $xmlFile.");
 	$twig->print_to_file($xmlFile);
 }
 
@@ -1734,6 +1782,9 @@ sub updateJavaOpts {
 #If it doesn't exist this splits up the string so that we can insert it as a new variable
 	my $count = grep( /.*ATLASMGR_JAVA_OPTS.*/, $data[$index1] );
 	if ( $count == 0 ) {
+		$log->info(
+"$subname: ATLASMGR_JAVA_OPTS does not yet exists, splitting string to insert it."
+		);
 		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
 			my $result1 = $1;
 			my $result2 = $2;
@@ -1763,12 +1814,17 @@ sub updateJavaOpts {
 
 #If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
 	if ( !defined($index2) ) {
+		$log->info("$subname: ATLASMGR_JAVA_OPTS= not found. Adding it in.");
+
 		splice( @data, $index1, 0,
 			"ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n" );
 	}
 
 	#Else update the line to have the new parameters that have been specified
 	else {
+		$log->info(
+"$subname: ATLASMGR_JAVA_OPTS= exists, adding new javaOpts parameters."
+		);
 		$data[$index2] = "ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n";
 	}
 
@@ -1818,7 +1874,9 @@ sub updateLineInFile {
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
+		$log->info("$subname: First search term $lineReference not found.");
 		if ( defined($lineReference2) ) {
+			$log->info("$subname: Trying to search for $lineReference2.");
 			my ($index1) =
 			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
 			if ( !defined($index1) ) {
@@ -1829,6 +1887,8 @@ sub updateLineInFile {
 
 			#Otherwise replace the line with the new provided line
 			else {
+				$log->info(
+					"$subname: Replacing '$data[$index1]' with $newLine.");
 				$data[$index1] = $newLine . "\n";
 			}
 		}
@@ -1839,6 +1899,7 @@ sub updateLineInFile {
 		}
 	}
 	else {
+		$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
 		$data[$index1] = $newLine . "\n";
 	}
 
@@ -1936,51 +1997,66 @@ sub compareTwoVersions {
 		}
 	}
 
+	dumpSingleVarToLog( "$subname" . "_majorVersionStatus",
+		$majorVersionStatus );
+	dumpSingleVarToLog( "$subname" . "_midVersionStatus", $midVersionStatus );
+	dumpSingleVarToLog( "$subname" . "_minVersionStatus", $minVersionStatus );
+
 	if ( $majorVersionStatus eq "LESS" ) {
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "GREATER" ) {
+		$log->info("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "LESS" ) {
+		$log->info("$subname: Newer version is less than old version.");
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "GREATER" ) {
+		$log->info("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		!defined($minVersionStatus) )
 	{
+		$log->info("$subname: Newer version is equal to old version.");
 		return "EQUAL";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "LESS" )
 	{
+		$log->info("$subname: Newer version is less than old version.");
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "GREATER" )
 	{
+		$log->info("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "EQUAL" )
 	{
+		$log->info("$subname: Newer version is equal to old version.");
 		return "EQUAL";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "NEWERNULL" )
 	{
+		$log->info("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "CURRENTNULL" )
 	{
+		$log->info("$subname: Newer version is less than old version.");
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "BOTHULL" )
 	{
+		$log->info("$subname: Newer version is equal to old version.");
 		return "EQUAL";
 	}
 
@@ -2043,9 +2119,15 @@ sub isSupportedVersion {
 
 	#If the version is supported return true
 	if ( $versionReturn eq "LESS" || $versionReturn eq "EQUAL" ) {
+		$log->info(
+"$subname: Version provided ($version) of $product is supported (max supported version is $productVersion)."
+		);
 		return "yes";
 	}
 	else {
+		$log->info(
+"$subname: Version provided ($version) of $product is NOT supported (max supported version is $productVersion)."
+		);
 		return "no";
 	}
 
@@ -2072,6 +2154,9 @@ sub backupFile {
 		  . $inputFile . "_"
 		  . $date
 		  . ": $!" );
+	$log->info( "$subname: Input file '$inputFile' copied to "
+		  . $inputFile . "_"
+		  . $date );
 }
 
 ########################################
@@ -2142,12 +2227,14 @@ sub generateInitD {
 	);
 
 	#Write out file to /etc/init.d
+	$log->info("$subname: Writing out init.d file for $product.");
 	open FILE, ">/etc/init.d/$product"
 	  or $log->logdie("Unable to open file /etc/init.d/$product: $!");
 	print FILE @initFile;
 	close FILE;
 
 	#Make the new init.d file executable
+	$log->info("$subname: Chmodding init.d file for $product.");
 	chmod 0755, "/etc/init.d/$product"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$product: $!");
 
@@ -2207,9 +2294,13 @@ sub installGenericAtlassianBinary {
 	    $globalConfig->param("general.rootInstallDir") . "/"
 	  . $lcApplication
 	  . "-install.varfile";
+	dumpSingleVarToLog( "$subname" . "_varfile", $varfile );
 
 #Iterate through required config items, if an are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		$log->info(
+"$subname: Some of the config parameters are invalid or null. Forcing generation"
+		);
 		print
 "Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
 		generateApplicationConfig( $application, "UPDATE", $globalConfig );
@@ -2223,6 +2314,8 @@ sub installGenericAtlassianBinary {
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
+			$log->info(
+				"$subname: User opted to update config prior to installation.");
 			generateApplicationConfig( $application, "UPDATE", $globalConfig );
 		}
 	}
@@ -2234,6 +2327,11 @@ sub installGenericAtlassianBinary {
 		$globalConfig->param( $lcApplication . ".connectorPort" ) );
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+		$log->info(
+"$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0 
+is currently in use. Unfortunately with the Atlassian binary installers we cannot proceed as they will fail. 
+Therefore script is terminating, please ensure port configuration is correct and no services are actively using the ports."
+		);
 		$log->logdie(
 "One or more of the ports configured for $application are currently in use. Cannot continue installing. "
 			  . "Please ensure the ports configured are available and not in use.\n\n"
@@ -2245,9 +2343,13 @@ sub installGenericAtlassianBinary {
 	$input = getBooleanInput();
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
+		$log->info(
+			"$subname: User opted to install latest version of $product");
 		$mode = "LATEST";
 	}
 	else {
+		$log->info(
+			"$subname: User opted to install specific version of $product");
 		$mode = "SPECIFIC";
 	}
 
@@ -2260,6 +2362,7 @@ sub installGenericAtlassianBinary {
 			$version = <STDIN>;
 			print "\n";
 			chomp $version;
+			dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
 
 			#Check that the input version actually exists
 			print
@@ -2273,6 +2376,9 @@ sub installGenericAtlassianBinary {
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
 				$VERSIONLOOP = 0;
+				$log->info(
+"$subname: User selected to install version $version of $product"
+				);
 				print "$application version $version found. Continuing...\n\n";
 			}
 			else {
@@ -2285,6 +2391,7 @@ sub installGenericAtlassianBinary {
 
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
+		$log->info("$subname: Downloading latest version of $product");
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $lcApplication, "",
 			whichApplicationArchitecture() );
@@ -2294,16 +2401,19 @@ sub installGenericAtlassianBinary {
 
 	#Download a specific version
 	else {
+		$log->info("$subname: Downloading version $version of $product");
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			whichApplicationArchitecture() );
 	}
 
 	#chmod the file to be executable
+	$log->info("$subname: Making $downloadDetails[2] excecutable ");
 	chmod 0755, $downloadDetails[2]
 	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
 
 	#Generate the kickstart as we have all the information necessary
+	$log->info("$subname: Generating kickstart file for $product at $varfile");
 	generateGenericKickstart( $varfile, "INSTALL", $lcApplication );
 
 	if ( -d $globalConfig->param( $lcApplication . ".installDir" ) ) {
@@ -2313,6 +2423,9 @@ sub installGenericAtlassianBinary {
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
+			$log->info(
+"$subname: Current install directory for $product exists, user has selected to back this up."
+			);
 			backupDirectoryAndChown(
 				$globalConfig->param( $lcApplication . ".installDir" ),
 				"root" )
@@ -2332,6 +2445,9 @@ sub installGenericAtlassianBinary {
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
+			$log->info(
+"$subname: Current data directory for $product exists, user has selected to back this up."
+			);
 			backupDirectoryAndChown(
 				$globalConfig->param( $lcApplication . ".dataDir" ), "root" )
 			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
@@ -2347,6 +2463,8 @@ sub installGenericAtlassianBinary {
 	}
 
 	#install
+	$log->info(
+		"$subname: Running " . $downloadDetails[2] . " -q -varfile $varfile" );
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
 
 	if ( $? == -1 ) {
@@ -2359,10 +2477,16 @@ sub installGenericAtlassianBinary {
 	print
 "Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
 	sleep(60);
+	$log->info(
+"$subname: Stopping $product so that we can apply the additional configuration options."
+	);
 	system( "service "
 		  . $globalConfig->param( $lcApplication . ".osUser" )
 		  . " stop" );
 	if ( $? == -1 ) {
+		$log->warn(
+"$subname: Could not stop $application successfully. Please make sure you restart manually following the end of installation"
+		);
 		warn
 "Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
 	}
@@ -2370,7 +2494,9 @@ sub installGenericAtlassianBinary {
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser =
 	  getUserCreatedByInstaller( $lcApplication . ".installDir", $configUser );
+	$log->info("$subname: OS User created by installer is: $osUser");
 	$globalConfig->param( $lcApplication . ".osUser", $osUser );
+	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
@@ -2379,6 +2505,9 @@ sub installGenericAtlassianBinary {
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
 		print
 "Database is configured as MySQL, copying the JDBC connector to Confluence install.\n\n";
+		$log->info(
+"$subname: Copying MySQL JDBC connector to $product install directory."
+		);
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" )
 		  or $log->logdie(
@@ -2386,26 +2515,39 @@ sub installGenericAtlassianBinary {
 		  );
 
 		#Chown the files again
+		$log->info(
+			"$subname: Chowning "$globalConfig->param(
+				$lcApplication . ".installDir"
+			  )
+			  . "/lib/"
+		  )
+		  . " to $osUser following MySQL JDBC install." );
 		chownRecursive( $osUser,
-			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
+			  $globalConfig->param( $lcApplication . ".installDir" )
+				. "/lib/" );
 
 	}
 
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
 
 	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . "/conf/server.xml" );
+			. "/conf/server.xml" );
 
 	print "Applying the configured application context...\n\n";
+	$log->info( "$subname: Applying application context to "
+			. $globalConfig->param("$lcApplication.installDir")
+			. "/conf/server.xml" );
 
 	#Update the server config with the configured connector port
 	updateXMLAttribute(
-		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig )
+		  $globalConfig->param("$lcApplication.installDir")
+			. "/conf/server.xml",
+		  "//////Context",
+		  "path",
+		  getConfigItem( "$lcApplication.appContext", $globalConfig )
 	);
 
 	print "Configuration settings have been applied successfully.\n\n";
@@ -2417,26 +2559,30 @@ sub installGenericAtlassianBinary {
 	$input = getBooleanInput();
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+		  $log->info("$subname: User opted to delete downloaded installer.");
+		  unlink $downloadDetails[2]
+			or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
 
 	print "Do you wish to start the $application service? yes/no [yes]: ";
 	$input = getBooleanInput();
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
-		system( "service "
-			  . $globalConfig->param( $lcApplication . ".osUser" )
-			  . " start" );
-		if ( $? == -1 ) {
-			warn
+		  $log->info("$subname: User opted to start application service.");
+		  system( "service "
+				. $globalConfig->param( $lcApplication . ".osUser" )
+				. " start" );
+		  if ( $? == -1 ) {
+			  warn
 "Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-		}
-		print "\n\n";
+		  }
+		  print "\n\n";
 	}
 
 	#Update config to reflect new version that is installed
+	$log->info("$subname: Writing new installed version to the config file.");
 	$globalConfig->param( $lcApplication . ".installedVersion", $version );
+	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 }
@@ -2445,360 +2591,370 @@ sub installGenericAtlassianBinary {
 #UpgradeGenericAtlassianBinary         #
 ########################################
 sub upgradeGenericAtlassianBinary {
-	my $input;
-	my $mode;
-	my $version;
-	my $application = "jira";
-	my @downloadDetails;
-	my @downloadVersionCheck;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my @parameterNull;
-	my $varfile;
-	my @requiredConfigItems;
-	my $downloadArchivesUrl;
-	my $configUser;
-	my $lcApplication;
-	my $subname = ( caller(0) )[3];
+	  my $input;
+	  my $mode;
+	  my $version;
+	  my $application;
+	  my @downloadDetails;
+	  my @downloadVersionCheck;
+	  my $archiveLocation;
+	  my $osUser;
+	  my $VERSIONLOOP = 1;
+	  my @uidGid;
+	  my @parameterNull;
+	  my $varfile;
+	  my @requiredConfigItems;
+	  my $downloadArchivesUrl;
+	  my $configUser;
+	  my $lcApplication;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$application         = $_[0];
-	$downloadArchivesUrl = $_[1];
-	$configUser =
-	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
-	@requiredConfigItems = @{ $_[3] };
+	  $application         = $_[0];
+	  $downloadArchivesUrl = $_[1];
+	  $configUser =
+		$_[2]; #Note this is the param name used in the bin/user.sh file we need
+	  @requiredConfigItems = @{ $_[3] };
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
-		$downloadArchivesUrl );
-	dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
-	dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
-		@requiredConfigItems );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_application", $application );
+	  dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
+		  $downloadArchivesUrl );
+	  dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
+	  dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
+		  @requiredConfigItems );
 
-	$lcApplication = lc($application);
-	$varfile =
-	    $globalConfig->param("general.rootInstallDir") . "/"
-	  . $lcApplication
-	  . "-install.varfile";
+	  $lcApplication = lc($application);
+	  $varfile =
+		  $globalConfig->param("general.rootInstallDir") . "/"
+		. $lcApplication
+		. "-install.varfile";
 
 #Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		print
+	  if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		  print
 "Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
-		generateApplicationConfig( $application, "UPDATE", $globalConfig );
-	}
+		  generateApplicationConfig( $application, "UPDATE", $globalConfig );
+	  }
 
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		print
+	 #Otherwise provide the option to update the configuration before proceeding
+	  else {
+		  print
 "Would you like to review the $application config before upgrading? Yes/No [yes]: ";
 
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			generateApplicationConfig( $application, "UPDATE", $globalConfig );
-		}
-	}
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "default" || $input eq "yes" ) {
+			  generateApplicationConfig( $application, "UPDATE",
+				  $globalConfig );
+		  }
+	  }
 
-	#Set up list of config items that are requred for this install to run
-	@requiredConfigItems = ("$lcApplication.installedVersion");
+	  #Set up list of config items that are requred for this install to run
+	  @requiredConfigItems = ("$lcApplication.installedVersion");
 
 #Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"$lcApplication.installedVersion",
+	  if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		  genConfigItem(
+			  $mode,
+			  $globalConfig,
+			  "$lcApplication.installedVersion",
 "There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
-			""
-		);
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
+			  ""
+		  );
+		  $log->info("Writing out config file to disk.");
+		  $globalConfig->write($configFile);
+		  loadSuiteConfig();
+	  }
 
-	#We are upgrading, get the latest version
-	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
+	  #We are upgrading, get the latest version
+	  print "Would you like to upgrade to the latest version? yes/no [yes]: ";
 
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$mode = "LATEST";
-	}
-	else {
-		$mode = "SPECIFIC";
-	}
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  $mode = "LATEST";
+	  }
+	  else {
+		  $mode = "SPECIFIC";
+	  }
 
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+	  #If a specific version is selected, ask for the version number
+	  if ( $mode eq "SPECIFIC" ) {
+		  while ( $VERSIONLOOP == 1 ) {
+			  print
+"Please enter the version number you would like. i.e. 4.2.2 []: ";
 
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
+			  $version = <STDIN>;
+			  print "\n";
+			  chomp $version;
+			  dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
 
-			#Check that the input version actually exists
-			print
+			  #Check that the input version actually exists
+			  print
 "Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
 
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication,
-				whichApplicationArchitecture(), $version );
+			  #get the version specific URL to test
+			  @downloadDetails =
+				getVersionDownloadURL( $lcApplication,
+				  whichApplicationArchitecture(), $version );
 
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$VERSIONLOOP = 0;
-				print "$application version $version found. Continuing...\n\n";
-			}
-			else {
-				print
+			  #Try to get the header of the version URL to ensure it exists
+			  if ( head( $downloadDetails[0] ) ) {
+				  $VERSIONLOOP = 0;
+				  print
+					"$application version $version found. Continuing...\n\n";
+			  }
+			  else {
+				  print
 "No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
-			}
-		}
+			  }
+		  }
 
-	}
+	  }
 
-	#Get the URL for the version we want to download
-	if ( $mode eq "LATEST" ) {
-		@downloadVersionCheck =
-		  getLatestDownloadURL( $lcApplication,
-			whichApplicationArchitecture() );
-		my $versionSupported = compareTwoVersions(
-			$globalConfig->param("$lcApplication.installedVersion"),
-			$downloadVersionCheck[1] );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded ("
-				  . $downloadVersionCheck[1]
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("$lcApplication.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-	elsif ( $mode eq "SPECIFIC" ) {
-		my $versionSupported = compareTwoVersions(
-			$globalConfig->param("$lcApplication.installedVersion"), $version );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded (" 
-				  . $version
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("$lcApplication.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
+	  #Get the URL for the version we want to download
+	  if ( $mode eq "LATEST" ) {
+		  @downloadVersionCheck =
+			getLatestDownloadURL( $lcApplication,
+			  whichApplicationArchitecture() );
+		  my $versionSupported = compareTwoVersions(
+			  $globalConfig->param("$lcApplication.installedVersion"),
+			  $downloadVersionCheck[1] );
+		  if ( $versionSupported eq "GREATER" ) {
+			  $log->logdie( "The version to be downloaded ("
+					. $downloadVersionCheck[1]
+					. ") is older than the currently installed version ("
+					. $globalConfig->param("$lcApplication.installedVersion")
+					. "). Downgrading is not supported and this script will now exit.\n\n"
+			  );
+		  }
+	  }
+	  elsif ( $mode eq "SPECIFIC" ) {
+		  my $versionSupported = compareTwoVersions(
+			  $globalConfig->param("$lcApplication.installedVersion"),
+			  $version );
+		  if ( $versionSupported eq "GREATER" ) {
+			  $log->logdie( "The version to be downloaded (" 
+					. $version
+					. ") is older than the currently installed version ("
+					. $globalConfig->param("$lcApplication.installedVersion")
+					. "). Downgrading is not supported and this script will now exit.\n\n"
+			  );
+		  }
+	  }
 
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "",
-			whichApplicationArchitecture() );
-		$version = $downloadDetails[1];
+	  #Download the latest version
+	  if ( $mode eq "LATEST" ) {
+		  @downloadDetails =
+			downloadAtlassianInstaller( $mode, $lcApplication, "",
+			  whichApplicationArchitecture() );
+		  $version = $downloadDetails[1];
 
-	}
+	  }
 
-	#Download a specific version
-	else {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			whichApplicationArchitecture() );
-	}
+	  #Download a specific version
+	  else {
+		  @downloadDetails =
+			downloadAtlassianInstaller( $mode, $lcApplication, $version,
+			  whichApplicationArchitecture() );
+	  }
 
-	#chmod the file to be executable
-	chmod 0755, $downloadDetails[2]
-	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
+	  #chmod the file to be executable
+	  chmod 0755, $downloadDetails[2]
+		or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
 
-	#Generate the kickstart as we have all the information necessary
-	generateGenericKickstart( $varfile, "UPGRADE", $lcApplication );
+	  #Generate the kickstart as we have all the information necessary
+	  generateGenericKickstart( $varfile, "UPGRADE", $lcApplication );
 
-	#upgrade
-	system( $downloadDetails[2] . " -q -varfile $varfile" );
-	if ( $? == -1 ) {
-		$log->logdie(
+	  #upgrade
+	  system( $downloadDetails[2] . " -q -varfile $varfile" );
+	  if ( $? == -1 ) {
+		  $log->logdie(
 "$application upgrade did not complete successfully. Please check the install logs and try again: $!\n"
-		);
-	}
+		  );
+	  }
 
-	#Stop the application so we can apply additional configuration
-	print
+	  #Stop the application so we can apply additional configuration
+	  print
 "Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-	sleep(60);
-	system( "service "
-		  . $globalConfig->param( $lcApplication . ".osUser" )
-		  . " stop" );
-	if ( $? == -1 ) {
-		warn
+	  sleep(60);
+	  system( "service "
+			. $globalConfig->param( $lcApplication . ".osUser" )
+			. " stop" );
+	  if ( $? == -1 ) {
+		  warn
 "Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
-	}
+	  }
 
-	#Update config to reflect new version that is installed
-	$globalConfig->param( "$lcApplication.installedVersion", $version );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+	  #Update config to reflect new version that is installed
+	  $globalConfig->param( "$lcApplication.installedVersion", $version );
+	  $log->info("Writing out config file to disk.");
+	  $globalConfig->write($configFile);
+	  loadSuiteConfig();
 
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser );
-	$globalConfig->param( "$lcApplication.osUser", $osUser );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+	  #getTheUserItWasInstalledAs - Write to config and reload
+	  $osUser =
+		getUserCreatedByInstaller( "$lcApplication.installDir", $configUser );
+	  $globalConfig->param( "$lcApplication.osUser", $osUser );
+	  $log->info("Writing out config file to disk.");
+	  $globalConfig->write($configFile);
+	  loadSuiteConfig();
 
 #If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
+	  if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		  print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("$lcApplication.installDir") . "/lib/" )
-		  or $log->logdie(
+		  copy( $globalConfig->param("general.dbJDBCJar"),
+			  $globalConfig->param("$lcApplication.installDir") . "/lib/" )
+			or $log->logdie(
 "Unable to copy MySQL JDBC connector to $application lib directory: $!"
-		  );
+			);
 
-		#Chown the files again
-		chownRecursive( $osUser,
-			$globalConfig->param("$lcApplication.installDir") . "/lib/" );
-	}
+		  #Chown the files again
+		  chownRecursive( $osUser,
+			  $globalConfig->param("$lcApplication.installDir") . "/lib/" );
+	  }
 
-	print "Applying configuration settings to the install, please wait...\n\n";
+	  print
+		"Applying configuration settings to the install, please wait...\n\n";
 
-	print "Creating backup of config files...\n\n";
+	  print "Creating backup of config files...\n\n";
 
-	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . "/conf/server.xml" );
+	  backupFile( $globalConfig->param("$lcApplication.installDir")
+			. "/conf/server.xml" );
 
-	print "Applying the configured application context...\n\n";
+	  print "Applying the configured application context...\n\n";
 
-	#Update the server config with the configured connector port
-	updateXMLAttribute(
-		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig )
-	);
+	  #Update the server config with the configured connector port
+	  updateXMLAttribute(
+		  $globalConfig->param("$lcApplication.installDir")
+			. "/conf/server.xml",
+		  "//////Context",
+		  "path",
+		  getConfigItem( "$lcApplication.appContext", $globalConfig )
+	  );
 
-	print "Configuration settings have been applied successfully.\n\n";
+	  print "Configuration settings have been applied successfully.\n\n";
 
-	#Check if user wants to remove the downloaded installer
-	print "Do you wish to delete the downloaded installer "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
+	  #Check if user wants to remove the downloaded installer
+	  print "Do you wish to delete the downloaded installer "
+		. $downloadDetails[2]
+		. "? [yes]: ";
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  unlink $downloadDetails[2]
+			or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	  }
 
-	print "Do you wish to start the $application service? yes/no [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		system( "service "
-			  . $globalConfig->param( $lcApplication . ".osUser" )
-			  . " start" );
-		if ( $? == -1 ) {
-			warn
+	  print "Do you wish to start the $application service? yes/no [yes]: ";
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  system( "service "
+				. $globalConfig->param( $lcApplication . ".osUser" )
+				. " start" );
+		  if ( $? == -1 ) {
+			  warn
 "Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-		}
-		print "\n\n";
-	}
+		  }
+		  print "\n\n";
+	  }
 }
 
 ########################################
 #UninstallGenericAtlassianBinary       #
 ########################################
 sub uninstallGenericAtlassianBinary {
-	my $application;
-	my $lcApplication;
-	my $input;
-	my $subname = ( caller(0) )[3];
+	  my $application;
+	  my $lcApplication;
+	  my $input;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$application = $_[0];
+	  $application = $_[0];
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_application", $application );
 
-	$lcApplication = lc($application);
+	  $lcApplication = lc($application);
 
-	print
+	  print
 "This will uninstall $application using the Atlassian provided uninstall script.\n";
-	print
+	  print
 "You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	print "Do you really want to continue? yes/no [no]: ";
+	  print "Do you really want to continue? yes/no [no]: ";
 
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "yes" ) {
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "yes" ) {
 
-		system( $globalConfig->param("$lcApplication.installDir")
-			  . "/uninstall -q" );
-		if ( $? == -1 ) {
-			$log->logdie(
+		  system( $globalConfig->param("$lcApplication.installDir")
+				. "/uninstall -q" );
+		  if ( $? == -1 ) {
+			  $log->logdie(
 "$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n"
-			);
-		}
+			  );
+		  }
 
-		#Check if you REALLY want to remove data directory
-		print
+		  #Check if you REALLY want to remove data directory
+		  print
 "We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY (REALLY) sure you want to do this? (not recommended) yes/no [no]: \n";
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "yes" ) {
-			rmtree( [ $globalConfig->param("$lcApplication.dataDir") ] );
-		}
-		else {
-			print
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "yes" ) {
+			  rmtree( [ $globalConfig->param("$lcApplication.dataDir") ] );
+		  }
+		  else {
+			  print
 "The data directory has not been deleted and is still available at "
-			  . $globalConfig->param("$lcApplication.dataDir") . ".\n\n";
-		}
+				. $globalConfig->param("$lcApplication.dataDir") . ".\n\n";
+		  }
 
-		#Update config to reflect that no version is installed
-		$globalConfig->param( "$lcApplication.installedVersion", "" );
-		$globalConfig->param( "$lcApplication.enable",           "FALSE" );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
+		  #Update config to reflect that no version is installed
+		  $globalConfig->param( "$lcApplication.installedVersion", "" );
+		  $globalConfig->param( "$lcApplication.enable",           "FALSE" );
+		  $log->info("Writing out config file to disk.");
+		  $globalConfig->write($configFile);
+		  loadSuiteConfig();
 
-		print
+		  print
 "$application has been uninstalled successfully and the config file updated to reflect $application as disabled. Press enter to continue...\n\n";
-		$input = <STDIN>;
-	}
+		  $input = <STDIN>;
+	  }
 }
 
 ########################################
 #Install Confluence                    #
 ########################################
 sub installConfluence {
-	my $application = "Confluence";
-	my $downloadArchivesUrl =
-	  "http://www.atlassian.com/software/confluence/download-archives";
-	my $subname = ( caller(0) )[3];
+	  my $application = "Confluence";
+	  my $downloadArchivesUrl =
+		"http://www.atlassian.com/software/confluence/download-archives";
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"confluence.appContext",   "confluence.enable",
-		"confluence.dataDir",      "confluence.installDir",
-		"confluence.runAsService", "confluence.serverPort",
-		"confluence.connectorPort"
-	);
+	  #Set up list of config items that are requred for this install to run
+	  my @requiredConfigItems;
+	  @requiredConfigItems = (
+		  "confluence.appContext",   "confluence.enable",
+		  "confluence.dataDir",      "confluence.installDir",
+		  "confluence.runAsService", "confluence.serverPort",
+		  "confluence.connectorPort"
+	  );
 
-	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
-	);
+	  #Run generic installer steps
+	  installGenericAtlassianBinary(
+		  $application, $downloadArchivesUrl,
+		  "CONF_USER",  \@requiredConfigItems
+	  );
 
-	#Run any additional steps
+	  #Run any additional steps
 
 }
 
@@ -2806,782 +2962,801 @@ sub installConfluence {
 #UpgradeConfluence                     #
 ########################################
 sub upgradeConfluence {
-	my $application = "Confluence";
-	my $downloadArchivesUrl =
-	  "http://www.atlassian.com/software/confluence/download-archives";
-	my $subname = ( caller(0) )[3];
+	  my $application = "Confluence";
+	  my $downloadArchivesUrl =
+		"http://www.atlassian.com/software/confluence/download-archives";
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"confluence.appContext",   "confluence.enable",
-		"confluence.dataDir",      "confluence.installDir",
-		"confluence.runAsService", "confluence.serverPort",
-		"confluence.connectorPort"
-	);
+	  #Set up list of config items that are requred for this install to run
+	  my @requiredConfigItems;
+	  @requiredConfigItems = (
+		  "confluence.appContext",   "confluence.enable",
+		  "confluence.dataDir",      "confluence.installDir",
+		  "confluence.runAsService", "confluence.serverPort",
+		  "confluence.connectorPort"
+	  );
 
-	upgradeGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
-	);
+	  upgradeGenericAtlassianBinary(
+		  $application, $downloadArchivesUrl,
+		  "CONF_USER",  \@requiredConfigItems
+	  );
 }
 
 ########################################
 #Uninstall Confluence                  #
 ########################################
 sub uninstallConfluence {
-	my $application = "Confluence";
-	my $subname     = ( caller(0) )[3];
+	  my $application = "Confluence";
+	  my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
-	uninstallGenericAtlassianBinary($application);
+	  $log->info("BEGIN: $subname");
+	  uninstallGenericAtlassianBinary($application);
 }
 
 ########################################
 #Install Jira                          #
 ########################################
 sub installJira {
-	my $application = "JIRA";
-	my $downloadArchivesUrl =
-	  "http://www.atlassian.com/software/jira/download-archives";
-	my $subname = ( caller(0) )[3];
+	  my $application = "JIRA";
+	  my $downloadArchivesUrl =
+		"http://www.atlassian.com/software/jira/download-archives";
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"jira.appContext",   "jira.enable",
-		"jira.dataDir",      "jira.installDir",
-		"jira.runAsService", "jira.serverPort",
-		"jira.connectorPort"
-	);
+	  #Set up list of config items that are requred for this install to run
+	  my @requiredConfigItems;
+	  @requiredConfigItems = (
+		  "jira.appContext",   "jira.enable",
+		  "jira.dataDir",      "jira.installDir",
+		  "jira.runAsService", "jira.serverPort",
+		  "jira.connectorPort"
+	  );
 
-	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"JIRA_USER",  \@requiredConfigItems
-	);
+	  #Run generic installer steps
+	  installGenericAtlassianBinary(
+		  $application, $downloadArchivesUrl,
+		  "JIRA_USER",  \@requiredConfigItems
+	  );
 
-	#Run any additional steps
+	  #Run any additional steps
 }
 
 ########################################
 #UpgradeJira                          #
 ########################################
 sub upgradeJira {
-	my $application = "JIRA";
-	my $downloadArchivesUrl =
-	  "http://www.atlassian.com/software/jira/download-archives";
-	my $subname = ( caller(0) )[3];
+	  my $application = "JIRA";
+	  my $downloadArchivesUrl =
+		"http://www.atlassian.com/software/jira/download-archives";
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"jira.appContext",   "jira.enable",
-		"jira.dataDir",      "jira.installDir",
-		"jira.runAsService", "jira.serverPort",
-		"jira.connectorPort"
-	);
+	  #Set up list of config items that are requred for this install to run
+	  my @requiredConfigItems;
+	  @requiredConfigItems = (
+		  "jira.appContext",   "jira.enable",
+		  "jira.dataDir",      "jira.installDir",
+		  "jira.runAsService", "jira.serverPort",
+		  "jira.connectorPort"
+	  );
 
-	upgradeGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"JIRA_USER",  \@requiredConfigItems
-	);
+	  upgradeGenericAtlassianBinary(
+		  $application, $downloadArchivesUrl,
+		  "JIRA_USER",  \@requiredConfigItems
+	  );
 }
 
 ########################################
 #Uninstall Jira                        #
 ########################################
 sub uninstallJira {
-	my $application = "JIRA";
-	my $subname     = ( caller(0) )[3];
+	  my $application = "JIRA";
+	  my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
-	uninstallGenericAtlassianBinary($application);
+	  $log->info("BEGIN: $subname");
+	  uninstallGenericAtlassianBinary($application);
 }
 
 ########################################
 #InstallCrowd                          #
 ########################################
 sub installCrowd {
-	my $input;
-	my $mode;
-	my $version;
-	my $application = "crowd";
-	my @downloadDetails;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my $serverPortAvailCode;
-	my $connectorPortAvailCode;
-	my $subname = ( caller(0) )[3];
+	  my $input;
+	  my $mode;
+	  my $version;
+	  my $application = "crowd";
+	  my @downloadDetails;
+	  my $archiveLocation;
+	  my $osUser;
+	  my $VERSIONLOOP = 1;
+	  my @uidGid;
+	  my $serverPortAvailCode;
+	  my $connectorPortAvailCode;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"crowd.appContext",    "crowd.enable",
-		"crowd.dataDir",       "crowd.installDir",
-		"crowd.runAsService",  "crowd.serverPort",
-		"crowd.connectorPort", "crowd.osUser"
-	);
+	  #Set up list of config items that are requred for this install to run
+	  my @requiredConfigItems;
+	  @requiredConfigItems = (
+		  "crowd.appContext",    "crowd.enable",
+		  "crowd.dataDir",       "crowd.installDir",
+		  "crowd.runAsService",  "crowd.serverPort",
+		  "crowd.connectorPort", "crowd.osUser"
+	  );
 
 #Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		print
+	  if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		  print
 "Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: \n\n";
-		generateCrowdConfig( "UPDATE", $globalConfig );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
+		  generateCrowdConfig( "UPDATE", $globalConfig );
+		  $log->info("Writing out config file to disk.");
+		  $globalConfig->write($configFile);
+		  loadSuiteConfig();
+	  }
 
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		print
+	 #Otherwise provide the option to update the configuration before proceeding
+	  else {
+		  print
 "Would you like to review the Crowd config before installing? Yes/No [yes]: ";
 
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			generateCrowdConfig( "UPDATE", $globalConfig );
-			$globalConfig->write($configFile);
-			loadSuiteConfig();
-		}
-	}
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "default" || $input eq "yes" ) {
+			  generateCrowdConfig( "UPDATE", $globalConfig );
+			  $log->info("Writing out config file to disk.");
+			  $globalConfig->write($configFile);
+			  loadSuiteConfig();
+		  }
+	  }
 
-	#Get the user Crowd will run as
-	$osUser = $globalConfig->param("crowd.osUser");
+	  #Get the user Crowd will run as
+	  $osUser = $globalConfig->param("crowd.osUser");
 
-	#Check the user exists or create if not
-	createOSUser($osUser);
+	  #Check the user exists or create if not
+	  createOSUser($osUser);
 
-	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param("crowd.serverPort") );
+	  $serverPortAvailCode =
+		isPortAvailable( $globalConfig->param("crowd.serverPort") );
 
-	$connectorPortAvailCode =
-	  isPortAvailable( $globalConfig->param("crowd.connectorPort") );
+	  $connectorPortAvailCode =
+		isPortAvailable( $globalConfig->param("crowd.connectorPort") );
 
-	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-		print
+	  if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+		  print
 "One or more of the ports configured for Crowd are currently in use. We can proceed however there is a very good chance"
-		  . " that Crowd will not start correctly.\n\n";
-		print
+			. " that Crowd will not start correctly.\n\n";
+		  print
 "Would you like to continue even though the ports are in use? yes/no [yes]: ";
 
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "no" ) {
-			$log->logdie(
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "no" ) {
+			  $log->logdie(
 "User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n"
-			);
-		}
+			  );
+		  }
 
-	}
+	  }
 
-	print "Would you like to install the latest version? yes/no [yes]: ";
+	  print "Would you like to install the latest version? yes/no [yes]: ";
 
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$mode = "LATEST";
-	}
-	else {
-		$mode = "SPECIFIC";
-	}
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  $mode = "LATEST";
+	  }
+	  else {
+		  $mode = "SPECIFIC";
+	  }
 
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+	  #If a specific version is selected, ask for the version number
+	  if ( $mode eq "SPECIFIC" ) {
+		  while ( $VERSIONLOOP == 1 ) {
+			  print
+"Please enter the version number you would like. i.e. 4.2.2 []: ";
 
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
+			  $version = <STDIN>;
+			  print "\n";
+			  chomp $version;
+			  dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
 
-			#Check that the input version actually exists
-			print
+			  #Check that the input version actually exists
+			  print
 "Please wait, checking that version $version of Crowd exists (may take a few moments)... \n\n";
 
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $application,
-				whichApplicationArchitecture(), $version );
+			  #get the version specific URL to test
+			  @downloadDetails =
+				getVersionDownloadURL( $application,
+				  whichApplicationArchitecture(), $version );
 
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$VERSIONLOOP = 0;
-				print "Crowd version $version found. Continuing...\n\n";
-			}
-			else {
-				print
+			  #Try to get the header of the version URL to ensure it exists
+			  if ( head( $downloadDetails[0] ) ) {
+				  $VERSIONLOOP = 0;
+				  print "Crowd version $version found. Continuing...\n\n";
+			  }
+			  else {
+				  print
 "No such version of Crowd exists. Please visit http://www.atlassian.com/software/crowd/download-archive and pick a valid version number and try again.\n\n";
-			}
-		}
+			  }
+		  }
 
-	}
+	  }
 
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "",
-			whichApplicationArchitecture() );
-		$version = $downloadDetails[1];
+	  #Download the latest version
+	  if ( $mode eq "LATEST" ) {
+		  @downloadDetails =
+			downloadAtlassianInstaller( $mode, $application, "",
+			  whichApplicationArchitecture() );
+		  $version = $downloadDetails[1];
 
-	}
+	  }
 
-	#Download a specific version
-	else {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
-			whichApplicationArchitecture() );
-	}
+	  #Download a specific version
+	  else {
+		  @downloadDetails =
+			downloadAtlassianInstaller( $mode, $application, $version,
+			  whichApplicationArchitecture() );
+	  }
 
-	#Extract the download and move into place
-	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("crowd.installDir"),
-		$osUser, "" );
+	  #Extract the download and move into place
+	  extractAndMoveDownload( $downloadDetails[2],
+		  $globalConfig->param("crowd.installDir"),
+		  $osUser, "" );
 
-	#Check if user wants to remove the downloaded archive
-	print "Do you wish to delete the downloaded archive "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
+	  #Check if user wants to remove the downloaded archive
+	  print "Do you wish to delete the downloaded archive "
+		. $downloadDetails[2]
+		. "? [yes]: ";
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  unlink $downloadDetails[2]
+			or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	  }
 
-	#Update config to reflect new version that is installed
-	$globalConfig->param( "crowd.installedVersion", $version );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+	  #Update config to reflect new version that is installed
+	  $globalConfig->param( "crowd.installedVersion", $version );
+	  $log->info("Writing out config file to disk.");
+	  $globalConfig->write($configFile);
+	  loadSuiteConfig();
 
-	print "Applying configuration settings to the install, please wait...\n\n";
+	  print
+		"Applying configuration settings to the install, please wait...\n\n";
 
-	print "Creating backup of config files...\n\n";
+	  print "Creating backup of config files...\n\n";
 
-	backupFile( $globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml" );
+	  backupFile( $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/conf/server.xml" );
 
-	backupFile( $globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
+	  backupFile( $globalConfig->param("crowd.installDir")
+			. "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
 
-	print "Applying port numbers to server config...\n\n";
+	  print "Applying port numbers to server config...\n\n";
 
-	#Update the server config with the configured server port
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"/Server", "port", $globalConfig->param("crowd.serverPort")
-	);
+	  #Update the server config with the configured server port
+	  updateXMLAttribute(
+		  $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/conf/server.xml",
+		  "/Server", "port", $globalConfig->param("crowd.serverPort")
+	  );
 
-	#Apply application context
-	print "Applying application context to config...\n\n";
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "crowd.appContext", $globalConfig )
-	);
+	  #Apply application context
+	  print "Applying application context to config...\n\n";
+	  updateXMLAttribute(
+		  $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/conf/server.xml",
+		  "//////Context",
+		  "path",
+		  getConfigItem( "crowd.appContext", $globalConfig )
+	  );
 
-	print "Applying home directory location to config...\n\n";
+	  print "Applying home directory location to config...\n\n";
 
-	#Edit Crowd config file to reference homedir
-	updateLineInFile(
-		$globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
-		"crowd.home",
-		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
-		"#crowd.home=/var/crowd-home"
-	);
+	  #Edit Crowd config file to reference homedir
+	  updateLineInFile(
+		  $globalConfig->param("crowd.installDir")
+			. "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		  "crowd.home",
+		  "crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		  "#crowd.home=/var/crowd-home"
+	  );
 
-	print "Configuration settings have been applied successfully.\n\n";
+	  print "Configuration settings have been applied successfully.\n\n";
 
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
+	  if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		  print
 "Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
-		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
-		  or $log->logdie(
-			"Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
+		  copy( $globalConfig->param("general.dbJDBCJar"),
+			  $globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
+			or $log->logdie(
+			  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
 
-		#Get UID and GID for the user
-		@uidGid = getUserUidGid($osUser);
+		  #Get UID and GID for the user
+		  @uidGid = getUserUidGid($osUser);
 
-		#Chown the files again
-		chownRecursive( $osUser,
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
-	}
+		  #Chown the files again
+		  chownRecursive( $osUser,
+			  $globalConfig->param("crowd.installDir")
+				. "/apache-tomcat/lib/" );
+	  }
 
-	#Create home/data directory if it does not exist
-	print
+	  #Create home/data directory if it does not exist
+	  print
 "Checking if data directory exists and creating if not, please wait...\n\n";
-	createAndChownDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
+	  createAndChownDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
 
-	print
+	  print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 
-	#Generate the init.d file
-	generateInitD( $application, $osUser,
-		$globalConfig->param("crowd.installDir"),
-		"start_crowd.sh", "stop_crowd.sh" );
+	  #Generate the init.d file
+	  generateInitD( $application, $osUser,
+		  $globalConfig->param("crowd.installDir"),
+		  "start_crowd.sh", "stop_crowd.sh" );
 
-	#If set to run as a service, set to run on startup
-	if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
-		manageService( "INSTALL", $application );
-	}
-	print "Services configured successfully.\n\n";
+	  #If set to run as a service, set to run on startup
+	  if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
+		  manageService( "INSTALL", $application );
+	  }
+	  print "Services configured successfully.\n\n";
 
-	#Check if we should start the service
-	print
+	  #Check if we should start the service
+	  print
 "Installation has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		system("service $application start");
-		print "\nCrowd can now be accessed on http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
-		print "If you have any issues please check the log at "
-		  . $globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/logs/catalina.out\n\n";
-	}
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  system("service $application start");
+		  print "\nCrowd can now be accessed on http://localhost:"
+			. $globalConfig->param("crowd.connectorPort")
+			. getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
+		  print "If you have any issues please check the log at "
+			. $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/logs/catalina.out\n\n";
+	  }
 }
 
 ########################################
 #UpgradeCrowd                          #
 ########################################
 sub upgradeCrowd {
-	my $input;
-	my $mode;
-	my $version;
-	my $application = "crowd";
-	my @downloadDetails;
-	my @downloadVersionCheck;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my $subname = ( caller(0) )[3];
+	  my $input;
+	  my $mode;
+	  my $version;
+	  my $application = "crowd";
+	  my @downloadDetails;
+	  my @downloadVersionCheck;
+	  my $archiveLocation;
+	  my $osUser;
+	  my $VERSIONLOOP = 1;
+	  my @uidGid;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"crowd.appContext",    "crowd.enable",
-		"crowd.dataDir",       "crowd.installDir",
-		"crowd.runAsService",  "crowd.serverPort",
-		"crowd.connectorPort", "crowd.osUser"
-	);
+	  #Set up list of config items that are requred for this install to run
+	  my @requiredConfigItems;
+	  @requiredConfigItems = (
+		  "crowd.appContext",    "crowd.enable",
+		  "crowd.dataDir",       "crowd.installDir",
+		  "crowd.runAsService",  "crowd.serverPort",
+		  "crowd.connectorPort", "crowd.osUser"
+	  );
 
 #Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		print
+	  if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		  print
 "Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: \n\n";
-		generateCrowdConfig( "UPDATE", $globalConfig );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
+		  generateCrowdConfig( "UPDATE", $globalConfig );
+		  $log->info("Writing out config file to disk.");
+		  $globalConfig->write($configFile);
+		  loadSuiteConfig();
+	  }
 
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		print
+	 #Otherwise provide the option to update the configuration before proceeding
+	  else {
+		  print
 "Would you like to review the Crowd config before upgrading? Yes/No [yes]: ";
 
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			generateCrowdConfig( "UPDATE", $globalConfig );
-			$globalConfig->write($configFile);
-			loadSuiteConfig();
-		}
-	}
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "default" || $input eq "yes" ) {
+			  generateCrowdConfig( "UPDATE", $globalConfig );
+			  $log->info("Writing out config file to disk.");
+			  $globalConfig->write($configFile);
+			  loadSuiteConfig();
+		  }
+	  }
 
-	#Set up list of config items that are requred for this install to run
-	@requiredConfigItems = ("crowd.installedVersion");
+	  #Set up list of config items that are requred for this install to run
+	  @requiredConfigItems = ("crowd.installedVersion");
 
 #Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"crowd.installedVersion",
+	  if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		  genConfigItem(
+			  $mode,
+			  $globalConfig,
+			  "crowd.installedVersion",
 "There is no version listed in the config file for the currently installed version of Crowd . Please enter the version of Crowd that is CURRENTLY installed.",
-			""
-		);
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
+			  ""
+		  );
+		  $log->info("Writing out config file to disk.");
+		  $globalConfig->write($configFile);
+		  loadSuiteConfig();
+	  }
 
-	#Get the user Crowd will run as
-	$osUser = $globalConfig->param("crowd.osUser");
+	  #Get the user Crowd will run as
+	  $osUser = $globalConfig->param("crowd.osUser");
 
-	#Check the user exists or create if not
-	createOSUser($osUser);
+	  #Check the user exists or create if not
+	  createOSUser($osUser);
 
-	#We are upgrading, get the latest version
-	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
+	  #We are upgrading, get the latest version
+	  print "Would you like to upgrade to the latest version? yes/no [yes]: ";
 
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$mode = "LATEST";
-	}
-	else {
-		$mode = "SPECIFIC";
-	}
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  $mode = "LATEST";
+	  }
+	  else {
+		  $mode = "SPECIFIC";
+	  }
 
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+	  #If a specific version is selected, ask for the version number
+	  if ( $mode eq "SPECIFIC" ) {
+		  while ( $VERSIONLOOP == 1 ) {
+			  print
+"Please enter the version number you would like. i.e. 4.2.2 []: ";
 
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
+			  $version = <STDIN>;
+			  print "\n";
+			  chomp $version;
+			  dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
 
-			#Check that the input version actually exists
-			print
+			  #Check that the input version actually exists
+			  print
 "Please wait, checking that version $version of Crowd exists (may take a few moments)... \n\n";
 
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $application,
-				whichApplicationArchitecture(), $version );
+			  #get the version specific URL to test
+			  @downloadDetails =
+				getVersionDownloadURL( $application,
+				  whichApplicationArchitecture(), $version );
 
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$VERSIONLOOP = 0;
-				print "Crowd version $version found. Continuing...\n\n";
-			}
-			else {
-				print
+			  #Try to get the header of the version URL to ensure it exists
+			  if ( head( $downloadDetails[0] ) ) {
+				  $VERSIONLOOP = 0;
+				  print "Crowd version $version found. Continuing...\n\n";
+			  }
+			  else {
+				  print
 "No such version of Crowd exists. Please visit http://www.atlassian.com/software/crowd/download-archive and pick a valid version number and try again.\n\n";
-			}
-		}
+			  }
+		  }
 
-	}
+	  }
 
-	#Get the URL for the version we want to download
-	if ( $mode eq "LATEST" ) {
-		@downloadVersionCheck =
-		  getLatestDownloadURL( $application, whichApplicationArchitecture() );
-		my $versionSupported =
-		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
-			$downloadVersionCheck[1] );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded ("
-				  . $downloadVersionCheck[1]
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("crowd.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-	elsif ( $mode eq "SPECIFIC" ) {
-		my $versionSupported =
-		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
-			$version );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded (" 
-				  . $version
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("crowd.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "",
-			whichApplicationArchitecture() );
-
-	}
-
-	#Download a specific version
-	else {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
-			whichApplicationArchitecture() );
-	}
-
-	#Prompt user to stop existing service
-	print
-"We will now stop the existing Crowd service, please press enter to continue...";
-	$input = <STDIN>;
-	print "\n";
-	if ( -e "/etc/init.d/crowd" ) {
-		system("service crowd stop")
-		  or $log->logdie("Could not stop Crowd: $!");
-	}
-	else {
-		if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" ) {
-			system( $globalConfig->param("crowd.installDir")
-				  . "/stop_crowd.sh" )
-			  or $log->logdie(
-"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n"
+	  #Get the URL for the version we want to download
+	  if ( $mode eq "LATEST" ) {
+		  @downloadVersionCheck =
+			getLatestDownloadURL( $application,
+			  whichApplicationArchitecture() );
+		  my $versionSupported =
+			compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
+			  $downloadVersionCheck[1] );
+		  if ( $versionSupported eq "GREATER" ) {
+			  $log->logdie( "The version to be downloaded ("
+					. $downloadVersionCheck[1]
+					. ") is older than the currently installed version ("
+					. $globalConfig->param("crowd.installedVersion")
+					. "). Downgrading is not supported and this script will now exit.\n\n"
 			  );
-		}
-		else {
-			$log->logdie(
+		  }
+	  }
+	  elsif ( $mode eq "SPECIFIC" ) {
+		  my $versionSupported =
+			compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
+			  $version );
+		  if ( $versionSupported eq "GREATER" ) {
+			  $log->logdie( "The version to be downloaded (" 
+					. $version
+					. ") is older than the currently installed version ("
+					. $globalConfig->param("crowd.installedVersion")
+					. "). Downgrading is not supported and this script will now exit.\n\n"
+			  );
+		  }
+	  }
+
+	  #Download the latest version
+	  if ( $mode eq "LATEST" ) {
+		  @downloadDetails =
+			downloadAtlassianInstaller( $mode, $application, "",
+			  whichApplicationArchitecture() );
+
+	  }
+
+	  #Download a specific version
+	  else {
+		  @downloadDetails =
+			downloadAtlassianInstaller( $mode, $application, $version,
+			  whichApplicationArchitecture() );
+	  }
+
+	  #Prompt user to stop existing service
+	  print
+"We will now stop the existing Crowd service, please press enter to continue...";
+	  $input = <STDIN>;
+	  print "\n";
+	  if ( -e "/etc/init.d/crowd" ) {
+		  system("service crowd stop")
+			or $log->logdie("Could not stop Crowd: $!");
+	  }
+	  else {
+		  if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" )
+		  {
+			  system( $globalConfig->param("crowd.installDir")
+					. "/stop_crowd.sh" )
+				or $log->logdie(
+"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n"
+				);
+		  }
+		  else {
+			  $log->logdie(
 "Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again"
-			);
-		}
-	}
+			  );
+		  }
+	  }
 
-	#Extract the download and move into place
-	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("crowd.installDir"),
-		$osUser, "UPGRADE" );
+	  #Extract the download and move into place
+	  extractAndMoveDownload( $downloadDetails[2],
+		  $globalConfig->param("crowd.installDir"),
+		  $osUser, "UPGRADE" );
 
-	#Check if user wants to remove the downloaded archive
-	print "Do you wish to delete the downloaded archive "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
+	  #Check if user wants to remove the downloaded archive
+	  print "Do you wish to delete the downloaded archive "
+		. $downloadDetails[2]
+		. "? [yes]: ";
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  unlink $downloadDetails[2]
+			or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	  }
 
-	#Update config to reflect new version that is installed
-	$globalConfig->param( "crowd.installedVersion", $version );
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+	  #Update config to reflect new version that is installed
+	  $globalConfig->param( "crowd.installedVersion", $version );
+	  $log->info("Writing out config file to disk.");
+	  $globalConfig->write($configFile);
+	  loadSuiteConfig();
 
-	print "Applying configuration settings to the install, please wait...\n\n";
+	  print
+		"Applying configuration settings to the install, please wait...\n\n";
 
-	print "Creating backup of config files...\n\n";
+	  print "Creating backup of config files...\n\n";
 
-	backupFile( $globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml" );
+	  backupFile( $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/conf/server.xml" );
 
-	backupFile( $globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
+	  backupFile( $globalConfig->param("crowd.installDir")
+			. "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
 
-	print "Applying port numbers to server config...\n\n";
+	  print "Applying port numbers to server config...\n\n";
 
-	#Update the server config with the configured connector port
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
-	);
+	  #Update the server config with the configured connector port
+	  updateXMLAttribute(
+		  $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/conf/server.xml",
+		  "///Connector",
+		  "port",
+		  $globalConfig->param("crowd.connectorPort")
+	  );
 
-	#Update the server config with the configured server port
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"/Server", "port", $globalConfig->param("crowd.serverPort")
-	);
-	print "Applying home directory location to config...\n\n";
+	  #Update the server config with the configured server port
+	  updateXMLAttribute(
+		  $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/conf/server.xml",
+		  "/Server", "port", $globalConfig->param("crowd.serverPort")
+	  );
+	  print "Applying home directory location to config...\n\n";
 
-	#Edit Crowd config file to reference homedir
-	updateLineInFile(
-		$globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
-		"crowd.home",
-		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
-		"#crowd.home=/var/crowd-home"
-	);
+	  #Edit Crowd config file to reference homedir
+	  updateLineInFile(
+		  $globalConfig->param("crowd.installDir")
+			. "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		  "crowd.home",
+		  "crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		  "#crowd.home=/var/crowd-home"
+	  );
 
-	print "Configuration settings have been applied successfully.\n\n";
+	  print "Configuration settings have been applied successfully.\n\n";
 
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
+	  if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		  print
 "Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
-		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
-		  or $log->logdie(
-			"Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
+		  copy( $globalConfig->param("general.dbJDBCJar"),
+			  $globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
+			or $log->logdie(
+			  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
 
-		#Get UID and GID for the user
-		@uidGid = getUserUidGid($osUser);
+		  #Get UID and GID for the user
+		  @uidGid = getUserUidGid($osUser);
 
-		#Chown the files again
-		chownRecursive( $osUser,
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
-	}
+		  #Chown the files again
+		  chownRecursive( $osUser,
+			  $globalConfig->param("crowd.installDir")
+				. "/apache-tomcat/lib/" );
+	  }
 
-	#Set up init.d again just incase any params have changed.
-	print
+	  #Set up init.d again just incase any params have changed.
+	  print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 
-	#Generate the init.d file
-	generateInitD( $application, $osUser,
-		$globalConfig->param("crowd.installDir"),
-		"start_crowd.sh", "stop_crowd.sh" );
+	  #Generate the init.d file
+	  generateInitD( $application, $osUser,
+		  $globalConfig->param("crowd.installDir"),
+		  "start_crowd.sh", "stop_crowd.sh" );
 
-	#If set to run as a service, set to run on startup
-	if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
-		manageService( "INSTALL", $application );
-	}
-	print "Services configured successfully.\n\n";
+	  #If set to run as a service, set to run on startup
+	  if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
+		  manageService( "INSTALL", $application );
+	  }
+	  print "Services configured successfully.\n\n";
 
-	#Check if we should start the service
-	print
+	  #Check if we should start the service
+	  print
 "Upgrade has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		system("service $application start");
-		print "\nCrowd can now be accessed on http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
-		print "If you have any issues please check the log at "
-		  . $globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/logs/catalina.out\n\n";
-	}
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "default" || $input eq "yes" ) {
+		  system("service $application start");
+		  print "\nCrowd can now be accessed on http://localhost:"
+			. $globalConfig->param("crowd.connectorPort")
+			. getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
+		  print "If you have any issues please check the log at "
+			. $globalConfig->param("crowd.installDir")
+			. "/apache-tomcat/logs/catalina.out\n\n";
+	  }
 }
 
 ########################################
 #Uninstall Crowd                       #
 ########################################
 sub uninstallCrowd {
-	my $application = "crowd";
-	my $initdFile   = "/etc/init.d/$application";
-	my $input;
-	my $subname = ( caller(0) )[3];
+	  my $application = "crowd";
+	  my $initdFile   = "/etc/init.d/$application";
+	  my $input;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	print
+	  print
 "This will uninstall Crowd. This will delete the installation directory AND provide the option to delete the data directory.\n";
-	print
+	  print
 "You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	print "Do you really want to continue? yes/no [no]: ";
+	  print "Do you really want to continue? yes/no [no]: ";
 
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "yes" ) {
+	  $input = getBooleanInput();
+	  print "\n";
+	  if ( $input eq "yes" ) {
 
-		#Remove Service
-		print "Disabling service...\n\n";
-		manageService( "UNINSTALL", $application );
+		  #Remove Service
+		  print "Disabling service...\n\n";
+		  manageService( "UNINSTALL", $application );
 
-		#remove init.d file
-		print "Removing init.d file\n\n";
-		unlink $initdFile or warn "Could not unlink $initdFile: $!";
+		  #remove init.d file
+		  print "Removing init.d file\n\n";
+		  unlink $initdFile or warn "Could not unlink $initdFile: $!";
 
-		#Remove install dir
-		print "Removing installation directory...\n\n";
-		if ( -d $globalConfig->param("crowd.installDir") ) {
-			rmtree( [ $globalConfig->param("crowd.installDir") ] );
-		}
-		else {
-			print
+		  #Remove install dir
+		  print "Removing installation directory...\n\n";
+		  if ( -d $globalConfig->param("crowd.installDir") ) {
+			  rmtree( [ $globalConfig->param("crowd.installDir") ] );
+		  }
+		  else {
+			  print
 "Could not find configured install directory... possibly not installed?";
-		}
+		  }
 
-		#Check if you REALLY want to remove data directory
-		print
+		  #Check if you REALLY want to remove data directory
+		  print
 "We will now remove the data directory (Crowd home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "yes" ) {
-			rmtree( [ $globalConfig->param("crowd.dataDir") ] );
-		}
-		else {
-			print
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "yes" ) {
+			  rmtree( [ $globalConfig->param("crowd.dataDir") ] );
+		  }
+		  else {
+			  print
 "The data directory has not been deleted and is still available at "
-			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
-		}
+				. $globalConfig->param("crowd.dataDir") . ".\n\n";
+		  }
 
-		#Update config to null out the Crowd config
-		$globalConfig->param( "crowd.installedVersion", "" );
-		$globalConfig->param( "crowd.enable",           "FALSE" );
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
+		  #Update config to null out the Crowd config
+		  $globalConfig->param( "crowd.installedVersion", "" );
+		  $globalConfig->param( "crowd.enable",           "FALSE" );
+		  $log->info("Writing out config file to disk.");
+		  $globalConfig->write($configFile);
+		  loadSuiteConfig();
 
-		print
+		  print
 "Crowd has been uninstalled successfully and the config file updated to reflect Crowd as disabled. Press enter to continue...\n\n";
-		$input = <STDIN>;
-	}
+		  $input = <STDIN>;
+	  }
 }
 
 ########################################
 #GenerateJiraConfig                    #
 ########################################
 sub generateJiraConfig {
-	my $cfg;
-	my $mode;
-	my $input;
-	my $defaultValue;
-	my $subname = ( caller(0) )[3];
+	  my $cfg;
+	  my $mode;
+	  my $defaultValue;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$mode = $_[0];
-	$cfg  = $_[1];
+	  $mode = $_[0];
+	  $cfg  = $_[1];
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode", $mode );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
-	genConfigItem(
-		$mode, $cfg, "jira.installDir",
-		"Please enter the directory Jira will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/jira"
-	);
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "jira.installDir",
+		  "Please enter the directory Jira will be installed into.",
+		  $cfg->param("general.rootInstallDir") . "/jira"
+	  );
 
-	genConfigItem(
-		$mode, $cfg, "jira.dataDir",
-		"Please enter the directory Jira's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/jira"
-	);
+	  genConfigItem(
+		  $mode, $cfg, "jira.dataDir",
+		  "Please enter the directory Jira's data will be stored in.",
+		  $cfg->param("general.rootDataDir") . "/jira"
+	  );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"jira.appContext",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "jira.appContext",
 "Enter the context that Jira should run under (i.e. /jira or /bugtraq). Write NULL to blank out the context.",
-		"/jira"
-	);
+		  "/jira"
+	  );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"jira.connectorPort",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "jira.connectorPort",
 "Please enter the Connector port Jira will run on (note this is the port you will access in the browser).",
-		"8080"
-	);
+		  "8080"
+	  );
 
-	checkConfiguredPort( "jira.connectorPort", $cfg );
+	  checkConfiguredPort( "jira.connectorPort", $cfg );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"jira.serverPort",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "jira.serverPort",
 "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).",
-		"8000"
-	);
+		  "8000"
+	  );
 
-	checkConfiguredPort( "jira.serverPort", $cfg );
+	  checkConfiguredPort( "jira.serverPort", $cfg );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"jira.javaParams",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "jira.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		""
-	);
+		  ""
+	  );
 
-	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
-		"Would you like to run Jira as a service? yes/no.", "yes" );
+	  genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
+		  "Would you like to run Jira as a service? yes/no.", "yes" );
 
 }
 
@@ -3589,72 +3764,73 @@ sub generateJiraConfig {
 #GenerateCrowdConfig                   #
 ########################################
 sub generateCrowdConfig {
-	my $cfg;
-	my $mode;
-	my $input;
-	my $defaultValue;
-	my $subname = ( caller(0) )[3];
+	  my $cfg;
+	  my $mode;
+	  my $defaultValue;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$mode = $_[0];
-	$cfg  = $_[1];
+	  $mode = $_[0];
+	  $cfg  = $_[1];
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode", $mode );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"crowd.installDir",
-		"Please enter the directory Crowd will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/crowd"
-	);
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "crowd.installDir",
+		  "Please enter the directory Crowd will be installed into.",
+		  $cfg->param("general.rootInstallDir") . "/crowd"
+	  );
 
-	genConfigItem(
-		$mode, $cfg, "crowd.dataDir",
-		"Please enter the directory Crowd's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/crowd"
-	);
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "crowd.dataDir",
+		  "Please enter the directory Crowd's data will be stored in.",
+		  $cfg->param("general.rootDataDir") . "/crowd"
+	  );
 
-	genConfigItem( $mode, $cfg, "crowd.osUser",
-		"Enter the user that Crowd will run under.", "crowd" );
+	  genConfigItem( $mode, $cfg, "crowd.osUser",
+		  "Enter the user that Crowd will run under.", "crowd" );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"crowd.appContext",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "crowd.appContext",
 "Enter the context that Crowd should run under (i.e. /crowd or /login). Write NULL to blank out the context.",
-		"/crowd"
-	);
-	genConfigItem(
-		$mode,
-		$cfg,
-		"crowd.connectorPort",
+		  "/crowd"
+	  );
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "crowd.connectorPort",
 "Please enter the Connector port Crowd will run on (note this is the port you will access in the browser).",
-		"8095"
-	);
-	checkConfiguredPort( "crowd.connectorPort", $cfg );
+		  "8095"
+	  );
+	  checkConfiguredPort( "crowd.connectorPort", $cfg );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"crowd.serverPort",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "crowd.serverPort",
 "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).",
-		"8000"
-	);
-	checkConfiguredPort( "crowd.serverPort", $cfg );
+		  "8000"
+	  );
+	  checkConfiguredPort( "crowd.serverPort", $cfg );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"crowd.javaParams",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "crowd.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		""
-	);
+		  ""
+	  );
 
-	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
-		"Would you like to run Crowd as a service? yes/no.", "yes" );
+	  genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
+		  "Would you like to run Crowd as a service? yes/no.", "yes" );
 
 }
 
@@ -3662,43 +3838,42 @@ sub generateCrowdConfig {
 #GenerateFisheyeConfig                 #
 ########################################
 sub generateFisheyeConfig {
-	my $cfg;
-	my $mode;
-	my $input;
-	my $defaultValue;
-	my $subname = ( caller(0) )[3];
+	  my $cfg;
+	  my $mode;
+	  my $defaultValue;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$mode = $_[0];
-	$cfg  = $_[1];
+	  $mode = $_[0];
+	  $cfg  = $_[1];
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode", $mode );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"fisheye.installDir",
-		"Please enter the directory Fisheye will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/fisheye"
-	);
-	genConfigItem(
-		$mode,
-		$cfg,
-		"fisheye.dataDir",
-		"Please enter the directory Fisheye's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/fisheye"
-	);
-	genConfigItem( $mode, $cfg, "fisheye.serverPort",
-		"Please enter the SERVER port Fisheye will run on.", "8060" );
-	genConfigItem(
-		$mode,
-		$cfg,
-		"fisheye.javaParams",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "fisheye.installDir",
+		  "Please enter the directory Fisheye will be installed into.",
+		  $cfg->param("general.rootInstallDir") . "/fisheye"
+	  );
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "fisheye.dataDir",
+		  "Please enter the directory Fisheye's data will be stored in.",
+		  $cfg->param("general.rootDataDir") . "/fisheye"
+	  );
+	  genConfigItem( $mode, $cfg, "fisheye.serverPort",
+		  "Please enter the SERVER port Fisheye will run on.", "8060" );
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "fisheye.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		""
-	);
+		  ""
+	  );
 
 }
 
@@ -3706,70 +3881,69 @@ sub generateFisheyeConfig {
 #GenerateConfluenceConfig              #
 ########################################
 sub generateConfluenceConfig {
-	my $cfg;
-	my $mode;
-	my $input;
-	my $defaultValue;
-	my $subname = ( caller(0) )[3];
+	  my $cfg;
+	  my $mode;
+	  my $defaultValue;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$mode = $_[0];
-	$cfg  = $_[1];
+	  $mode = $_[0];
+	  $cfg  = $_[1];
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode", $mode );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"confluence.installDir",
-		"Please enter the directory Confluence will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/confluence"
-	);
-	genConfigItem(
-		$mode,
-		$cfg,
-		"confluence.dataDir",
-		"Please enter the directory Confluence's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/confluence"
-	);
-	genConfigItem(
-		$mode,
-		$cfg,
-		"confluence.appContext",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "confluence.installDir",
+		  "Please enter the directory Confluence will be installed into.",
+		  $cfg->param("general.rootInstallDir") . "/confluence"
+	  );
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "confluence.dataDir",
+		  "Please enter the directory Confluence's data will be stored in.",
+		  $cfg->param("general.rootDataDir") . "/confluence"
+	  );
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "confluence.appContext",
 "Enter the context that Confluence should run under (i.e. /wiki or /confluence). Write NULL to blank out the context.",
-		"/confluence"
-	);
-	genConfigItem(
-		$mode,
-		$cfg,
-		"confluence.connectorPort",
+		  "/confluence"
+	  );
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "confluence.connectorPort",
 "Please enter the Connector port Confluence will run on (note this is the port you will access in the browser).",
-		"8090"
-	);
-	checkConfiguredPort( "confluence.connectorPort", $cfg );
+		  "8090"
+	  );
+	  checkConfiguredPort( "confluence.connectorPort", $cfg );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"confluence.serverPort",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "confluence.serverPort",
 "Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).",
-		"8000"
-	);
+		  "8000"
+	  );
 
-	checkConfiguredPort( "confluence.serverPort", $cfg );
+	  checkConfiguredPort( "confluence.serverPort", $cfg );
 
-	genConfigItem(
-		$mode,
-		$cfg,
-		"confluence.javaParams",
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "confluence.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
-		""
-	);
+		  ""
+	  );
 
-	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
-		"Would you like to run Confluence as a service? yes/no.", "yes" );
+	  genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
+		  "Would you like to run Confluence as a service? yes/no.", "yes" );
 
 }
 
@@ -3777,106 +3951,107 @@ sub generateConfluenceConfig {
 #Download Atlassian Installer          #
 ########################################
 sub downloadAtlassianInstaller {
-	my $type;
-	my $product;
-	my $version;
-	my $downloadURL;
-	my $architecture;
-	my $parsedURL;
-	my @downloadDetails;
-	my $input;
-	my $downloadResponseCode;
-	my $absoluteFilePath;
-	my $subname = ( caller(0) )[3];
+	  my $type;
+	  my $product;
+	  my $version;
+	  my $downloadURL;
+	  my $architecture;
+	  my $parsedURL;
+	  my @downloadDetails;
+	  my $input;
+	  my $downloadResponseCode;
+	  my $absoluteFilePath;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$type         = $_[0];
-	$product      = $_[1];
-	$version      = $_[2];
-	$architecture = $_[3];
+	  $type         = $_[0];
+	  $product      = $_[1];
+	  $version      = $_[2];
+	  $architecture = $_[3];
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_type",         $type );
-	dumpSingleVarToLog( "$subname" . "_product",      $product );
-	dumpSingleVarToLog( "$subname" . "_version",      $version );
-	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_type",         $type );
+	  dumpSingleVarToLog( "$subname" . "_product",      $product );
+	  dumpSingleVarToLog( "$subname" . "_version",      $version );
+	  dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
-	print "Beginning download of $product, please wait...\n\n";
+	  print "Beginning download of $product, please wait...\n\n";
 
-	#Get the URL for the version we want to download
-	if ( $type eq "LATEST" ) {
-		@downloadDetails = getLatestDownloadURL( $product, $architecture );
-	}
-	else {
-		@downloadDetails =
-		  getVersionDownloadURL( $product, $architecture, $version );
-	}
+	  #Get the URL for the version we want to download
+	  if ( $type eq "LATEST" ) {
+		  @downloadDetails = getLatestDownloadURL( $product, $architecture );
+	  }
+	  else {
+		  @downloadDetails =
+			getVersionDownloadURL( $product, $architecture, $version );
+	  }
 
-	#Check if we are trying to download a supported version
-	if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
-		print
+	  #Check if we are trying to download a supported version
+	  if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
+		  print
 "This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
 
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "no" ) {
-			return;
-		}
-	}
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "no" ) {
+			  return;
+		  }
+	  }
 
-	#Parse the URL so that we can get specific sections of it
-	$parsedURL = URI->new( $downloadDetails[0] );
-	my @bits = $parsedURL->path_segments();
+	  #Parse the URL so that we can get specific sections of it
+	  $parsedURL = URI->new( $downloadDetails[0] );
+	  my @bits = $parsedURL->path_segments();
 
-	#Set the download to show progress as we download
-	$ua->show_progress(1);
+	  #Set the download to show progress as we download
+	  $ua->show_progress(1);
 
-	#Check that the install/download directory exists, if not create it
-	print "Checking that root install dir exists...\n\n";
-	createDirectory( $globalConfig->param("general.rootInstallDir") );
+	  #Check that the install/download directory exists, if not create it
+	  print "Checking that root install dir exists...\n\n";
+	  createDirectory( $globalConfig->param("general.rootInstallDir") );
 
-	$absoluteFilePath =
-	  $globalConfig->param("general.rootInstallDir") . "/" . $bits[ @bits - 1 ];
+	  $absoluteFilePath =
+		  $globalConfig->param("general.rootInstallDir") . "/"
+		. $bits[ @bits - 1 ];
 
 #Check if local file already exists and if it does, provide the option to skip downloading
-	if ( -e $absoluteFilePath ) {
-		print "The local install file "
-		  . $absoluteFilePath
-		  . " already exists. Would you like to skip re-downloading the file: [yes]";
+	  if ( -e $absoluteFilePath ) {
+		  print "The local install file "
+			. $absoluteFilePath
+			. " already exists. Would you like to skip re-downloading the file: [yes]";
 
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "yes" || $input eq "default" ) {
-			$downloadDetails[2] =
-			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ];
-			return @downloadDetails;
-		}
-	}
-	else {
+		  $input = getBooleanInput();
+		  print "\n";
+		  if ( $input eq "yes" || $input eq "default" ) {
+			  $downloadDetails[2] =
+				  $globalConfig->param("general.rootInstallDir") . "/"
+				. $bits[ @bits - 1 ];
+			  return @downloadDetails;
+		  }
+	  }
+	  else {
 
-		#Download the file and store the HTTP response code
-		print "Downloading file from Atlassian...\n\n";
-		$downloadResponseCode = getstore( $downloadDetails[0],
-			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ] );
+		  #Download the file and store the HTTP response code
+		  print "Downloading file from Atlassian...\n\n";
+		  $downloadResponseCode = getstore( $downloadDetails[0],
+			      $globalConfig->param("general.rootInstallDir") . "/"
+				. $bits[ @bits - 1 ] );
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
-		if ( is_success($downloadResponseCode) ) {
-			print "\n";
-			print "Download completed successfully.\n\n";
-			$downloadDetails[2] =
-			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ];
-			return @downloadDetails;
-		}
-		else {
-			$log->logdie(
+		  if ( is_success($downloadResponseCode) ) {
+			  print "\n";
+			  print "Download completed successfully.\n\n";
+			  $downloadDetails[2] =
+				  $globalConfig->param("general.rootInstallDir") . "/"
+				. $bits[ @bits - 1 ];
+			  return @downloadDetails;
+		  }
+		  else {
+			  $log->logdie(
 "Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'"
-			);
-		}
-	}
+			  );
+		  }
+	  }
 
 }
 
@@ -3884,36 +4059,36 @@ sub downloadAtlassianInstaller {
 #Download Full Suite                   #
 ########################################
 sub downloadLatestAtlassianSuite {
-	my $downloadURL;
-	my $architecture;
-	my $parsedURL;
-	my @downloadDetails;
-	my @suiteProducts;
-	my $subname = ( caller(0) )[3];
+	  my $downloadURL;
+	  my $architecture;
+	  my $parsedURL;
+	  my @downloadDetails;
+	  my @suiteProducts;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	$architecture = $_[0];
+	  $architecture = $_[0];
 
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
+	  #LogInputParams if in Debugging Mode
+	  dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
-	#Configure all products in the suite
-	@suiteProducts =
-	  ( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
+	  #Configure all products in the suite
+	  @suiteProducts =
+		( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
 
-	#Iterate through each of the products, get the URL and download
-	foreach (@suiteProducts) {
-		@downloadDetails = getLatestDownloadURL( $_, $architecture );
+	  #Iterate through each of the products, get the URL and download
+	  foreach (@suiteProducts) {
+		  @downloadDetails = getLatestDownloadURL( $_, $architecture );
 
-		$parsedURL = URI->new( $downloadDetails[0] );
-		my @bits = $parsedURL->path_segments();
-		$ua->show_progress(1);
+		  $parsedURL = URI->new( $downloadDetails[0] );
+		  my @bits = $parsedURL->path_segments();
+		  $ua->show_progress(1);
 
-		getstore( $downloadDetails[0],
-			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ] );
-	}
+		  getstore( $downloadDetails[0],
+			      $globalConfig->param("general.rootInstallDir") . "/"
+				. $bits[ @bits - 1 ] );
+	  }
 
 }
 
@@ -3921,286 +4096,286 @@ sub downloadLatestAtlassianSuite {
 #GenerateSuiteConfig                   #
 ########################################
 sub generateSuiteConfig {
-	my $cfg;
-	my $mode;
-	my $input;
-	my $defaultValue;
-	my @parameterNull;
-	my $oldConfig;
-	my $subname = ( caller(0) )[3];
+	  my $cfg;
+	  my $mode;
+	  my $input;
+	  my $defaultValue;
+	  my @parameterNull;
+	  my $oldConfig;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	#Check if we have a valid config file already, if so we are updating it
-	if ($globalConfig) {
-		$mode      = "UPDATE";
-		$cfg       = $globalConfig;
-		$oldConfig = new Config::Simple($configFile);
-	}
+	  #Check if we have a valid config file already, if so we are updating it
+	  if ($globalConfig) {
+		  $mode      = "UPDATE";
+		  $cfg       = $globalConfig;
+		  $oldConfig = new Config::Simple($configFile);
+	  }
 
-	#Otherwise we are creating a new file
-	else {
-		$mode = "NEW";
-		$cfg = new Config::Simple( syntax => 'ini' );
-	}
+	  #Otherwise we are creating a new file
+	  else {
+		  $mode = "NEW";
+		  $cfg = new Config::Simple( syntax => 'ini' );
+	  }
 
-	#Generate Main Suite Configuration
-	print
+	  #Generate Main Suite Configuration
+	  print
 "This will guide you through the generation of the config required for the management of the Atlassian suite.\n\n";
 
-	#Check for 64Bit Override
-	if ( testOSArchitecture() eq "64" ) {
-		genBooleanConfigItem(
-			$mode,
-			$cfg,
-			"general.force32Bit",
-			"Your operating system architecture has been detected as "
-			  . testOSArchitecture()
-			  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no",
-			"no"
-		);
-	}
+	  #Check for 64Bit Override
+	  if ( testOSArchitecture() eq "64" ) {
+		  genBooleanConfigItem(
+			  $mode,
+			  $cfg,
+			  "general.force32Bit",
+			  "Your operating system architecture has been detected as "
+				. testOSArchitecture()
+				. "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no",
+			  "no"
+		  );
+	  }
 
-	#Get root installation directory
-	genConfigItem( $mode, $cfg, "general.rootInstallDir",
-		"Please enter the root directory the suite will be installed into.",
-		"/opt/atlassian" );
+	  #Get root installation directory
+	  genConfigItem( $mode, $cfg, "general.rootInstallDir",
+		  "Please enter the root directory the suite will be installed into.",
+		  "/opt/atlassian" );
 
-	#Get root data directory
-	genConfigItem(
-		$mode,
-		$cfg,
-		"general.rootDataDir",
+	  #Get root data directory
+	  genConfigItem(
+		  $mode,
+		  $cfg,
+		  "general.rootDataDir",
 "Please enter the root directory the suite data/home directories will be stored.",
-		"/var/atlassian/application-data"
-	);
+		  "/var/atlassian/application-data"
+	  );
 
-	#Get Crowd configuration
-	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
-		"Do you wish to install/manage Crowd? yes/no ", "yes" );
+	  #Get Crowd configuration
+	  genBooleanConfigItem( $mode, $cfg, "crowd.enable",
+		  "Do you wish to install/manage Crowd? yes/no ", "yes" );
 
-	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Crowd configuration now? [no]: ";
+	  if ( $cfg->param("crowd.enable") eq "TRUE" ) {
+		  print
+			"Do you wish to set up/update the Crowd configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		  $input = getBooleanInput();
 
-		if ( $input eq "yes" ) {
-			print "\n";
-			generateCrowdConfig( $mode, $cfg );
-		}
+		  if ( $input eq "yes" ) {
+			  print "\n";
+			  generateCrowdConfig( $mode, $cfg );
+		  }
 
-	}
+	  }
 
-	#Get Jira configuration
-	genBooleanConfigItem( $mode, $cfg, "jira.enable",
-		"Do you wish to install/manage Jira? yes/no ", "yes" );
+	  #Get Jira configuration
+	  genBooleanConfigItem( $mode, $cfg, "jira.enable",
+		  "Do you wish to install/manage Jira? yes/no ", "yes" );
 
-	if ( $cfg->param("jira.enable") eq "TRUE" ) {
-		print "Do you wish to set up/update the Jira configuration now? [no]: ";
+	  if ( $cfg->param("jira.enable") eq "TRUE" ) {
+		  print
+			"Do you wish to set up/update the Jira configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		  $input = getBooleanInput();
 
-		if ( $input eq "yes" ) {
-			print "\n";
-			generateJiraConfig( $mode, $cfg );
-		}
-	}
+		  if ( $input eq "yes" ) {
+			  print "\n";
+			  generateJiraConfig( $mode, $cfg );
+		  }
+	  }
 
-	#Get Confluence configuration
-	genBooleanConfigItem( $mode, $cfg, "confluence.enable",
-		"Do you wish to install/manage Confluence? yes/no ", "yes" );
+	  #Get Confluence configuration
+	  genBooleanConfigItem( $mode, $cfg, "confluence.enable",
+		  "Do you wish to install/manage Confluence? yes/no ", "yes" );
 
-	if ( $cfg->param("confluence.enable") eq "TRUE" ) {
-		print
+	  if ( $cfg->param("confluence.enable") eq "TRUE" ) {
+		  print
 "Do you wish to set up/update the Confluence configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		  $input = getBooleanInput();
 
-		if ( $input eq "yes" ) {
-			print "\n";
-			generateConfluenceConfig( $mode, $cfg );
-		}
-	}
+		  if ( $input eq "yes" ) {
+			  print "\n";
+			  generateConfluenceConfig( $mode, $cfg );
+		  }
+	  }
 
-	#Get Fisheye configuration
-	genBooleanConfigItem( $mode, $cfg, "fisheye.enable",
-		"Do you wish to install/manage Fisheye? yes/no ", "yes" );
+	  #Get Fisheye configuration
+	  genBooleanConfigItem( $mode, $cfg, "fisheye.enable",
+		  "Do you wish to install/manage Fisheye? yes/no ", "yes" );
 
-	if ( $cfg->param("fisheye.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Fisheye configuration now? [no]: ";
+	  if ( $cfg->param("fisheye.enable") eq "TRUE" ) {
+		  print
+"Do you wish to set up/update the Fisheye configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		  $input = getBooleanInput();
 
-		if ( $input eq "yes" ) {
-			print "\n";
-			generateJiraConfig( $mode, $cfg );
-		}
-	}
+		  if ( $input eq "yes" ) {
+			  print "\n";
+			  generateJiraConfig( $mode, $cfg );
+		  }
+	  }
 
-	#Get suite database architecture configuration
-	@parameterNull = $cfg->param("general.targetDBType");
+	  #Get suite database architecture configuration
+	  @parameterNull = $cfg->param("general.targetDBType");
 
-	if ( $mode eq "UPDATE" ) {
-		if ( !( $#parameterNull == -1 ) ) {
-			$defaultValue = $cfg->param("general.targetDBType");
-		}
-		else {
-			$defaultValue = "";
-		}
-	}
-	else {
-		$defaultValue = "";
-	}
-	print
+	  if ( $mode eq "UPDATE" ) {
+		  if ( !( $#parameterNull == -1 ) ) {
+			  $defaultValue = $cfg->param("general.targetDBType");
+		  }
+		  else {
+			  $defaultValue = "";
+		  }
+	  }
+	  else {
+		  $defaultValue = "";
+	  }
+	  print
 "What is the target database type that will be used (enter number to select)? 1/2/3/4/5 ["
-	  . $defaultValue . "] :";
-	print "\n1. MySQL";
-	print "\n2. PostgreSQL";
-	print "\n3. Oracle";
-	print "\n4. Microsoft SQL Server";
-	print "\n5. HSQLDB (NOT RECOMMENDED/Even for testing purposes!)";
-	if ( !( $#parameterNull == -1 ) ) {
-		print
+		. $defaultValue . "] :";
+	  print "\n1. MySQL";
+	  print "\n2. PostgreSQL";
+	  print "\n3. Oracle";
+	  print "\n4. Microsoft SQL Server";
+	  print "\n5. HSQLDB (NOT RECOMMENDED/Even for testing purposes!)";
+	  if ( !( $#parameterNull == -1 ) ) {
+		  print
 "\n\nPlease make a selection: (note hitting RETURN will keep existing value of ["
-		  . $defaultValue . "].";
-	}
-	else {
-		print "\n\nPlease make a selection: ";
-	}
+			. $defaultValue . "].";
+	  }
+	  else {
+		  print "\n\nPlease make a selection: ";
+	  }
 
-	my $LOOP = 1;
+	  my $LOOP = 1;
 
-	while ( $LOOP == 1 ) {
+	  while ( $LOOP == 1 ) {
 
-		$input = <STDIN>;
-		chomp $input;
-		print "\n";
+		  $input = <STDIN>;
+		  chomp $input;
+		  dumpSingleVarToLog( "$subname" . "_inputEntered", $input );
+		  print "\n";
 
-		if (   ( lc $input ) eq "1"
-			|| ( lc $input ) eq "mysql" )
-		{
-			$LOOP = 0;
-			$cfg->param( "general.targetDBType", "MySQL" );
-		}
-		elsif (( lc $input ) eq "2"
-			|| ( lc $input ) eq "postgresql"
-			|| ( lc $input ) eq "postgres"
-			|| ( lc $input ) eq "postgre" )
-		{
-			$LOOP = 0;
-			$cfg->param( "general.targetDBType", "PostgreSQL" );
-		}
-		elsif (( lc $input ) eq "3"
-			|| ( lc $input ) eq "oracle" )
-		{
-			$LOOP = 0;
-			$cfg->param( "general.targetDBType", "Oracle" );
-		}
-		elsif (( lc $input ) eq "4"
-			|| ( lc $input ) eq "microsoft sql server"
-			|| ( lc $input ) eq "mssql" )
-		{
-			$LOOP = 0;
-			$cfg->param( "general.targetDBType", "MSSQL" );
-		}
-		elsif (( lc $input ) eq "5"
-			|| ( lc $input ) eq "hsqldb"
-			|| ( lc $input ) eq "hsql" )
-		{
-			$LOOP = 0;
-			$cfg->param( "general.targetDBType", "HSQLDB" );
-		}
-		elsif ( ( lc $input ) eq "" & ( $#parameterNull == -1 ) ) {
-			print
-			  "You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
-		}
-		elsif ( ( lc $input ) eq "" & !( $#parameterNull == -1 ) ) {
+		  if (   ( lc $input ) eq "1"
+			  || ( lc $input ) eq "mysql" )
+		  {
+			  $LOOP = 0;
+			  $cfg->param( "general.targetDBType", "MySQL" );
+		  }
+		  elsif (( lc $input ) eq "2"
+			  || ( lc $input ) eq "postgresql"
+			  || ( lc $input ) eq "postgres"
+			  || ( lc $input ) eq "postgre" )
+		  {
+			  $LOOP = 0;
+			  $cfg->param( "general.targetDBType", "PostgreSQL" );
+		  }
+		  elsif (( lc $input ) eq "3"
+			  || ( lc $input ) eq "oracle" )
+		  {
+			  $LOOP = 0;
+			  $cfg->param( "general.targetDBType", "Oracle" );
+		  }
+		  elsif (( lc $input ) eq "4"
+			  || ( lc $input ) eq "microsoft sql server"
+			  || ( lc $input ) eq "mssql" )
+		  {
+			  $LOOP = 0;
+			  $cfg->param( "general.targetDBType", "MSSQL" );
+		  }
+		  elsif (( lc $input ) eq "5"
+			  || ( lc $input ) eq "hsqldb"
+			  || ( lc $input ) eq "hsql" )
+		  {
+			  $LOOP = 0;
+			  $cfg->param( "general.targetDBType", "HSQLDB" );
+		  }
+		  elsif ( ( lc $input ) eq "" & ( $#parameterNull == -1 ) ) {
+			  print
+"You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
+		  }
+		  elsif ( ( lc $input ) eq "" & !( $#parameterNull == -1 ) ) {
 
-			#keepExistingValueWithNoChange
-			$LOOP = 0;
-		}
-		else {
-			print "Your input '" . $input
-			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n\n";
-		}
-	}
-	if ( defined($oldConfig) ) {
-		if ( $cfg->param("general.targetDBType") ne
-			$oldConfig->param("general.targetDBType") )
-		{
+			  #keepExistingValueWithNoChange
+			  $LOOP = 0;
+		  }
+		  else {
+			  print "Your input '" . $input
+				. "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n\n";
+		  }
+	  }
+	  if ( defined($oldConfig) ) {
+		  if ( $cfg->param("general.targetDBType") ne
+			  $oldConfig->param("general.targetDBType") )
+		  {
 
 #Database selection has changed therefore NULL the dbJDBCJar config option to ensure it gets a new value appropriate to the new DB
-			$cfg->param( "general.dbJDBCJar", "" );
-		}
-	}
-	@parameterNull = $cfg->param("general.dbJDBCJar");
+			  $cfg->param( "general.dbJDBCJar", "" );
+		  }
+	  }
+	  @parameterNull = $cfg->param("general.dbJDBCJar");
 
-	if ( $cfg->param("general.targetDBType") eq "MySQL" &
-		( $#parameterNull == -1 ) )
-	{
-		downloadJDBCConnector( "MySQL", $cfg );
-	}
-	elsif ( $cfg->param("general.targetDBType") eq "PostgreSQL" &
-		( $#parameterNull == -1 ) )
-	{
-		downloadJDBCConnector( "PostgreSQL", $cfg );
-	}
+	  if ( $cfg->param("general.targetDBType") eq "MySQL" &
+		  ( $#parameterNull == -1 ) )
+	  {
+		  downloadJDBCConnector( "MySQL", $cfg );
+	  }
+	  if (
+		  (
+			     $cfg->param("general.targetDBType") eq "Oracle"
+			  || $cfg->param("general.targetDBType") eq "MSSQL"
+		  ) & (
+			  ( $#parameterNull == -1 )
+				|| $cfg->param("general.dbJDBCJar") eq ""
+		  )
+		)
+	  {
 
-	if (
-		(
-			   $cfg->param("general.targetDBType") eq "Oracle"
-			|| $cfg->param("general.targetDBType") eq "MSSQL"
-		) &
-		( ( $#parameterNull == -1 ) || $cfg->param("general.dbJDBCJar") eq "" )
-	  )
-	{
+		  #createNullOptionInConfigFile
+		  $cfg->param( "general.dbJDBCJar", "" );
+		  print "In order to support your target database type ["
+			. $cfg->param("general.targetDBType")
+			. "] you need to download the appropriate JAR file.\n\n";
 
-		#createNullOptionInConfigFile
-		$cfg->param( "general.dbJDBCJar", "" );
-		print "In order to support your target database type ["
-		  . $cfg->param("general.targetDBType")
-		  . "] you need to download the appropriate JAR file.\n\n";
-
-		if ( $cfg->param("general.targetDBType") eq "Oracle" ) {
-			print
+		  if ( $cfg->param("general.targetDBType") eq "Oracle" ) {
+			  print
 "Please visit http://www.oracle.com/technetwork/database/features/jdbc/index-091264.html and download the appropriate JDBC JAR File\n";
-		}
-		elsif ( $cfg->param("general.targetDBType") eq "MSSQL" ) {
-			print
+		  }
+		  elsif ( $cfg->param("general.targetDBType") eq "MSSQL" ) {
+			  print
 "Please visit http://msdn.microsoft.com/en-us/sqlserver/aa937724.aspx and download the appropriate JDBC JAR File\n";
-		}
-		print
+		  }
+		  print
 "Once you have downloaded this (any location is fine, I recommend to the folder this script is installed into),\nplease edit the 'dbJDBCJar' option under [general] in '$configFile' to point to the full absolute path (including filename) of the jar file.\n\n";
-		print
+		  print
 "This script will now exit. Please update the aforementioned config before running again.\n\n";
 
-		#Write config and exit;
-		$cfg->write($configFile);
-		exit;
-	}
+		  #Write config and exit;
+		  $log->info("Writing out config file to disk and terminating script.");
+		  $cfg->write($configFile);
+		  exit;
+	  }
 
-	#Write config and reload
-	$cfg->write($configFile);
-	loadSuiteConfig();
+	  #Write config and reload
+	  $log->info("Writing out config file to disk.");
+	  $cfg->write($configFile);
+	  loadSuiteConfig();
 }
 
 ########################################
 #Display Install Menu                  #
 ########################################
 sub displayMenu {
-	my $choice;
-	my $main_menu;
-	my $subname = ( caller(0) )[3];
+	  my $choice;
+	  my $main_menu;
+	  my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	  $log->info("BEGIN: $subname");
 
-	my $LOOP = 1;
-	while ( $LOOP == 1 ) {
+	  my $LOOP = 1;
+	  while ( $LOOP == 1 ) {
 
-		# define the main menu as a multiline string
-		$main_menu = <<'END_TXT';
+		  # define the main menu as a multiline string
+		  $main_menu = <<'END_TXT';
 
       Welcome to the Atlassian Suite Manager Script
 
@@ -4231,23 +4406,24 @@ sub displayMenu {
 
 END_TXT
 
-		# print the main menu
-		system 'clear';
-		print $main_menu;
+		  # print the main menu
+		  system 'clear';
+		  print $main_menu;
 
-		# prompt for user's choice
-		printf( "%s", "enter selection: " );
+		  # prompt for user's choice
+		  printf( "%s", "enter selection: " );
 
-		# capture the choice
-		$choice = <STDIN>;
+		  # capture the choice
+		  $choice = <STDIN>;
+		  dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
 
-		# and finally print it
-		#print "You entered: ",$choice;
-		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
-			$LOOP = 0;
-			exit 0;
-		}
-	}
+		  # and finally print it
+		  #print "You entered: ",$choice;
+		  if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			  $LOOP = 0;
+			  exit 0;
+		  }
+	  }
 }
 bootStrapper();
 
@@ -4297,4 +4473,4 @@ bootStrapper();
 #print isPortAvailable("22");
 
 #dumpSingleVarToLog( "var1", "varvalue" );
-downloadLatestAtlassianSuite(whichApplicationArchitecture());
+downloadLatestAtlassianSuite( whichApplicationArchitecture() );
