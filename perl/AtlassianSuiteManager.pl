@@ -143,7 +143,7 @@ sub dumpVarsToLog {
 	if ( $log->is_debug() ) {
 		my $counter = 0;
 		while ( $counter <= $#varNames ) {
-			$log->debug("$varNames[$counter]: $varValues[$counter]");
+			$log->debug("VARDUMP: $varNames[$counter]: $varValues[$counter]");
 			$counter++;
 		}
 	}
@@ -157,7 +157,7 @@ sub dumpSingleVarToLog {
 	my $varName  = $_[0];
 	my $varValue = $_[1];
 	if ( $log->is_debug() ) {
-		$log->debug("$varName: $varValue");
+		$log->debug("VARDUMP: $varName: $varValue");
 	}
 }
 
@@ -251,7 +251,7 @@ sub checkConfiguredPort {
 		}
 		else {
 			$availCode = isPortAvailable($configValue);
-			dumpSingleVarToLog( "\$availCode (1=AVAIL/0=INUSE)", $availCode );
+			dumpSingleVarToLog( "\Port $configValue availability: $availCode (1=AVAIL/0=INUSE)", $availCode );
 
 			if ( $availCode == 1 ) {
 				$log->debug("Port is available.");
@@ -4450,4 +4450,4 @@ bootStrapper();
 #print isPortAvailable("22");
 
 #dumpSingleVarToLog( "var1", "varvalue" );
-downloadLatestAtlassianSuite( whichApplicationArchitecture() );
+#downloadLatestAtlassianSuite( whichApplicationArchitecture() );
