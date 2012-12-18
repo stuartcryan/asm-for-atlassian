@@ -251,7 +251,7 @@ sub checkConfiguredPort {
 		}
 		else {
 			$availCode = isPortAvailable($configValue);
-			dumpSingleVarToLog( "\$availCode (1=AVAIL/2=INUSE)", $availCode );
+			dumpSingleVarToLog( "\$availCode (1=AVAIL/0=INUSE)", $availCode );
 
 			if ( $availCode == 1 ) {
 				$log->debug("Port is available.");
