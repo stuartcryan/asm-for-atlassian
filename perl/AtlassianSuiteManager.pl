@@ -2193,12 +2193,14 @@ sub installGenericAtlassianBinary {
 	$configUser =
 	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
 	@requiredConfigItems = @{ $_[3] };
-	
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application",              $application );
-	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",       $downloadArchivesUrl );
-	dumpSingleVarToLog( "$subname" . "_configUser",       $configUser );
-	dumpSingleVarToLog( "$subname" . "_requiredConfigItems", @requiredConfigItems );
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
+		$downloadArchivesUrl );
+	dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
+	dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
+		@requiredConfigItems );
 
 	$lcApplication = lc($application);
 	$varfile =
@@ -2468,13 +2470,15 @@ sub upgradeGenericAtlassianBinary {
 	$configUser =
 	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
 	@requiredConfigItems = @{ $_[3] };
-	
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application",              $application );
-	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",       $downloadArchivesUrl );
-	dumpSingleVarToLog( "$subname" . "_configUser",       $configUser );
-	dumpSingleVarToLog( "$subname" . "_requiredConfigItems", @requiredConfigItems );
-	
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
+		$downloadArchivesUrl );
+	dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
+	dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
+		@requiredConfigItems );
+
 	$lcApplication = lc($application);
 	$varfile =
 	    $globalConfig->param("general.rootInstallDir") . "/"
@@ -2718,9 +2722,9 @@ sub uninstallGenericAtlassianBinary {
 	$log->info("BEGIN: $subname");
 
 	$application = $_[0];
-	
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application",              $application );
+	dumpSingleVarToLog( "$subname" . "_application", $application );
 
 	$lcApplication = lc($application);
 
@@ -3524,9 +3528,9 @@ sub generateJiraConfig {
 
 	$mode = $_[0];
 	$cfg  = $_[1];
-	
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
+	dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
 	genConfigItem(
 		$mode, $cfg, "jira.installDir",
@@ -3595,10 +3599,9 @@ sub generateCrowdConfig {
 
 	$mode = $_[0];
 	$cfg  = $_[1];
-	
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
 	genConfigItem(
 		$mode,
@@ -3669,9 +3672,9 @@ sub generateFisheyeConfig {
 
 	$mode = $_[0];
 	$cfg  = $_[1];
-	
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
+	dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
 	genConfigItem(
 		$mode,
@@ -3713,9 +3716,9 @@ sub generateConfluenceConfig {
 
 	$mode = $_[0];
 	$cfg  = $_[1];
-	
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
+	dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
 	genConfigItem(
 		$mode,
@@ -3792,12 +3795,12 @@ sub downloadAtlassianInstaller {
 	$product      = $_[1];
 	$version      = $_[2];
 	$architecture = $_[3];
-	
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_type",              $type );
-	dumpSingleVarToLog( "$subname" . "_product",              $product );
-	dumpSingleVarToLog( "$subname" . "_version",              $version );
-	dumpSingleVarToLog( "$subname" . "_architecture",              $architecture );
+	dumpSingleVarToLog( "$subname" . "_type",         $type );
+	dumpSingleVarToLog( "$subname" . "_product",      $product );
+	dumpSingleVarToLog( "$subname" . "_version",      $version );
+	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
 	print "Beginning download of $product, please wait...\n\n";
 
@@ -3891,9 +3894,9 @@ sub downloadLatestAtlassianSuite {
 	$log->info("BEGIN: $subname");
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_architecture",              $architecture );
-	
-	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
+	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
+
+	dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
 	#Configure all products in the suite
 	@suiteProducts =
