@@ -702,7 +702,8 @@ sub downloadJDBCConnector {
 		}
 		else {
 			$log->logdie(
-"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually.");
+"Unable to locate the $dbType Jar file automagically ($jarFile does not exist)\nPlease locate the file and update '$configFile' and set general->dbJDBCJar to the absolute path manually."
+			);
 		}
 	}
 }
@@ -1211,6 +1212,10 @@ sub getLatestDownloadURL {
 	$product      = $_[0];
 	$architecture = $_[1];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_product",      $product );
+	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
+
 	#Build URL to check latest version for a particular product
 	my $versionurl =
 	  "https://my.atlassian.com/download/feeds/current/" . $product . ".json";
@@ -1243,7 +1248,8 @@ sub getLatestDownloadURL {
 
 	#Try and download the feed
 	my $json = get($versionurl);
-	 $log->logdie("JSON Download: Could not get $versionurl!") unless defined $json;
+	$log->logdie("JSON Download: Could not get $versionurl!")
+	  unless defined $json;
 
  #We have to rework the string slightly as Atlassian is not returning valid JSON
 	$json = substr( $json, 10, -1 );
@@ -1275,13 +1281,18 @@ sub getVersionDownloadURL {
 	my $version;
 	my @returnArray;
 	my $versionurl;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$product      = $_[0];
 	$architecture = $_[1];
 	$version      = $_[2];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_product",      $product );
+	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
+	dumpSingleVarToLog( "$subname" . "_version",      $version );
 
 	#Generate product specific URL
 	$versionurl =
@@ -1333,9 +1344,10 @@ sub getVersionDownloadURL {
 sub getBooleanInput {
 	my $LOOP = 1;
 	my $input;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
-	$log->trace("BEGIN: $subname"); #we only want this on trace or it makes the script unusable
+	$log->trace("BEGIN: $subname")
+	  ;    #we only want this on trace or it makes the script unusable
 
 	while ( $LOOP == 1 ) {
 
@@ -1369,7 +1381,7 @@ sub getBooleanInput {
 ########################################
 sub getGenericInput {
 	my $input;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -1396,7 +1408,7 @@ sub extractAndMoveDownload {
 	my @uidGid;
 	my $upgrade;
 	my $mode;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -1404,6 +1416,13 @@ sub extractAndMoveDownload {
 	$expectedFolderName = $_[1];
 	$osUser             = $_[2];
 	$mode               = $_[3];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
+	dumpSingleVarToLog( "$subname" . "_expectedFolderName",
+		$expectedFolderName );
+	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
+	dumpSingleVarToLog( "$subname" . "_mode",   $mode );
 
 	#Get the UID and GID for the user so that we can chown files
 	@uidGid = getUserUidGid($osUser);
@@ -1415,7 +1434,8 @@ sub extractAndMoveDownload {
 
 	#Make sure file exists
 	if ( !-e $inputFile ) {
-		$log->logdie("File $inputFile could not be extracted. File does not exist.\n\n");
+		$log->logdie(
+			"File $inputFile could not be extracted. File does not exist.\n\n");
 	}
 
 	#Set up extract object
@@ -1426,7 +1446,8 @@ sub extractAndMoveDownload {
 	$ae->extract( to => $globalConfig->param("general.rootInstallDir") );
 	if ( $ae->error ) {
 		$log->logdie(
-"Unable to extract $inputFile. The following error was encountered: $ae->error\n\n");
+"Unable to extract $inputFile. The following error was encountered: $ae->error\n\n"
+		);
 	}
 
 	print "Extracting $inputFile has been completed.\n\n";
@@ -1512,7 +1533,7 @@ sub genConfigItem {
 	my $defaultValue;
 	my $input;
 	my @parameterNull;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -1521,6 +1542,12 @@ sub genConfigItem {
 	$configParam       = $_[2];
 	$messageText       = $_[3];
 	$defaultInputValue = $_[4];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
+	dumpSingleVarToLog( "$subname" . "_configParam",       $configParam );
+	dumpSingleVarToLog( "$subname" . "_messageText",       $messageText );
+	dumpSingleVarToLog( "$subname" . "_defaultInputValue", $defaultInputValue );
 
 	#Check if the paramater is null (undefined)
 	@parameterNull = $cfg->param($configParam);
@@ -1570,7 +1597,7 @@ sub genBooleanConfigItem {
 	my $defaultValue;
 	my $input;
 	my @parameterNull;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -1579,6 +1606,12 @@ sub genBooleanConfigItem {
 	$configParam       = $_[2];
 	$messageText       = $_[3];
 	$defaultInputValue = $_[4];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
+	dumpSingleVarToLog( "$subname" . "_configParam",       $configParam );
+	dumpSingleVarToLog( "$subname" . "_messageText",       $messageText );
+	dumpSingleVarToLog( "$subname" . "_defaultInputValue", $defaultInputValue );
 
 	#Check if parameter is null (undefined)
 	@parameterNull = $cfg->param($configParam);
@@ -1631,7 +1664,7 @@ sub updateXMLAttribute {
 	my $searchString;
 	my $referenceAttribute;
 	my $attributeValue;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -1640,8 +1673,15 @@ sub updateXMLAttribute {
 	$referenceAttribute = $_[2];
 	$attributeValue     = $_[3];
 
-	#Set up new XML object, with "pretty" spacing (i.e. standard spacing)
-	my $twig = new XML::Twig( pretty_print => 'indented', );
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_xmlFile",      $xmlFile );
+	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
+	dumpSingleVarToLog( "$subname" . "_referenceAttribute",
+		$referenceAttribute );
+	dumpSingleVarToLog( "$subname" . "_attributeValue", $attributeValue )
+
+	  #Set up new XML object, with "pretty" spacing (i.e. standard spacing)
+	  my $twig = new XML::Twig( pretty_print => 'indented', );
 
 	#Parse the XML file
 	$twig->parsefile($xmlFile);
@@ -1665,12 +1705,16 @@ sub updateJavaOpts {
 	my $javaOpts;
 	my $searchFor;
 	my @data;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$inputFile = $_[0];
 	$javaOpts  = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
+	dumpSingleVarToLog( "$subname" . "_javaOpts",  $javaOpts );
 
 	#Try to open the provided file
 	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile");
@@ -1729,7 +1773,8 @@ sub updateJavaOpts {
 	}
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile" or $log->logdie("Unable to open file $inputFile $!");
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file $inputFile $!");
 	print FILE @data;
 	close FILE;
 
@@ -1745,7 +1790,7 @@ sub updateLineInFile {
 	my $searchFor;
 	my $lineReference2;
 	my @data;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -1754,7 +1799,14 @@ sub updateLineInFile {
 	$newLine        = $_[2];
 	$lineReference2 = $_[3];
 
-	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile: $!");
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",      $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
+	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
+	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
+
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
 	@data = <FILE>;
@@ -1791,7 +1843,8 @@ sub updateLineInFile {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile" or $log->logdie("Unable to open file: $inputFile: $!");;
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file: $inputFile: $!");
 	print FILE @data;
 	close FILE;
 
@@ -1810,12 +1863,16 @@ sub compareTwoVersions {
 	my $majorVersionStatus;
 	my $midVersionStatus;
 	my $minVersionStatus;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$version1 = $_[0];
 	$version2 = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_version1", $version1 );
+	dumpSingleVarToLog( "$subname" . "_version2", $version2 );
 
 	@splitVersion1 = split( /\./, $version1 );
 	@splitVersion2 = split( /\./, $version2 );
@@ -1938,12 +1995,16 @@ sub isSupportedVersion {
 	my $productVersion;
 	my $count;
 	my $versionReturn;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$product = $_[0];
 	$version = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_product", $product );
+	dumpSingleVarToLog( "$subname" . "_version", $version );
 
 	#Set up maximum supported versions
 	my $jiraSupportedVerHigh       = "5.2";
@@ -1996,15 +2057,21 @@ sub isSupportedVersion {
 sub backupFile {
 	my $inputFile;
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$inputFile = $_[0];
 
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
+
 	#Create copy of input file with date_time appended to the end of filename
 	copy( $inputFile, $inputFile . "_" . $date )
-	  or $log->logdie("File copy failed for $inputFile, ". $inputFile . "_" . $date .": $!");
+	  or $log->logdie( "File copy failed for $inputFile, "
+		  . $inputFile . "_"
+		  . $date
+		  . ": $!" );
 }
 
 ########################################
@@ -2017,7 +2084,7 @@ sub generateInitD {
 	my $startCmd;
 	my $stopCmd;
 	my @initFile;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2026,6 +2093,13 @@ sub generateInitD {
 	$baseDir  = $_[2];
 	$startCmd = $_[3];
 	$stopCmd  = $_[4];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_product",  $product );
+	dumpSingleVarToLog( "$subname" . "_runUser",  $runUser );
+	dumpSingleVarToLog( "$subname" . "_baseDir",  $baseDir );
+	dumpSingleVarToLog( "$subname" . "_startCmd", $startCmd );
+	dumpSingleVarToLog( "$subname" . "_stopCmd",  $stopCmd );
 
 	#generate INITD file
 	@initFile = (
@@ -2068,7 +2142,8 @@ sub generateInitD {
 	);
 
 	#Write out file to /etc/init.d
-	open FILE, ">/etc/init.d/$product" or $log->logdie("Unable to open file /etc/init.d/$product: $!");
+	open FILE, ">/etc/init.d/$product"
+	  or $log->logdie("Unable to open file /etc/init.d/$product: $!");
 	print FILE @initFile;
 	close FILE;
 
@@ -2109,7 +2184,7 @@ sub installGenericAtlassianBinary {
 	my @requiredConfigItems;
 	my $downloadArchivesUrl;
 	my $configUser;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2118,6 +2193,12 @@ sub installGenericAtlassianBinary {
 	$configUser =
 	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
 	@requiredConfigItems = @{ $_[3] };
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_application",              $application );
+	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",       $downloadArchivesUrl );
+	dumpSingleVarToLog( "$subname" . "_configUser",       $configUser );
+	dumpSingleVarToLog( "$subname" . "_requiredConfigItems", @requiredConfigItems );
 
 	$lcApplication = lc($application);
 	$varfile =
@@ -2153,7 +2234,8 @@ sub installGenericAtlassianBinary {
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
 		$log->logdie(
 "One or more of the ports configured for $application are currently in use. Cannot continue installing. "
-		  . "Please ensure the ports configured are available and not in use.\n\n");
+			  . "Please ensure the ports configured are available and not in use.\n\n"
+		);
 	}
 
 	print "Would you like to install the latest version? yes/no [yes]: ";
@@ -2217,7 +2299,7 @@ sub installGenericAtlassianBinary {
 
 	#chmod the file to be executable
 	chmod 0755, $downloadDetails[2]
-	  or  $log->logdie("Couldn't chmod " . $downloadDetails[2] . ": $!");
+	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
 
 	#Generate the kickstart as we have all the information necessary
 	generateGenericKickstart( $varfile, "INSTALL", $lcApplication );
@@ -2236,7 +2318,8 @@ sub installGenericAtlassianBinary {
 		}
 		else {
 			$log->logdie(
-"Cannot proceed installing $application if the directory already has an install, please remove this manually and try again.\n\n");
+"Cannot proceed installing $application if the directory already has an install, please remove this manually and try again.\n\n"
+			);
 		}
 	}
 
@@ -2252,9 +2335,11 @@ sub installGenericAtlassianBinary {
 			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
 		}
 		else {
-			$log->logdie("Cannot proceed installing $application if the data directory ("
-			  . $globalConfig->param( $lcApplication . ".dataDir" )
-			  . ")already has data from a previous install, please remove this manually and try again.\n\n");
+			$log->logdie(
+				"Cannot proceed installing $application if the data directory ("
+				  . $globalConfig->param( $lcApplication . ".dataDir" )
+				  . ")already has data from a previous install, please remove this manually and try again.\n\n"
+			);
 		}
 
 	}
@@ -2264,7 +2349,8 @@ sub installGenericAtlassianBinary {
 
 	if ( $? == -1 ) {
 		$log->logdie(
-"$application install did not complete successfully. Please check the install logs and try again: $!\n");
+"$application install did not complete successfully. Please check the install logs and try again: $!\n"
+		);
 	}
 
 	#Stop the application so we can apply additional configuration
@@ -2294,7 +2380,8 @@ sub installGenericAtlassianBinary {
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" )
 		  or $log->logdie(
-"Unable to copy MySQL JDBC connector to $application lib directory: $!");
+"Unable to copy MySQL JDBC connector to $application lib directory: $!"
+		  );
 
 		#Chown the files again
 		chownRecursive( $osUser,
@@ -2372,7 +2459,7 @@ sub upgradeGenericAtlassianBinary {
 	my $downloadArchivesUrl;
 	my $configUser;
 	my $lcApplication;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2381,7 +2468,13 @@ sub upgradeGenericAtlassianBinary {
 	$configUser =
 	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
 	@requiredConfigItems = @{ $_[3] };
-
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_application",              $application );
+	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",       $downloadArchivesUrl );
+	dumpSingleVarToLog( "$subname" . "_configUser",       $configUser );
+	dumpSingleVarToLog( "$subname" . "_requiredConfigItems", @requiredConfigItems );
+	
 	$lcApplication = lc($application);
 	$varfile =
 	    $globalConfig->param("general.rootInstallDir") . "/"
@@ -2476,11 +2569,12 @@ sub upgradeGenericAtlassianBinary {
 			$globalConfig->param("$lcApplication.installedVersion"),
 			$downloadVersionCheck[1] );
 		if ( $versionSupported eq "GREATER" ) {
-		$log->logdie( "The version to be downloaded ("
-			  . $downloadVersionCheck[1]
-			  . ") is older than the currently installed version ("
-			  . $globalConfig->param("$lcApplication.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n");
+			$log->logdie( "The version to be downloaded ("
+				  . $downloadVersionCheck[1]
+				  . ") is older than the currently installed version ("
+				  . $globalConfig->param("$lcApplication.installedVersion")
+				  . "). Downgrading is not supported and this script will now exit.\n\n"
+			);
 		}
 	}
 	elsif ( $mode eq "SPECIFIC" ) {
@@ -2488,10 +2582,11 @@ sub upgradeGenericAtlassianBinary {
 			$globalConfig->param("$lcApplication.installedVersion"), $version );
 		if ( $versionSupported eq "GREATER" ) {
 			$log->logdie( "The version to be downloaded (" 
-			  . $version
-			  . ") is older than the currently installed version ("
-			  . $globalConfig->param("$lcApplication.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n");
+				  . $version
+				  . ") is older than the currently installed version ("
+				  . $globalConfig->param("$lcApplication.installedVersion")
+				  . "). Downgrading is not supported and this script will now exit.\n\n"
+			);
 		}
 	}
 
@@ -2513,7 +2608,7 @@ sub upgradeGenericAtlassianBinary {
 
 	#chmod the file to be executable
 	chmod 0755, $downloadDetails[2]
-	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!");
+	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
 
 	#Generate the kickstart as we have all the information necessary
 	generateGenericKickstart( $varfile, "UPGRADE", $lcApplication );
@@ -2521,8 +2616,9 @@ sub upgradeGenericAtlassianBinary {
 	#upgrade
 	system( $downloadDetails[2] . " -q -varfile $varfile" );
 	if ( $? == -1 ) {
-	$log->logdie(
-"$application upgrade did not complete successfully. Please check the install logs and try again: $!\n");
+		$log->logdie(
+"$application upgrade did not complete successfully. Please check the install logs and try again: $!\n"
+		);
 	}
 
 	#Stop the application so we can apply additional configuration
@@ -2557,7 +2653,8 @@ sub upgradeGenericAtlassianBinary {
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param("$lcApplication.installDir") . "/lib/" )
 		  or $log->logdie(
-"Unable to copy MySQL JDBC connector to $application lib directory: $!");
+"Unable to copy MySQL JDBC connector to $application lib directory: $!"
+		  );
 
 		#Chown the files again
 		chownRecursive( $osUser,
@@ -2616,11 +2713,14 @@ sub uninstallGenericAtlassianBinary {
 	my $application;
 	my $lcApplication;
 	my $input;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$application = $_[0];
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_application",              $application );
 
 	$lcApplication = lc($application);
 
@@ -2638,7 +2738,8 @@ sub uninstallGenericAtlassianBinary {
 			  . "/uninstall -q" );
 		if ( $? == -1 ) {
 			$log->logdie(
-"$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n");
+"$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n"
+			);
 		}
 
 		#Check if you REALLY want to remove data directory
@@ -2674,7 +2775,7 @@ sub installConfluence {
 	my $application = "Confluence";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
-	  	my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2704,7 +2805,7 @@ sub upgradeConfluence {
 	my $application = "Confluence";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
-	  	my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2728,7 +2829,7 @@ sub upgradeConfluence {
 ########################################
 sub uninstallConfluence {
 	my $application = "Confluence";
-		my $subname = ( caller(0) )[3];
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 	uninstallGenericAtlassianBinary($application);
@@ -2741,7 +2842,7 @@ sub installJira {
 	my $application = "JIRA";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
-	  	my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2770,7 +2871,7 @@ sub upgradeJira {
 	my $application = "JIRA";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
-	  	my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2794,7 +2895,7 @@ sub upgradeJira {
 ########################################
 sub uninstallJira {
 	my $application = "JIRA";
-		my $subname = ( caller(0) )[3];
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 	uninstallGenericAtlassianBinary($application);
@@ -2815,7 +2916,7 @@ sub installCrowd {
 	my @uidGid;
 	my $serverPortAvailCode;
 	my $connectorPortAvailCode;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -2873,7 +2974,9 @@ sub installCrowd {
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "no" ) {
-			$log->logdie( "User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n");
+			$log->logdie(
+"User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n"
+			);
 		}
 
 	}
@@ -3006,7 +3109,7 @@ sub installCrowd {
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
 		  or $log->logdie(
-		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
+			"Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -3065,7 +3168,7 @@ sub upgradeCrowd {
 	my $osUser;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -3176,10 +3279,11 @@ sub upgradeCrowd {
 			$downloadVersionCheck[1] );
 		if ( $versionSupported eq "GREATER" ) {
 			$log->logdie( "The version to be downloaded ("
-			  . $downloadVersionCheck[1]
-			  . ") is older than the currently installed version ("
-			  . $globalConfig->param("crowd.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n");
+				  . $downloadVersionCheck[1]
+				  . ") is older than the currently installed version ("
+				  . $globalConfig->param("crowd.installedVersion")
+				  . "). Downgrading is not supported and this script will now exit.\n\n"
+			);
 		}
 	}
 	elsif ( $mode eq "SPECIFIC" ) {
@@ -3188,10 +3292,11 @@ sub upgradeCrowd {
 			$version );
 		if ( $versionSupported eq "GREATER" ) {
 			$log->logdie( "The version to be downloaded (" 
-			  . $version
-			  . ") is older than the currently installed version ("
-			  . $globalConfig->param("crowd.installedVersion")
-			  . "). Downgrading is not supported and this script will now exit.\n\n");
+				  . $version
+				  . ") is older than the currently installed version ("
+				  . $globalConfig->param("crowd.installedVersion")
+				  . "). Downgrading is not supported and this script will now exit.\n\n"
+			);
 		}
 	}
 
@@ -3217,18 +3322,20 @@ sub upgradeCrowd {
 	print "\n";
 	if ( -e "/etc/init.d/crowd" ) {
 		system("service crowd stop")
-		  or $log->logdie( "Could not stop Crowd: $!");
+		  or $log->logdie("Could not stop Crowd: $!");
 	}
 	else {
 		if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" ) {
 			system( $globalConfig->param("crowd.installDir")
 				  . "/stop_crowd.sh" )
 			  or $log->logdie(
-"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n");
+"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n"
+			  );
 		}
 		else {
 			$log->logdie(
-"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again");
+"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again"
+			);
 		}
 	}
 
@@ -3297,7 +3404,7 @@ sub upgradeCrowd {
 		copy( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
 		  or $log->logdie(
-		  "Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
+			"Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -3345,7 +3452,7 @@ sub uninstallCrowd {
 	my $application = "crowd";
 	my $initdFile   = "/etc/init.d/$application";
 	my $input;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -3411,12 +3518,15 @@ sub generateJiraConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
 
 	genConfigItem(
 		$mode, $cfg, "jira.installDir",
@@ -3479,12 +3589,16 @@ sub generateCrowdConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
+
 
 	genConfigItem(
 		$mode,
@@ -3549,12 +3663,15 @@ sub generateFisheyeConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
 
 	genConfigItem(
 		$mode,
@@ -3590,12 +3707,15 @@ sub generateConfluenceConfig {
 	my $mode;
 	my $input;
 	my $defaultValue;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
 
 	genConfigItem(
 		$mode,
@@ -3664,7 +3784,7 @@ sub downloadAtlassianInstaller {
 	my $input;
 	my $downloadResponseCode;
 	my $absoluteFilePath;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -3672,6 +3792,12 @@ sub downloadAtlassianInstaller {
 	$product      = $_[1];
 	$version      = $_[2];
 	$architecture = $_[3];
+	
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_type",              $type );
+	dumpSingleVarToLog( "$subname" . "_product",              $product );
+	dumpSingleVarToLog( "$subname" . "_version",              $version );
+	dumpSingleVarToLog( "$subname" . "_architecture",              $architecture );
 
 	print "Beginning download of $product, please wait...\n\n";
 
@@ -3744,7 +3870,8 @@ sub downloadAtlassianInstaller {
 		}
 		else {
 			$log->logdie(
-"Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'");
+"Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'"
+			);
 		}
 	}
 
@@ -3759,11 +3886,14 @@ sub downloadLatestAtlassianSuite {
 	my $parsedURL;
 	my @downloadDetails;
 	my @suiteProducts;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$architecture = $_[0];
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_architecture",              $architecture );
+	
+	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
 
 	#Configure all products in the suite
 	@suiteProducts =
@@ -3794,7 +3924,7 @@ sub generateSuiteConfig {
 	my $defaultValue;
 	my @parameterNull;
 	my $oldConfig;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -4059,7 +4189,7 @@ sub generateSuiteConfig {
 sub displayMenu {
 	my $choice;
 	my $main_menu;
-		my $subname = ( caller(0) )[3];
+	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
