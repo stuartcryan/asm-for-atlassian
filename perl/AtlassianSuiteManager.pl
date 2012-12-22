@@ -3118,7 +3118,7 @@ sub installCrowd {
 	my $input;
 	my $mode;
 	my $version;
-	my $application = "crowd";
+	my $application;
 	my $lcApplication;
 	my @downloadDetails;
 	my $archiveLocation;
@@ -3130,16 +3130,15 @@ sub installCrowd {
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
+	
+	
+	$application         = $_[0];
+	$downloadArchivesUrl = $_[1];
+	$configUser =
+	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
+	@requiredConfigItems = @{ $_[3] };
+	
 	$lcApplication = lc($application);
-
-	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
-	@requiredConfigItems = (
-		"crowd.appContext",    "crowd.enable",
-		"crowd.dataDir",       "crowd.installDir",
-		"crowd.runAsService",  "crowd.serverPort",
-		"crowd.connectorPort", "crowd.osUser"
-	);
 
 #Iterate through required config items, if an are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
@@ -3147,8 +3146,8 @@ sub installCrowd {
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
 		);
 		print
-"Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: \n\n";
-		generateCrowdConfig( "UPDATE", $globalConfig );
+"Some of the $aplication config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
+generateApplicationConfig( $application, "UPDATE", $globalConfig );
 		$log->info("Writing out config file to disk.");
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
@@ -3157,7 +3156,7 @@ sub installCrowd {
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		print
-"Would you like to review the Crowd config before installing? Yes/No [yes]: ";
+"Would you like to review the $application config before installing? Yes/No [yes]: ";
 
 		$input = getBooleanInput();
 		print "\n";
@@ -3165,33 +3164,33 @@ sub installCrowd {
 			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
-			generateCrowdConfig( "UPDATE", $globalConfig );
+			generateApplicationConfig($application, "UPDATE", $globalConfig );
 			$log->info("Writing out config file to disk.");
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
 	}
 
-	#Get the user Crowd will run as
-	$osUser = $globalConfig->param("crowd.osUser");
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	#Check the user exists or create if not
 	createOSUser($osUser);
 
 	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param("crowd.serverPort") );
+	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
 
 	$connectorPortAvailCode =
-	  isPortAvailable( $globalConfig->param("crowd.connectorPort") );
+	  isPortAvailable( $globalConfig->param("lcApplication.connectorPort") );
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
 		$log->info(
 "$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0 
-is currently in use. We will continue however there is a good chance CROWD will not start."
+is currently in use. We will continue however there is a good chance $application will not start."
 		);
 		print
-"One or more of the ports configured for Crowd are currently in use. We can proceed however there is a very good chance"
-		  . " that Crowd will not start correctly.\n\n";
+"One or more of the ports configured for $application are currently in use. We can proceed however there is a very good chance"
+		  . " that $application will not start correctly.\n\n";
 		print
 "Would you like to continue even though the ports are in use? yes/no [yes]: ";
 
@@ -3239,11 +3238,11 @@ is currently in use. We will continue however there is a good chance CROWD will 
 
 			#Check that the input version actually exists
 			print
-"Please wait, checking that version $version of Crowd exists (may take a few moments)... \n\n";
+"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
 
 			#get the version specific URL to test
 			@downloadDetails =
-			  getVersionDownloadURL( $application,
+			  getVersionDownloadURL( $lcApplication,
 				whichApplicationArchitecture(), $version );
 
 			#Try to get the header of the version URL to ensure it exists
@@ -3252,14 +3251,14 @@ is currently in use. We will continue however there is a good chance CROWD will 
 "$subname: User selected to install version $version of $application"
 				);
 				$VERSIONLOOP = 0;
-				print "Crowd version $version found. Continuing...\n\n";
+				print "$application version $version found. Continuing...\n\n";
 			}
 			else {
 				$log->warn(
 "$subname: User selected to install version $version of $application. No such version exists, asking for input again."
 				);
 				print
-"No such version of Crowd exists. Please visit http://www.atlassian.com/software/crowd/download-archive and pick a valid version number and try again.\n\n";
+"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
 			}
 		}
 
@@ -3269,7 +3268,7 @@ is currently in use. We will continue however there is a good chance CROWD will 
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "",
+		  downloadAtlassianInstaller( $mode, $lcApplication, "",
 			whichApplicationArchitecture() );
 		$version = $downloadDetails[1];
 
@@ -3279,14 +3278,14 @@ is currently in use. We will continue however there is a good chance CROWD will 
 	else {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
+		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			whichApplicationArchitecture() );
 	}
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
 	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("crowd.installDir"),
+		$globalConfig->param("$lcApplication.installDir"),
 		$osUser, "" );
 
 	#Check if user wants to remove the downloaded archive
@@ -3303,7 +3302,7 @@ is currently in use. We will continue however there is a good chance CROWD will 
 
 	#Update config to reflect new version that is installed
 	$log->info("$subname: Writing new installed version to the config file.");
-	$globalConfig->param( "crowd.installedVersion", $version );
+	$globalConfig->param( "$lcApplication.installedVersion", $version );
 	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
@@ -3314,11 +3313,11 @@ is currently in use. We will continue however there is a good chance CROWD will 
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
 		print
-"Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
+"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
+			$globalConfig->param("$lcApplication.installDir") . "/apache-tomcat/lib/" )
 		  or $log->logdie(
-			"Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
+			"Unable to copy MySQL JDBC connector to $application lib directory: $!");
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -3328,7 +3327,7 @@ is currently in use. We will continue however there is a good chance CROWD will 
 			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
 			  . " to $osUser following MySQL JDBC install." );
 		chownRecursive( $osUser,
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
+			$globalConfig->param("$lcApplication.installDir") . "/apache-tomcat/lib/" );
 	}
 
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -3336,11 +3335,11 @@ is currently in use. We will continue however there is a good chance CROWD will 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile( $globalConfig->param("crowd.installDir")
+	backupFile( $globalConfig->param("$lcApplication.installDir")
 		  . "/apache-tomcat/conf/server.xml" );
 
-	backupFile( $globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
+	backupFile( $globalConfig->param("$lcApplication.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/$lcApplication-init.properties" );
 
 	print "Applying port numbers to server config...\n\n";
 
@@ -3349,9 +3348,9 @@ is currently in use. We will continue however there is a good chance CROWD will 
 		  . $globalConfig->param("$lcApplication.installDir")
 		  . "/conf/server.xml" );
 	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
+		$globalConfig->param("$lcApplication.installDir")
 		  . "/apache-tomcat/conf/server.xml",
-		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
+		"///Connector", "port", $globalConfig->param("$lcApplication.connectorPort")
 	);
 
 	#Update the server config with the configured server port
@@ -3359,9 +3358,9 @@ is currently in use. We will continue however there is a good chance CROWD will 
 		  . $globalConfig->param("$lcApplication.installDir")
 		  . "/conf/server.xml" );
 	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
+		$globalConfig->param("$lcApplication.installDir")
 		  . "/apache-tomcat/conf/server.xml",
-		"/Server", "port", $globalConfig->param("crowd.serverPort")
+		"/Server", "port", $globalConfig->param("$lcApplication.serverPort")
 	);
 
 	#Apply application context
@@ -3370,7 +3369,7 @@ is currently in use. We will continue however there is a good chance CROWD will 
 		  . "/conf/server.xml" );
 	print "Applying application context to config...\n\n";
 	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
+		$globalConfig->param("$lcApplication.installDir")
 		  . "/apache-tomcat/conf/server.xml",
 		"//////Context",
 		"path",
@@ -3385,10 +3384,10 @@ is currently in use. We will continue however there is a good chance CROWD will 
 		  . " in /conf/server.xml" );
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
-		$globalConfig->param("crowd.installDir")
+		$globalConfig->param("$lcApplication.installDir")
 		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
 		"crowd.home",
-		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		"crowd.home=" . $globalConfig->param("$lcApplication.dataDir"),
 		"#crowd.home=/var/crowd-home"
 	);
 
@@ -3400,35 +3399,35 @@ is currently in use. We will continue however there is a good chance CROWD will 
 	);
 	print
 "Checking if data directory exists and creating if not, please wait...\n\n";
-	createAndChownDirectory( $globalConfig->param("crowd.dataDir"), $osUser );
+	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"), $osUser );
 
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
 	#Generate the init.d file
-	generateInitD( $application, $osUser,
-		$globalConfig->param("crowd.installDir"),
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
 		"start_crowd.sh", "stop_crowd.sh" );
 
 	#If set to run as a service, set to run on startup
-	if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
-		$log->info("$subname: Setting up as a service to run on startup.");
-		manageService( "INSTALL", $application );
+	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
+		$log->info("$subname: Setting up $application as a service to run on startup.");
+		manageService( "INSTALL", $lcApplication );
 	}
 	print "Services configured successfully.\n\n";
 
 	#Check if we should start the service
 	print
-"Installation has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
+"Installation has completed successfully. Would you like to start the $application service now? Yes/No [yes]: ";
 	$input = getBooleanInput();
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
-		system("service $application start");
-		print "\nCrowd can now be accessed on http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
+		system("service $lcApplication start");
+		print "\n" . "$application can now be accessed on http://localhost:"
+		  . $globalConfig->param("$lcApplication.connectorPort")
+		  . getConfigItem( "$lcApplication.appContext", $globalConfig ) . ".\n\n";
 		print "If you have any issues please check the log at "
 		  . $globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/logs/catalina.out\n\n";
