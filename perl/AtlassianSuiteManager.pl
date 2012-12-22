@@ -3343,9 +3343,7 @@ is currently in use. We will continue however there is a good chance CROWD will 
 	updateXMLAttribute(
 		$globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/conf/server.xml",
-		"///Connector",
-		"port",
-		$globalConfig->param("crowd.connectorPort")
+		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
 	);
 
 	#Update the server config with the configured server port
@@ -3804,21 +3802,28 @@ sub uninstallCrowd {
 	$input = getBooleanInput();
 	print "\n";
 	if ( $input eq "yes" ) {
+		$log->info("$subname: User selected to uninstall $application");
 
 		#Remove Service
 		print "Disabling service...\n\n";
+		$log->info("$subname: Disabling $application service");
 		manageService( "UNINSTALL", $application );
 
 		#remove init.d file
 		print "Removing init.d file\n\n";
+		$log->info( "$subname: Removing $application" . "'s init.d file" );
 		unlink $initdFile or warn "Could not unlink $initdFile: $!";
 
 		#Remove install dir
 		print "Removing installation directory...\n\n";
+		$log->info( "$subname: Removing $globalConfig->param(" crowd
+			  . installDir ")." );
 		if ( -d $globalConfig->param("crowd.installDir") ) {
 			rmtree( [ $globalConfig->param("crowd.installDir") ] );
 		}
 		else {
+			$log->warn( "$subname: Unable to remove $globalConfig->param(" crowd
+				  . installDir "). Directory does not exist." );
 			print
 "Could not find configured install directory... possibly not installed?";
 		}
@@ -3829,15 +3834,23 @@ sub uninstallCrowd {
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "yes" ) {
+			$log->info(
+				"$subname: User selected to delete $globalConfig->param(" crowd
+				  . dataDir "). Deleting." );
 			rmtree( [ $globalConfig->param("crowd.dataDir") ] );
 		}
 		else {
+			$log->info(
+"$subname: User opted to keep the $application data directory at $globalConfig->param("
+				  crowd . dataDir ")." );
 			print
 "The data directory has not been deleted and is still available at "
 			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
 		}
 
 		#Update config to null out the Crowd config
+		$log->info(
+			"$subname: Nulling out the installed version of $application.");
 		$globalConfig->param( "crowd.installedVersion", "" );
 		$globalConfig->param( "crowd.enable",           "FALSE" );
 		$log->info("Writing out config file to disk.");
@@ -3860,7 +3873,6 @@ sub generateJiraConfig {
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-
 	$mode = $_[0];
 	$cfg  = $_[1];
 
@@ -4138,22 +4150,37 @@ sub downloadAtlassianInstaller {
 
 	#Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
+		$log->debug("$subname: Downloading latest version of $product");
 		@downloadDetails = getLatestDownloadURL( $product, $architecture );
 	}
 	else {
+		$log->debug("$subname: Downloading version $version of $product");
 		@downloadDetails =
 		  getVersionDownloadURL( $product, $architecture, $version );
 	}
+	dumpSingleVarToLog( "$subname" . "_downloadDetails[0]",
+		$downloadDetails[0] );
+	dumpSingleVarToLog( "$subname" . "_downloadDetails[1]",
+		$downloadDetails[1] );
 
 	#Check if we are trying to download a supported version
 	if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
+		$log->warn(
+"$subname: Version $version of $product is has not been fully tested with this script."
+		);
 		print
 "This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
 
 		$input = getBooleanInput();
+		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
 		if ( $input eq "no" ) {
 			return;
+		}
+		else {
+			$log->info(
+"$subname: User has opted to download $version of $product even though it has not been tested with this script."
+			);
 		}
 	}
 
@@ -4170,16 +4197,23 @@ sub downloadAtlassianInstaller {
 
 	$absoluteFilePath =
 	  $globalConfig->param("general.rootInstallDir") . "/" . $bits[ @bits - 1 ];
+	dumpSingleVarToLog( "$subname" . "_absoluteFilePath", $absoluteFilePath );
 
 #Check if local file already exists and if it does, provide the option to skip downloading
 	if ( -e $absoluteFilePath ) {
+		$log->debug(
+			"$subname: The install file $abosulteFilePath already exists.");
 		print "The local install file "
 		  . $absoluteFilePath
 		  . " already exists. Would you like to skip re-downloading the file: [yes]";
 
 		$input = getBooleanInput();
+		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
 		if ( $input eq "yes" || $input eq "default" ) {
+			$log->debug(
+"$subname: User opted to skip redownloading the installer file for $product."
+			);
 			$downloadDetails[2] =
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ];
@@ -4187,15 +4221,21 @@ sub downloadAtlassianInstaller {
 		}
 	}
 	else {
+		$log->debug("$subname: Beginning download.");
 
 		#Download the file and store the HTTP response code
 		print "Downloading file from Atlassian...\n\n";
 		$downloadResponseCode = getstore( $downloadDetails[0],
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ] );
+		dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
+			$downloadResponseCode );
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 		if ( is_success($downloadResponseCode) ) {
+			$log->debug(
+"$subname: Download completed successfully with HTTP response code $downloadResponseCode."
+			);
 			print "\n";
 			print "Download completed successfully.\n\n";
 			$downloadDetails[2] =
@@ -4214,6 +4254,9 @@ sub downloadAtlassianInstaller {
 
 ########################################
 #Download Full Suite                   #
+#Please note this is REALLY only for   #
+#testing purposes not for any real     #
+#production use.                       #
 ########################################
 sub downloadLatestAtlassianSuite {
 	my $downloadURL;
@@ -4265,6 +4308,9 @@ sub generateSuiteConfig {
 
 	#Check if we have a valid config file already, if so we are updating it
 	if ($globalConfig) {
+		$log->info(
+"$subname: globalConfig is defined therefore we are performing an update."
+		);
 		$mode      = "UPDATE";
 		$cfg       = $globalConfig;
 		$oldConfig = new Config::Simple($configFile);
@@ -4272,6 +4318,9 @@ sub generateSuiteConfig {
 
 	#Otherwise we are creating a new file
 	else {
+		$log->info(
+"$subname: globalConfig is undefined therefore we are creating a new config file from scratch."
+		);
 		$mode = "NEW";
 		$cfg = new Config::Simple( syntax => 'ini' );
 	}
@@ -4414,6 +4463,7 @@ sub generateSuiteConfig {
 		if (   ( lc $input ) eq "1"
 			|| ( lc $input ) eq "mysql" )
 		{
+			$log->info("$subname: Database arch selected is MySQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "MySQL" );
 		}
@@ -4422,12 +4472,14 @@ sub generateSuiteConfig {
 			|| ( lc $input ) eq "postgres"
 			|| ( lc $input ) eq "postgre" )
 		{
+			$log->info("$subname: Database arch selected is PostgreSQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "PostgreSQL" );
 		}
 		elsif (( lc $input ) eq "3"
 			|| ( lc $input ) eq "oracle" )
 		{
+			$log->info("$subname: Database arch selected is Oracle");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "Oracle" );
 		}
@@ -4435,6 +4487,7 @@ sub generateSuiteConfig {
 			|| ( lc $input ) eq "microsoft sql server"
 			|| ( lc $input ) eq "mssql" )
 		{
+			$log->info("$subname: Database arch selected is MSSQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "MSSQL" );
 		}
@@ -4442,19 +4495,29 @@ sub generateSuiteConfig {
 			|| ( lc $input ) eq "hsqldb"
 			|| ( lc $input ) eq "hsql" )
 		{
+			$log->info("$subname: Database arch selected is HSQLDB");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "HSQLDB" );
 		}
 		elsif ( ( lc $input ) eq "" & ( $#parameterNull == -1 ) ) {
+			$log->warn(
+"$subname: User made NULL selection with no previous value entered."
+			);
 			print
 			  "You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
 		}
 		elsif ( ( lc $input ) eq "" & !( $#parameterNull == -1 ) ) {
+			$log->info(
+"$subname: User just pressed return therefore existing datbase selection will be kept."
+			);
 
 			#keepExistingValueWithNoChange
 			$LOOP = 0;
 		}
 		else {
+			$log->info(
+"$subname: User did not enter valid input for database selection. Asking for input again."
+			);
 			print "Your input '" . $input
 			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n\n";
 		}
@@ -4463,6 +4526,9 @@ sub generateSuiteConfig {
 		if ( $cfg->param("general.targetDBType") ne
 			$oldConfig->param("general.targetDBType") )
 		{
+			$log->info(
+"$subname: Database selection has changed from previous config. Nulling out JDBC config option to ensure it gets set correctly if needed."
+			);
 
 #Database selection has changed therefore NULL the dbJDBCJar config option to ensure it gets a new value appropriate to the new DB
 			$cfg->param( "general.dbJDBCJar", "" );
@@ -4473,6 +4539,9 @@ sub generateSuiteConfig {
 	if ( $cfg->param("general.targetDBType") eq "MySQL" &
 		( $#parameterNull == -1 ) )
 	{
+		$log->info(
+"$subname: MySQL has been selected and no valid JDBC entry defined in config. Download MySQL JDBC driver."
+		);
 		downloadJDBCConnector( "MySQL", $cfg );
 	}
 	if (
@@ -4508,7 +4577,6 @@ sub generateSuiteConfig {
 		$cfg->write($configFile);
 		exit;
 	}
-
 	#Write config and reload
 	$log->info("Writing out config file to disk.");
 	$cfg->write($configFile);
