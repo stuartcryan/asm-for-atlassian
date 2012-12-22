@@ -308,10 +308,11 @@ sub backupDirectoryAndChown {
 	dumpSingleVarToLog( "$subname" . "_date",        $date );
 
 	$backupDirName = $originalDir . "_backup_" . $date;
-	dumpSingleVarToLog( "$subname" . "_backupDirName", $backupDirName );
+	$log->info("$subname: Backing up $originalDir to $backupDirName");
 
 	moveDirectory( $originalDir, $backupDirName );
 	print "Folder moved to " . $backupDirName . "\n\n";
+	$log->debug("$subname: Doing recursive chown of $backupDirName to $osUser");
 	chownRecursive( $osUser, $backupDirName );
 }
 
@@ -859,6 +860,8 @@ sub moveDirectory {
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_origDirectory", $origDirectory );
 	dumpSingleVarToLog( "$subname" . "_newDirectory",  $newDirectory );
+	
+	$log->info("$subname: Moving $origDirectory to $newDirectory.");
 
 	if ( move( $origDirectory, $newDirectory ) == 0 ) {
 		$log->logdie(
