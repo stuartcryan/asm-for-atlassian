@@ -860,7 +860,7 @@ sub moveDirectory {
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_origDirectory", $origDirectory );
 	dumpSingleVarToLog( "$subname" . "_newDirectory",  $newDirectory );
-	
+
 	$log->info("$subname: Moving $origDirectory to $newDirectory.");
 
 	if ( move( $origDirectory, $newDirectory ) == 0 ) {
@@ -887,6 +887,8 @@ sub copyDirectory {
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_origDirectory", $origDirectory );
 	dumpSingleVarToLog( "$subname" . "_newDirectory",  $newDirectory );
+
+	$log->info("$subname: Copying $origDirectory to $newDirectory.");
 
 	if ( copy( $origDirectory, $newDirectory ) == 0 ) {
 		$log->logdie(
@@ -2155,6 +2157,9 @@ sub backupFile {
 	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
 
 	#Create copy of input file with date_time appended to the end of filename
+	$log->info(
+		"$subname: Backing up $inputFile to " . $inputFile . "_" . $date )
+	  ;
 	copy( $inputFile, $inputFile . "_" . $date )
 	  or $log->logdie( "File copy failed for $inputFile, "
 		  . $inputFile . "_"
@@ -4580,6 +4585,7 @@ sub generateSuiteConfig {
 		$cfg->write($configFile);
 		exit;
 	}
+
 	#Write config and reload
 	$log->info("Writing out config file to disk.");
 	$cfg->write($configFile);
