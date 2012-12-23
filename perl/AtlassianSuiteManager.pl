@@ -2158,8 +2158,7 @@ sub backupFile {
 
 	#Create copy of input file with date_time appended to the end of filename
 	$log->info(
-		"$subname: Backing up $inputFile to " . $inputFile . "_" . $date )
-	  ;
+		"$subname: Backing up $inputFile to " . $inputFile . "_" . $date );
 	copy( $inputFile, $inputFile . "_" . $date )
 	  or $log->logdie( "File copy failed for $inputFile, "
 		  . $inputFile . "_"
@@ -2174,7 +2173,8 @@ sub backupFile {
 #GenerateInitD                         #
 ########################################
 sub generateInitD {
-	my $product;
+	my $application;
+	my $lcApplication;
 	my $runUser;
 	my $baseDir;
 	my $startCmd;
@@ -2184,27 +2184,29 @@ sub generateInitD {
 
 	$log->info("BEGIN: $subname");
 
-	$product  = $_[0];
-	$runUser  = $_[1];
-	$baseDir  = $_[2];
-	$startCmd = $_[3];
-	$stopCmd  = $_[4];
+	$application = $_[0];
+	$runUser     = $_[1];
+	$baseDir     = $_[2];
+	$startCmd    = $_[3];
+	$stopCmd     = $_[4];
+
+	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_product",  $product );
-	dumpSingleVarToLog( "$subname" . "_runUser",  $runUser );
-	dumpSingleVarToLog( "$subname" . "_baseDir",  $baseDir );
-	dumpSingleVarToLog( "$subname" . "_startCmd", $startCmd );
-	dumpSingleVarToLog( "$subname" . "_stopCmd",  $stopCmd );
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_runUser",     $runUser );
+	dumpSingleVarToLog( "$subname" . "_baseDir",     $baseDir );
+	dumpSingleVarToLog( "$subname" . "_startCmd",    $startCmd );
+	dumpSingleVarToLog( "$subname" . "_stopCmd",     $stopCmd );
 
 	#generate INITD file
 	@initFile = (
 		"#!/bin/sh -e\n",
-		"#" . $product . " startup script\n",
+		"#" . $application . " startup script\n",
 		"#chkconfig: 2345 80 05\n",
-		"#description: " . $product . "\n",
+		"#description: " . $application . "\n",
 		"\n",
-		"APP=" . $product . "\n",
+		"APP=" . $lcApplication . "\n",
 		"USER=" . $runUser . "\n",
 		"BASE=" . $baseDir . "\n",
 		"STARTCOMMAND=" . $startCmd . "\n",
@@ -2238,16 +2240,16 @@ sub generateInitD {
 	);
 
 	#Write out file to /etc/init.d
-	$log->info("$subname: Writing out init.d file for $product.");
-	open FILE, ">/etc/init.d/$product"
-	  or $log->logdie("Unable to open file /etc/init.d/$product: $!");
+	$log->info("$subname: Writing out init.d file for $application.");
+	open FILE, ">/etc/init.d/$lcApplication"
+	  or $log->logdie("Unable to open file /etc/init.d/$lcApplication: $!");
 	print FILE @initFile;
 	close FILE;
 
 	#Make the new init.d file executable
-	$log->info("$subname: Chmodding init.d file for $product.");
-	chmod 0755, "/etc/init.d/$product"
-	  or $log->logdie("Couldn't chmod /etc/init.d/$product: $!");
+	$log->info("$subname: Chmodding init.d file for $lcApplication.");
+	chmod 0755, "/etc/init.d/$lcApplication"
+	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
 
 }
 
@@ -3112,15 +3114,46 @@ sub uninstallJira {
 }
 
 ########################################
-#InstallCrowd                          #
+#Install Crowd                         #
 ########################################
 sub installCrowd {
+	my $application = "Crowd";
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/crowd/download-archive";
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up list of config items that are requred for this install to run
+	my @requiredConfigItems;
+	@requiredConfigItems = (
+		"crowd.appContext",                "crowd.enable",
+		"crowd.dataDir",                   "crowd.installDir",
+		"crowd.runAsService",              "crowd.serverPort",
+		"crowd.connectorPort",             "crowd.osUser",
+		"crowd.startCmd",                  "crowd.stopCmd",
+		"crowd.tomcatDir",                 "crowd.webappDir",
+		"crowd.homedirConfigSearchParam1", "crowd.homedirConfigSearchParam2"
+	);
+
+	#Run generic installer steps
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+
+	#Run any additional steps
+}
+
+########################################
+#InstallGeneric                        #
+########################################
+sub installGeneric {
 	my $input;
 	my $mode;
 	my $version;
 	my $application;
 	my $lcApplication;
 	my @downloadDetails;
+	my $downloadArchivesUrl;
+	my @requiredConfigItems;
 	my $archiveLocation;
 	my $osUser;
 	my $VERSIONLOOP = 1;
@@ -3130,14 +3163,11 @@ sub installCrowd {
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	
-	
+
 	$application         = $_[0];
 	$downloadArchivesUrl = $_[1];
-	$configUser =
-	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
-	@requiredConfigItems = @{ $_[3] };
-	
+	@requiredConfigItems = @{ $_[2] };
+
 	$lcApplication = lc($application);
 
 #Iterate through required config items, if an are missing force an update of configuration
@@ -3146,8 +3176,8 @@ sub installCrowd {
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
 		);
 		print
-"Some of the $aplication config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
-generateApplicationConfig( $application, "UPDATE", $globalConfig );
+"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
+		generateApplicationConfig( $application, "UPDATE", $globalConfig );
 		$log->info("Writing out config file to disk.");
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
@@ -3164,7 +3194,7 @@ generateApplicationConfig( $application, "UPDATE", $globalConfig );
 			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
-			generateApplicationConfig($application, "UPDATE", $globalConfig );
+			generateApplicationConfig( $application, "UPDATE", $globalConfig );
 			$log->info("Writing out config file to disk.");
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
@@ -3315,9 +3345,11 @@ is currently in use. We will continue however there is a good chance $applicatio
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("$lcApplication.installDir") . "/apache-tomcat/lib/" )
+			$globalConfig->param("$lcApplication.installDir")
+			  . "/apache-tomcat/lib/" )
 		  or $log->logdie(
-			"Unable to copy MySQL JDBC connector to $application lib directory: $!");
+"Unable to copy MySQL JDBC connector to $application lib directory: $!"
+		  );
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -3327,7 +3359,8 @@ is currently in use. We will continue however there is a good chance $applicatio
 			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
 			  . " to $osUser following MySQL JDBC install." );
 		chownRecursive( $osUser,
-			$globalConfig->param("$lcApplication.installDir") . "/apache-tomcat/lib/" );
+			$globalConfig->param("$lcApplication.installDir")
+			  . "/apache-tomcat/lib/" );
 	}
 
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -3336,44 +3369,54 @@ is currently in use. We will continue however there is a good chance $applicatio
 	$log->info("$subname: Backing up config files.");
 
 	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . "/apache-tomcat/conf/server.xml" );
+		  . $globalConfig->param("$lcApplication.tomcatDir")
+		  . "/conf/server.xml" );
 
 	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/$lcApplication-init.properties" );
+		  . $globalConfig->param("$lcApplication.webappDir")
+		  . "/WEB-INF/classes/$lcApplication-init.properties" );
 
 	print "Applying port numbers to server config...\n\n";
 
 	#Update the server config with the configured connector port
-	$log->info( "$subname: Updating the connector port to "
+	$log->info( "$subname: Updating the connector port in "
 		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir")
 		  . "/conf/server.xml" );
 	updateXMLAttribute(
 		$globalConfig->param("$lcApplication.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"///Connector", "port", $globalConfig->param("$lcApplication.connectorPort")
+		  . $globalConfig->param("$lcApplication.tomcatDir")
+		  . "/conf/server.xml",
+		"///Connector",
+		"port",
+		$globalConfig->param("$lcApplication.connectorPort")
 	);
 
 	#Update the server config with the configured server port
 	$log->info( "$subname: Updating the server port in "
 		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir")
 		  . "/conf/server.xml" );
 	updateXMLAttribute(
 		$globalConfig->param("$lcApplication.installDir")
-		  . "/apache-tomcat/conf/server.xml",
+		  . $globalConfig->param("$lcApplication.tomcatDir")
+		  . "/conf/server.xml",
 		"/Server", "port", $globalConfig->param("$lcApplication.serverPort")
 	);
 
 	#Apply application context
 	$log->info( "$subname: Applying application context to "
 		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir")
 		  . "/conf/server.xml" );
 	print "Applying application context to config...\n\n";
 	updateXMLAttribute(
 		$globalConfig->param("$lcApplication.installDir")
-		  . "/apache-tomcat/conf/server.xml",
+		  . $globalConfig->param("$lcApplication.tomcatDir")
+		  . "/conf/server.xml",
 		"//////Context",
 		"path",
-		getConfigItem( "crowd.appContext", $globalConfig )
+		getConfigItem( "$lcApplication.appContext", $globalConfig )
 	);
 
 	print "Applying home directory location to config...\n\n";
@@ -3385,10 +3428,11 @@ is currently in use. We will continue however there is a good chance $applicatio
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
 		$globalConfig->param("$lcApplication.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
-		"crowd.home",
-		"crowd.home=" . $globalConfig->param("$lcApplication.dataDir"),
-		"#crowd.home=/var/crowd-home"
+		  . $globalConfig->param("$lcApplication.webappDir")
+		  . "/WEB-INF/classes/$lcApplication-init.properties",
+		$globalConfig->param("$lcApplication.homedirConfigSearchParam1"),
+		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		$globalConfig->param("$lcApplication.homedirConfigSearchParam2")
 	);
 
 	print "Configuration settings have been applied successfully.\n\n";
@@ -3399,7 +3443,8 @@ is currently in use. We will continue however there is a good chance $applicatio
 	);
 	print
 "Checking if data directory exists and creating if not, please wait...\n\n";
-	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"), $osUser );
+	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
+		$osUser );
 
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
@@ -3412,7 +3457,9 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 	#If set to run as a service, set to run on startup
 	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
-		$log->info("$subname: Setting up $application as a service to run on startup.");
+		$log->info(
+			"$subname: Setting up $application as a service to run on startup."
+		);
 		manageService( "INSTALL", $lcApplication );
 	}
 	print "Services configured successfully.\n\n";
@@ -3425,9 +3472,11 @@ is currently in use. We will continue however there is a good chance $applicatio
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
 		system("service $lcApplication start");
-		print "\n" . "$application can now be accessed on http://localhost:"
+		print "\n"
+		  . "$application can now be accessed on http://localhost:"
 		  . $globalConfig->param("$lcApplication.connectorPort")
-		  . getConfigItem( "$lcApplication.appContext", $globalConfig ) . ".\n\n";
+		  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+		  . ".\n\n";
 		print "If you have any issues please check the log at "
 		  . $globalConfig->param("crowd.installDir")
 		  . "/apache-tomcat/logs/catalina.out\n\n";
@@ -3823,14 +3872,15 @@ sub uninstallCrowd {
 
 		#Remove install dir
 		print "Removing installation directory...\n\n";
-		$log->info( "$subname: Removing $globalConfig->param(" crowd
-			  . installDir ")." );
+		$log->info(
+			"$subname: Removing " . $globalConfig->param("crowd.installDir") );
 		if ( -d $globalConfig->param("crowd.installDir") ) {
 			rmtree( [ $globalConfig->param("crowd.installDir") ] );
 		}
 		else {
-			$log->warn( "$subname: Unable to remove $globalConfig->param(" crowd
-				  . installDir "). Directory does not exist." );
+			$log->warn( "$subname: Unable to remove "
+				  . $globalConfig->param("crowd.installDir")
+				  . ". Directory does not exist." );
 			print
 "Could not find configured install directory... possibly not installed?";
 		}
@@ -3841,15 +3891,16 @@ sub uninstallCrowd {
 		$input = getBooleanInput();
 		print "\n";
 		if ( $input eq "yes" ) {
-			$log->info(
-				"$subname: User selected to delete $globalConfig->param(" crowd
-				  . dataDir "). Deleting." );
+			$log->info( "$subname: User selected to delete "
+				  . $globalConfig->param("crowd.dataDir")
+				  . ". Deleting." );
 			rmtree( [ $globalConfig->param("crowd.dataDir") ] );
 		}
 		else {
 			$log->info(
-"$subname: User opted to keep the $application data directory at $globalConfig->param("
-				  crowd . dataDir ")." );
+"$subname: User opted to keep the $application data directory at "
+				  . $globalConfig->param("crowd.dataDir")
+				  . "." );
 			print
 "The data directory has not been deleted and is still available at "
 			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
@@ -4008,6 +4059,15 @@ sub generateCrowdConfig {
 
 	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
 		"Would you like to run Crowd as a service? yes/no.", "yes" );
+
+	#Set up some defaults for Crowd
+	$cfg->param( "crowd.startCmd",                  "start_crowd.sh" );
+	$cfg->param( "crowd.stopCmd",                   "stop_crowd.sh" );
+	$cfg->param( "crowd.tomcatDir",                 "/apache-tomcat" );
+	$cfg->param( "crowd.webappDir",                 "/crowd-webapp" );
+	$cfg->param( "crowd.homedirConfigSearchParam1", "crowd.home" );
+	$cfg->param( "crowd.homedirConfigSearchParam2",
+		"#crowd.home=/var/crowd-home" );
 
 }
 
@@ -4209,7 +4269,8 @@ sub downloadAtlassianInstaller {
 #Check if local file already exists and if it does, provide the option to skip downloading
 	if ( -e $absoluteFilePath ) {
 		$log->debug(
-			"$subname: The install file $abosulteFilePath already exists.");
+			"$subname: The install file $absoluteFilePath already exists.")
+		  ;
 		print "The local install file "
 		  . $absoluteFilePath
 		  . " already exists. Would you like to skip re-downloading the file: [yes]";
@@ -4680,7 +4741,7 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-#installCrowd();
+installCrowd();
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
