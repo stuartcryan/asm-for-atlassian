@@ -3545,7 +3545,6 @@ sub installGeneric {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
-
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		print
@@ -3703,10 +3702,11 @@ is currently in use. We will continue however there is a good chance $applicatio
 		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
-		createAndChownDirectory($globalConfig->param("$lcApplication.installDir")
+		createAndChownDirectory(
+			    $globalConfig->param("$lcApplication.installDir")
 			  . $globalConfig->param("$lcApplication.tomcatDir")
-			  . "/lib/", $osUser)
-		print
+			  . "/lib/", $osUser
+		  ) print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
 			    $globalConfig->param("$lcApplication.installDir")
