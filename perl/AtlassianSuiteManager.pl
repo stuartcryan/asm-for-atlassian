@@ -66,6 +66,7 @@ my $unsupported             = '';    #global flag for command line paramaters
 my $ignore_version_warnings = '';    #global flag for command line paramaters
 my $disable_config_checks   = '';    #global flag for command line paramaters
 my $verbose                 = '';    #global flag for command line paramaters
+my $globalArch;
 my $log = Log::Log4perl->get_logger("");
 
 ########################################
@@ -1042,6 +1043,9 @@ sub bootStrapper {
 			$input = <STDIN>;
 			generateSuiteConfig();
 		}
+
+		#Set the architecture once on startup
+		$globalArch = whichApplicationArchitecture();
 
 	  #Check for database setting that requires a JDBC Jar file to be downloaded
 	  #to ensure this is done, we die if the parameter is not defined.
@@ -2469,8 +2473,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 
 			#get the version specific URL to test
 			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication,
-				whichApplicationArchitecture(), $version );
+			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -2495,8 +2498,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "",
-			whichApplicationArchitecture() );
+		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
 		$version = $downloadDetails[1];
 
 	}
@@ -2506,7 +2508,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			whichApplicationArchitecture() );
+			$globalArch );
 	}
 
 	#chmod the file to be executable
@@ -2805,8 +2807,7 @@ sub upgradeGenericAtlassianBinary {
 
 			#get the version specific URL to test
 			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication,
-				whichApplicationArchitecture(), $version );
+			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -2831,8 +2832,7 @@ sub upgradeGenericAtlassianBinary {
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadVersionCheck =
-		  getLatestDownloadURL( $lcApplication,
-			whichApplicationArchitecture() );
+		  getLatestDownloadURL( $lcApplication, $globalArch );
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"),
 			$downloadVersionCheck[1] );
@@ -2862,8 +2862,7 @@ sub upgradeGenericAtlassianBinary {
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "",
-			whichApplicationArchitecture() );
+		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
 		$version = $downloadDetails[1];
 
 	}
@@ -2872,7 +2871,7 @@ sub upgradeGenericAtlassianBinary {
 	else {
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			whichApplicationArchitecture() );
+			$globalArch );
 	}
 
 	#chmod the file to be executable
@@ -3530,8 +3529,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 			#get the version specific URL to test
 			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication,
-				whichApplicationArchitecture(), $version );
+			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -3556,8 +3554,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "",
-			whichApplicationArchitecture() );
+		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
 		$version = $downloadDetails[1];
 
 	}
@@ -3567,7 +3564,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			whichApplicationArchitecture() );
+			$globalArch );
 	}
 
 	#Extract the download and move into place
@@ -3790,8 +3787,7 @@ sub upgradeCrowd {
 
 			#get the version specific URL to test
 			@downloadDetails =
-			  getVersionDownloadURL( $application,
-				whichApplicationArchitecture(), $version );
+			  getVersionDownloadURL( $application, $globalArch, $version );
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -3815,7 +3811,7 @@ sub upgradeCrowd {
 	#Get the URL for the version we want to download
 	if ( $mode eq "LATEST" ) {
 		@downloadVersionCheck =
-		  getLatestDownloadURL( $application, whichApplicationArchitecture() );
+		  getLatestDownloadURL( $application, $globalArch );
 		my $versionSupported =
 		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
 			$downloadVersionCheck[1] );
@@ -3846,8 +3842,7 @@ sub upgradeCrowd {
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "",
-			whichApplicationArchitecture() );
+		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
 
 	}
 
@@ -3856,7 +3851,7 @@ sub upgradeCrowd {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, $version,
-			whichApplicationArchitecture() );
+			$globalArch );
 	}
 
 	#Prompt user to stop existing service
@@ -4877,6 +4872,7 @@ sub generateSuiteConfig {
 	$log->info("Writing out config file to disk.");
 	$cfg->write($configFile);
 	loadSuiteConfig();
+	$globalArch = whichApplicationArchitecture();
 }
 
 ########################################
@@ -4947,7 +4943,7 @@ bootStrapper();
 
 #generateSuiteConfig();
 
-#getVersionDownloadURL( "confluence", whichApplicationArchitecture(), "4.2.7" );
+#getVersionDownloadURL( "confluence", $globalArch, "4.2.7" );
 
 #updateJavaOpts ("/opt/atlassian/confluence/bin/setenv.sh", "-Djavax.net.ssl.trustStore=/usr/java/default/jre/lib/security/cacerts");
 
@@ -4975,7 +4971,7 @@ installFisheye();
 #		"/fisheye" );
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
-#	whichApplicationArchitecture() );
+#	$globalArch );
 #downloadJDBCConnector("PostgreSQL");
 
 #upgradeCrowd();
@@ -4994,4 +4990,4 @@ installFisheye();
 #print isPortAvailable("22");
 
 #dumpSingleVarToLog( "var1", "varvalue" );
-#downloadLatestAtlassianSuite( whichApplicationArchitecture() );
+#downloadLatestAtlassianSuite( $globalArch );
