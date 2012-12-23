@@ -1845,6 +1845,63 @@ sub updateJavaOpts {
 }
 
 ########################################
+#updateEnvironmentVars                 #
+########################################
+sub updateEnvironmentVars {
+	my $inputFile;    #Must Be Absolute Path
+	my $searchFor;
+	my @data;
+	my $referenceVar;
+	my $newValue;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile    = $_[0];
+	$referenceVar = $_[1];
+	$newValue     = $_[2];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",    $inputFile );
+	dumpSingleVarToLog( "$subname" . "_referenceVar", $referenceVar );
+	dumpSingleVarToLog( "$subname" . "_newValue",     $newValue );
+
+	#Try to open the provided file
+	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for the definition of the provided variable
+	$searchFor = "$referenceVar=";
+	my ($index2) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+#If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
+	if ( !defined($index2) ) {
+		$log->info("$subname: $referenceVar= not found. Adding it in.");
+
+		push( @data, $referenceVar . "=\"" . $newValue . "\"\n" );
+	}
+
+	#Else update the line to have the new parameters that have been specified
+	else {
+		$log->info(
+"$subname: $referenceVar= exists, updating to have new value: $newValue."
+		);
+		$data[$index2] = $referenceVar . "=\"" . $newValue . "\"\n";
+	}
+
+	#Try to open file, output the lines that are in memory and close
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file $inputFile $!");
+	print FILE @data;
+	close FILE;
+
+}
+
+########################################
 #updateLineInFile                      #
 ########################################
 sub updateLineInFile {
@@ -2167,6 +2224,30 @@ sub backupFile {
 	$log->info( "$subname: Input file '$inputFile' copied to "
 		  . $inputFile . "_"
 		  . $date );
+}
+
+########################################
+#copyFile                            #
+########################################
+sub copyFile {
+	my $inputFile;
+	my $outputFile;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile  = $_[0];
+	$outputFile = $_[1];    #can also be a directory
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",  $inputFile );
+	dumpSingleVarToLog( "$subname" . "_outputFile", $outputFile );
+
+	#Create copy of input file to output file
+	$log->info("$subname: Copying $inputFile to $outputFile");
+	copy( $inputFile, $outputFile )
+	  or $log->logdie("File copy failed for $inputFile to $outputFile: $!");
+	$log->info("$subname: Input file '$inputFile' copied to $outputFile");
 }
 
 ########################################
@@ -2521,15 +2602,13 @@ Therefore script is terminating, please ensure port configuration is correct and
 
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
 		print
-"Database is configured as MySQL, copying the JDBC connector to Confluence install.\n\n";
+"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
-		copy( $globalConfig->param("general.dbJDBCJar"),
+		copyFile( $globalConfig->param("general.dbJDBCJar"),
 			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" )
-		  or $log->logdie(
-"Unable to copy MySQL JDBC connector to $application lib directory: $!"
-		  );
+		  ;
 
 		#Chown the files again
 		$log->info( "$subname: Chowning "
@@ -2852,11 +2931,8 @@ sub upgradeGenericAtlassianBinary {
 		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
-		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("$lcApplication.installDir") . "/lib/" )
-		  or $log->logdie(
-"Unable to copy MySQL JDBC connector to $application lib directory: $!"
-		  );
+		copyFile( $globalConfig->param("general.dbJDBCJar"),
+			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
 
 		#Chown the files again
 		$log->info( "$subname: Chowning "
@@ -3273,6 +3349,14 @@ sub installFisheye {
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
+	my $environmentProfileFile = "/etc/environment";
+	$log->info(
+"$subname: Inserting the FISHEYE_INST variable into '$environmentProfileFile'"
+		  . $serverXMLFile );
+	print
+	  "Inserting the FISHEYE_INST variable into '$environmentProfileFile'.\n\n";
+	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
+		$globalConfig->param("$lcApplication.dataDir") );
 
 	#Generate the init.d file
 	print
@@ -3283,8 +3367,24 @@ sub installFisheye {
 		$globalConfig->param("$lcApplication.installDir") . "/bin/",
 		"start.sh", "stop.sh" );
 
-	#Finally run generic post install tasks
-	postInstallGeneric($application);
+#Finally run generic post install tasks
+#postInstallGeneric($application);
+#For the time being we do not run using post installer generic as a reboot is required before service can start
+#If set to run as a service, set to run on startup
+	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
+		$log->info(
+			"$subname: Setting up $application as a service to run on startup."
+		);
+		manageService( "INSTALL", $lcApplication );
+	}
+	print "Services configured successfully.\n\n";
+
+	#Check if we should start the service
+	print
+"Installation has completed successfully. The service SHOULD NOT be started before rebooting the server to reload /etc/environment.\n"
+	  . "Please remember to reboot the server before attempting to start Fisheye. Press enter to continue.";
+	$input = <STDIN>;
+
 }
 
 ########################################
@@ -3489,13 +3589,10 @@ is currently in use. We will continue however there is a good chance $applicatio
 		);
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		copy( $globalConfig->param("general.dbJDBCJar"),
+		copyFile( $globalConfig->param("general.dbJDBCJar"),
 			    $globalConfig->param("$lcApplication.installDir")
 			  . $globalConfig->param("$lcApplication.tomcatDir")
-			  . "/lib/" )
-		  or $log->logdie(
-"Unable to copy MySQL JDBC connector to $application lib directory: $!"
-		  );
+			  . "/lib/" );
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -3509,6 +3606,15 @@ is currently in use. We will continue however there is a good chance $applicatio
 			  . $globalConfig->param("$lcApplication.tomcatDir")
 			  . "/lib/" );
 	}
+
+	#Create home/data directory if it does not exist
+	$log->info(
+"$subname: Checking for and creating $application home directory (if it does not exist)."
+	);
+	print
+"Checking if data directory exists and creating if not, please wait...\n\n";
+	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
+		$osUser );
 
 	#GenericInstallCompleted
 }
@@ -3529,15 +3635,6 @@ sub postInstallGeneric {
 
 	$lcApplication = lc($application);
 	$osUser        = $globalConfig->param("$lcApplication.osUser");
-
-	#Create home/data directory if it does not exist
-	$log->info(
-"$subname: Checking for and creating $application home directory (if it does not exist)."
-	);
-	print
-"Checking if data directory exists and creating if not, please wait...\n\n";
-	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
-		$osUser );
 
 	#If set to run as a service, set to run on startup
 	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
@@ -3809,10 +3906,10 @@ sub upgradeCrowd {
 		);
 		print
 "Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
-		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" )
-		  or $log->logdie(
-			"Unable to copy MySQL JDBC connector to Crowd lib directory: $!");
+		copyFile( $globalConfig->param("general.dbJDBCJar"),
+			    $globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . "/lib/" );
 
 		#Get UID and GID for the user
 		@uidGid = getUserUidGid($osUser);
@@ -4358,7 +4455,9 @@ sub downloadAtlassianInstaller {
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
 		if ( $input eq "no" ) {
-			return;
+			$log->logdie(
+"User opted not to continue as the version is not supported, please try again with a specific version which is supported, or check for an update to this script."
+			);
 		}
 		else {
 			$log->info(
@@ -4857,7 +4956,7 @@ bootStrapper();
 #	  "/opt/atlassian/stu", "crowd" );
 
 #installCrowd();
-#installFisheye();
+installFisheye();
 
 #updateXMLAttribute( "/opt/atlassian/fisheyestu/config.xml", "web-server", "context",
 #		"/fisheye" );
