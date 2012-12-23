@@ -3130,7 +3130,7 @@ sub installCrowd {
 	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
-	$lcApplication = lc($application);
+	$lcApplication       = lc($application);
 	@requiredConfigItems = (
 		"crowd.appContext",    "crowd.enable",
 		"crowd.dataDir",       "crowd.installDir",
@@ -3141,7 +3141,8 @@ sub installCrowd {
 
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
 
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -3183,8 +3184,7 @@ sub installCrowd {
 	print "Applying home directory location to config...\n\n";
 
 	#Edit Crowd config file to reference homedir
-	$log->info( "$subname: Applying homedir in "
-		  . $initPropertiesFile );
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
 		$initPropertiesFile,
@@ -3205,6 +3205,83 @@ sub installCrowd {
 	generateInitD( $lcApplication, $osUser,
 		$globalConfig->param("$lcApplication.installDir"),
 		"start_crowd.sh", "stop_crowd.sh" );
+
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
+}
+
+########################################
+#Install Fisheye                       #
+########################################
+sub installFisheye {
+	my $application = "Fisheye";
+	my $osUser;
+	my $serverXMLFile;
+	my $lcApplication;
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/fisheye/download-archives";
+	my $configFile;
+	my @requiredConfigItems;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up list of config items that are requred for this install to run
+	$lcApplication       = lc($application);
+	@requiredConfigItems = (
+		"fisheye.appContext",   "fisheye.enable",
+		"fisheye.dataDir",      "fisheye.installDir",
+		"fisheye.runAsService", "fisheye.osUser",
+		"fisheye.serverPort",   "fisheye.connectorPort",
+		"fisheye.tomcatDir",    "fisheye.webappDir",
+	);
+
+	#Run generic installer steps
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/config.xml";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile($serverXMLFile);
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "//http", "bind",
+		":" . $globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/config", "control-bind",
+		"127.0.0.1:" . $globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "/web-server", "context",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	#Run any additional steps
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir") . "/bin/",
+		"start.sh", "stop.sh" );
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -4101,12 +4178,12 @@ sub generateFisheyeConfig {
 		$mode,
 		$cfg,
 		"fisheye.dataDir",
-		"Please enter the directory Crowd's data will be stored in.",
+		"Please enter the directory Fisheye's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/fisheye"
 	);
 
 	genConfigItem( $mode, $cfg, "fisheye.osUser",
-		"Enter the user that Crowd will run under.", "fisheye" );
+		"Enter the user that Fisheye will run under.", "fisheye" );
 
 	genConfigItem(
 		$mode,
@@ -4115,12 +4192,13 @@ sub generateFisheyeConfig {
 "Enter the context that Fisheye should run under (i.e. /fisheye). Write NULL to blank out the context.",
 		"/fisheye"
 	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
 		"fisheye.connectorPort",
 "Please enter the Connector port Fisheye will run on (note this is the port you will access in the browser).",
-		"8095"
+		"8060"
 	);
 	checkConfiguredPort( "fisheye.connectorPort", $cfg );
 
@@ -4129,7 +4207,7 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.serverPort",
 "Please enter the SERVER port Fisheye will run on (note this is the control port not the port you access in a browser).",
-		"8000"
+		"8059"
 	);
 	checkConfiguredPort( "fisheye.serverPort", $cfg );
 
@@ -4144,14 +4222,11 @@ sub generateFisheyeConfig {
 	genBooleanConfigItem( $mode, $cfg, "fisheye.runAsService",
 		"Would you like to run Fisheye as a service? yes/no.", "yes" );
 
-	#Set up some defaults for Crowd
-	$cfg->param( "fisheye.startCmd",                  "start_crowd.sh" );
-	$cfg->param( "fisheye.stopCmd",                   "stop_crowd.sh" );
-	$cfg->param( "fisheye.tomcatDir",                 "/apache-tomcat" );
-	$cfg->param( "fisheye.webappDir",                 "/crowd-webapp" );
-	$cfg->param( "fisheye.homedirConfigSearchParam1", "crowd.home" );
-	$cfg->param( "fisheye.homedirConfigSearchParam2",
-		"#crowd.home=/var/crowd-home" );
+	#Set up some defaults for Fisheye
+	$cfg->param( "fisheye.tomcatDir", "" )
+	  ;    #we leave these blank deliberately due to the way Fishey works
+	$cfg->param( "fisheye.webappDir", "" )
+	  ;    #we leave these blank deliberately due to the way Fishey works
 
 }
 
@@ -4781,11 +4856,11 @@ bootStrapper();
 #extractAndMoveDownload( "/opt/atlassian/atlassian-crowd-2.5.1.tar.gz",
 #	  "/opt/atlassian/stu", "crowd" );
 
-installCrowd();
+#installCrowd();
+installFisheye();
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
-
 #downloadJDBCConnector("PostgreSQL");
 
 #upgradeCrowd();
