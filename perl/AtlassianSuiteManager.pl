@@ -1044,9 +1044,6 @@ sub bootStrapper {
 			generateSuiteConfig();
 		}
 
-		#Set the architecture once on startup
-		$globalArch = whichApplicationArchitecture();
-
 	  #Check for database setting that requires a JDBC Jar file to be downloaded
 	  #to ensure this is done, we die if the parameter is not defined.
 		else {
@@ -1088,6 +1085,9 @@ sub bootStrapper {
 			}
 		}
 	}
+
+	#Set the architecture once on startup
+	$globalArch = whichApplicationArchitecture();
 
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
@@ -3412,7 +3412,7 @@ sub installBamboo {
 	  "http://www.atlassian.com/software/bamboo/download-archives";
 	my $configFile;
 	my @requiredConfigItems;
-	my $64BitWrapperDownloadUrl =
+	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
 
@@ -3695,10 +3695,11 @@ is currently in use. We will continue however there is a good chance $applicatio
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
 		createAndChownDirectory(
-			    $globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir")
-			  . "/lib/", $osUser
-		  ) print
+			$globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir") . "/lib/",
+			$osUser
+		);
+		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
 			    $globalConfig->param("$lcApplication.installDir")
@@ -4684,7 +4685,7 @@ sub downloadLatestAtlassianSuite {
 }
 
 ########################################
-#Download Generic File                 #
+#Download File and Chown               #
 ########################################
 sub downloadFileAndChown {
 	my $destinationDir;    #This function assumes this directory already exists.
@@ -4694,6 +4695,7 @@ sub downloadFileAndChown {
 	my $input;
 	my $downloadResponseCode;
 	my $absoluteFilePath;
+	my $osUser;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4759,7 +4761,7 @@ sub downloadFileAndChown {
 		}
 		else {
 			$log->logdie(
-"Could not download $downloadURL version $version. HTTP Response received was: '$downloadResponseCode'"
+"Could not download $downloadURL. HTTP Response received was: '$downloadResponseCode'"
 			);
 		}
 	}
@@ -5175,3 +5177,8 @@ bootStrapper();
 
 #dumpSingleVarToLog( "var1", "varvalue" );
 #downloadLatestAtlassianSuite( $globalArch );
+#print downloadFileAndChown(
+#	"/opt/atlassian",
+#"https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2",
+#	"fisheye"
+#);
