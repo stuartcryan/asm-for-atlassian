@@ -3267,7 +3267,7 @@ sub installFisheye {
 	#Apply application context
 	$log->info( "$subname: Applying application context to " . $serverXMLFile );
 	print "Applying application context to config...\n\n";
-	updateXMLAttribute( $serverXMLFile, "/web-server", "context",
+	updateXMLAttribute( $serverXMLFile, "web-server", "context",
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
 
 	print "Configuration settings have been applied successfully.\n\n";
@@ -4857,7 +4857,10 @@ bootStrapper();
 #	  "/opt/atlassian/stu", "crowd" );
 
 #installCrowd();
-installFisheye();
+#installFisheye();
+
+#updateXMLAttribute( "/opt/atlassian/fisheyestu/config.xml", "web-server", "context",
+#		"/fisheye" );
 
 #downloadAtlassianInstaller( "SPECIFIC", "crowd", "2.5.2",
 #	whichApplicationArchitecture() );
