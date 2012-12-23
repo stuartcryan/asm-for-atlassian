@@ -3118,16 +3118,19 @@ sub uninstallJira {
 ########################################
 sub installCrowd {
 	my $application = "Crowd";
+	my $osUser;
+	my $lcApplication;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/crowd/download-archive";
 	my $serverXMLFile;
 	my $initPropertiesFile;
+	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
+	$lcApplication = lc($application);
 	@requiredConfigItems = (
 		"crowd.appContext",    "crowd.enable",
 		"crowd.dataDir",       "crowd.installDir",
@@ -3138,6 +3141,7 @@ sub installCrowd {
 
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -3480,7 +3484,7 @@ sub postInstallGeneric {
 		  . $globalConfig->param("$lcApplication.connectorPort")
 		  . getConfigItem( "$lcApplication.appContext", $globalConfig )
 		  . ".\n\n";
-		print "If you have any issues please check the application logs";
+		print "If you have any issues please check the \n\n";
 	}
 
 }
