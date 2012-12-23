@@ -2607,8 +2607,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" )
-		  ;
+			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
 
 		#Chown the files again
 		$log->info( "$subname: Chowning "
@@ -3290,6 +3289,7 @@ sub installCrowd {
 #Install Fisheye                       #
 ########################################
 sub installFisheye {
+	my $input;
 	my $application = "Fisheye";
 	my $osUser;
 	my $serverXMLFile;
@@ -3318,10 +3318,13 @@ sub installFisheye {
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
 	#Perform application specific configuration
-	print "Applying configuration settings to the install, please wait...\n\n";
-
+	print "Copying example config file, please wait...\n\n";
 	$serverXMLFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/config.xml";
+	  $globalConfig->param("$lcApplication.dataDir") . "/config.xml";
+	copyFile( $globalConfig->param("$lcApplication.installDir") . "/config.xml",
+		$serverXMLFile );
+
+	print "Applying configuration settings to the install, please wait...\n\n";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
