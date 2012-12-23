@@ -3120,6 +3120,8 @@ sub installCrowd {
 	my $application = "Crowd";
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/crowd/download-archive";
+	my $serverXMLFile;
+	my $initPropertiesFile;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3127,19 +3129,81 @@ sub installCrowd {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"crowd.appContext",                "crowd.enable",
-		"crowd.dataDir",                   "crowd.installDir",
-		"crowd.runAsService",              "crowd.serverPort",
-		"crowd.connectorPort",             "crowd.osUser",
-		"crowd.startCmd",                  "crowd.stopCmd",
-		"crowd.tomcatDir",                 "crowd.webappDir",
-		"crowd.homedirConfigSearchParam1", "crowd.homedirConfigSearchParam2"
+		"crowd.appContext",    "crowd.enable",
+		"crowd.dataDir",       "crowd.installDir",
+		"crowd.runAsService",  "crowd.serverPort",
+		"crowd.connectorPort", "crowd.osUser",
+		"crowd.tomcatDir",     "crowd.webappDir",
 	);
 
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . $globalConfig->param("$lcApplication.tomcatDir")
+	  . "/conf/server.xml";
+	$initPropertiesFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . $globalConfig->param("$lcApplication.webappDir")
+	  . "/WEB-INF/classes/$lcApplication-init.properties";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile($serverXMLFile);
+
+	backupFile($initPropertiesFile);
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Edit Crowd config file to reference homedir
+	$log->info( "$subname: Applying homedir in "
+		  . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"crowd.home",
+		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		"#crowd.home=/var/crowd-home"
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
+
 	#Run any additional steps
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
+		"start_crowd.sh", "stop_crowd.sh" );
+
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
 }
 
 ########################################
@@ -3345,8 +3409,9 @@ is currently in use. We will continue however there is a good chance $applicatio
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copy( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param("$lcApplication.installDir")
-			  . "/apache-tomcat/lib/" )
+			    $globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . "/lib/" )
 		  or $log->logdie(
 "Unable to copy MySQL JDBC connector to $application lib directory: $!"
 		  );
@@ -3359,83 +3424,30 @@ is currently in use. We will continue however there is a good chance $applicatio
 			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
 			  . " to $osUser following MySQL JDBC install." );
 		chownRecursive( $osUser,
-			$globalConfig->param("$lcApplication.installDir")
-			  . "/apache-tomcat/lib/" );
+			    $globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . "/lib/" );
 	}
 
-	print "Applying configuration settings to the install, please wait...\n\n";
+	#GenericInstallCompleted
+}
 
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
+########################################
+#PostInstallGeneric                    #
+########################################
+sub postInstallGeneric {
+	my $application;
+	my $lcApplication;
+	my $input;
+	my $osUser;
+	my $subname = ( caller(0) )[3];
 
-	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.tomcatDir")
-		  . "/conf/server.xml" );
+	$log->info("BEGIN: $subname");
 
-	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.webappDir")
-		  . "/WEB-INF/classes/$lcApplication-init.properties" );
+	$application = $_[0];
 
-	print "Applying port numbers to server config...\n\n";
-
-	#Update the server config with the configured connector port
-	$log->info( "$subname: Updating the connector port in "
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.tomcatDir")
-		  . "/conf/server.xml" );
-	updateXMLAttribute(
-		$globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.tomcatDir")
-		  . "/conf/server.xml",
-		"///Connector",
-		"port",
-		$globalConfig->param("$lcApplication.connectorPort")
-	);
-
-	#Update the server config with the configured server port
-	$log->info( "$subname: Updating the server port in "
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.tomcatDir")
-		  . "/conf/server.xml" );
-	updateXMLAttribute(
-		$globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.tomcatDir")
-		  . "/conf/server.xml",
-		"/Server", "port", $globalConfig->param("$lcApplication.serverPort")
-	);
-
-	#Apply application context
-	$log->info( "$subname: Applying application context to "
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.tomcatDir")
-		  . "/conf/server.xml" );
-	print "Applying application context to config...\n\n";
-	updateXMLAttribute(
-		$globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.tomcatDir")
-		  . "/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig )
-	);
-
-	print "Applying home directory location to config...\n\n";
-
-	#Edit Crowd config file to reference homedir
-	$log->info( "$subname: Applying homedir in"
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . " in /conf/server.xml" );
-	print "Applying home directory to config...\n\n";
-	updateLineInFile(
-		$globalConfig->param("$lcApplication.installDir")
-		  . $globalConfig->param("$lcApplication.webappDir")
-		  . "/WEB-INF/classes/$lcApplication-init.properties",
-		$globalConfig->param("$lcApplication.homedirConfigSearchParam1"),
-		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
-		$globalConfig->param("$lcApplication.homedirConfigSearchParam2")
-	);
-
-	print "Configuration settings have been applied successfully.\n\n";
+	$lcApplication = lc($application);
+	$osUser        = $globalConfig->param("$lcApplication.osUser");
 
 	#Create home/data directory if it does not exist
 	$log->info(
@@ -3445,15 +3457,6 @@ is currently in use. We will continue however there is a good chance $applicatio
 "Checking if data directory exists and creating if not, please wait...\n\n";
 	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
 		$osUser );
-
-	print
-"Setting up initd files and run as a service (if configured) please wait...\n\n";
-	$log->info("$subname: Generating init.d file for $application.");
-
-	#Generate the init.d file
-	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
-		"start_crowd.sh", "stop_crowd.sh" );
 
 	#If set to run as a service, set to run on startup
 	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
@@ -3477,10 +3480,9 @@ is currently in use. We will continue however there is a good chance $applicatio
 		  . $globalConfig->param("$lcApplication.connectorPort")
 		  . getConfigItem( "$lcApplication.appContext", $globalConfig )
 		  . ".\n\n";
-		print "If you have any issues please check the log at "
-		  . $globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/logs/catalina.out\n\n";
+		print "If you have any issues please check the application logs";
 	}
+
 }
 
 ########################################
@@ -4061,13 +4063,8 @@ sub generateCrowdConfig {
 		"Would you like to run Crowd as a service? yes/no.", "yes" );
 
 	#Set up some defaults for Crowd
-	$cfg->param( "crowd.startCmd",                  "start_crowd.sh" );
-	$cfg->param( "crowd.stopCmd",                   "stop_crowd.sh" );
-	$cfg->param( "crowd.tomcatDir",                 "/apache-tomcat" );
-	$cfg->param( "crowd.webappDir",                 "/crowd-webapp" );
-	$cfg->param( "crowd.homedirConfigSearchParam1", "crowd.home" );
-	$cfg->param( "crowd.homedirConfigSearchParam2",
-		"#crowd.home=/var/crowd-home" );
+	$cfg->param( "crowd.tomcatDir", "/apache-tomcat" );
+	$cfg->param( "crowd.webappDir", "/crowd-webapp" );
 
 }
 
@@ -4095,15 +4092,43 @@ sub generateFisheyeConfig {
 		"Please enter the directory Fisheye will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/fisheye"
 	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
 		"fisheye.dataDir",
-		"Please enter the directory Fisheye's data will be stored in.",
+		"Please enter the directory Crowd's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/fisheye"
 	);
-	genConfigItem( $mode, $cfg, "fisheye.serverPort",
-		"Please enter the SERVER port Fisheye will run on.", "8060" );
+
+	genConfigItem( $mode, $cfg, "fisheye.osUser",
+		"Enter the user that Crowd will run under.", "fisheye" );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.appContext",
+"Enter the context that Fisheye should run under (i.e. /fisheye). Write NULL to blank out the context.",
+		"/fisheye"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.connectorPort",
+"Please enter the Connector port Fisheye will run on (note this is the port you will access in the browser).",
+		"8095"
+	);
+	checkConfiguredPort( "fisheye.connectorPort", $cfg );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.serverPort",
+"Please enter the SERVER port Fisheye will run on (note this is the control port not the port you access in a browser).",
+		"8000"
+	);
+	checkConfiguredPort( "fisheye.serverPort", $cfg );
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -4111,6 +4136,18 @@ sub generateFisheyeConfig {
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
 		""
 	);
+
+	genBooleanConfigItem( $mode, $cfg, "fisheye.runAsService",
+		"Would you like to run Fisheye as a service? yes/no.", "yes" );
+
+	#Set up some defaults for Crowd
+	$cfg->param( "fisheye.startCmd",                  "start_crowd.sh" );
+	$cfg->param( "fisheye.stopCmd",                   "stop_crowd.sh" );
+	$cfg->param( "fisheye.tomcatDir",                 "/apache-tomcat" );
+	$cfg->param( "fisheye.webappDir",                 "/crowd-webapp" );
+	$cfg->param( "fisheye.homedirConfigSearchParam1", "crowd.home" );
+	$cfg->param( "fisheye.homedirConfigSearchParam2",
+		"#crowd.home=/var/crowd-home" );
 
 }
 
@@ -4269,8 +4306,7 @@ sub downloadAtlassianInstaller {
 #Check if local file already exists and if it does, provide the option to skip downloading
 	if ( -e $absoluteFilePath ) {
 		$log->debug(
-			"$subname: The install file $absoluteFilePath already exists.")
-		  ;
+			"$subname: The install file $absoluteFilePath already exists.");
 		print "The local install file "
 		  . $absoluteFilePath
 		  . " already exists. Would you like to skip re-downloading the file: [yes]";
