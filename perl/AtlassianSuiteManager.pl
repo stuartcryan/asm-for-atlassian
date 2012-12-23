@@ -2203,15 +2203,18 @@ sub isSupportedVersion {
 ########################################
 sub backupFile {
 	my $inputFile;
+	my $osUser;
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$inputFile = $_[0];
+	$osUser    = $_[1];
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
+	dumpSingleVarToLog( "$subname" . "_osUser",    $osUser );
 
 	#Create copy of input file with date_time appended to the end of filename
 	$log->info(
@@ -2224,6 +2227,8 @@ sub backupFile {
 	$log->info( "$subname: Input file '$inputFile' copied to "
 		  . $inputFile . "_"
 		  . $date );
+
+	chownFile( $osUser, $inputFile . "_" . $date );
 }
 
 ########################################
@@ -2623,8 +2628,10 @@ Therefore script is terminating, please ensure port configuration is correct and
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . "/conf/server.xml" );
+	backupFile(
+		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		$osUser
+	);
 
 	print "Applying the configured application context...\n\n";
 	$log->info( "$subname: Applying application context to "
@@ -2946,8 +2953,10 @@ sub upgradeGenericAtlassianBinary {
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile( $globalConfig->param("$lcApplication.installDir")
-		  . "/conf/server.xml" );
+	backupFile(
+		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		$osUser
+	);
 
 	print "Applying the configured application context...\n\n";
 	$log->info( "$subname: Applying application context to "
@@ -3234,9 +3243,9 @@ sub installCrowd {
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile($serverXMLFile);
+	backupFile( $serverXMLFile, $osUser );
 
-	backupFile($initPropertiesFile);
+	backupFile( $initPropertiesFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
@@ -3323,13 +3332,14 @@ sub installFisheye {
 	  $globalConfig->param("$lcApplication.dataDir") . "/config.xml";
 	copyFile( $globalConfig->param("$lcApplication.installDir") . "/config.xml",
 		$serverXMLFile );
+	chownFile( $osUser, $serverXMLFile );
 
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile($serverXMLFile);
+	backupFile( $serverXMLFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
@@ -3596,9 +3606,6 @@ is currently in use. We will continue however there is a good chance $applicatio
 			    $globalConfig->param("$lcApplication.installDir")
 			  . $globalConfig->param("$lcApplication.tomcatDir")
 			  . "/lib/" );
-
-		#Get UID and GID for the user
-		@uidGid = getUserUidGid($osUser);
 
 		#Chown the files again
 		$log->info( "$subname: Chowning "
@@ -3914,9 +3921,6 @@ sub upgradeCrowd {
 			  . $globalConfig->param("$lcApplication.tomcatDir")
 			  . "/lib/" );
 
-		#Get UID and GID for the user
-		@uidGid = getUserUidGid($osUser);
-
 		#Chown the files again
 		$log->info( "$subname: Chowning "
 			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
@@ -3930,11 +3934,17 @@ sub upgradeCrowd {
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile( $globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml" );
+	backupFile(
+		$globalConfig->param("crowd.installDir")
+		  . "/apache-tomcat/conf/server.xml",
+		$osUser
+	);
 
-	backupFile( $globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties" );
+	backupFile(
+		$globalConfig->param("crowd.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		$osUser
+	);
 
 	print "Applying port numbers to server config...\n\n";
 
