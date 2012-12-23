@@ -3400,6 +3400,112 @@ sub installFisheye {
 }
 
 ########################################
+#Install Bamboo                        #
+########################################
+sub installBamboo {
+	my $input;
+	my $application = "Bamboo";
+	my $osUser;
+	my $serverXMLFile;
+	my $lcApplication;
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/bamboo/download-archives";
+	my $configFile;
+	my @requiredConfigItems;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up list of config items that are requred for this install to run
+	$lcApplication       = lc($application);
+	@requiredConfigItems = (
+		"bamboo.appContext",   "bamboo.enable",
+		"bamboo.dataDir",      "bamboo.installDir",
+		"bamboo.runAsService", "bamboo.osUser",
+		"bamboo.serverPort",   "bamboo.connectorPort",
+		"bamboo.tomcatDir",    "bamboo.webappDir",
+	);
+
+	#Run generic installer steps
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Copying example config file, please wait...\n\n";
+	$serverXMLFile =
+	  $globalConfig->param("$lcApplication.dataDir") . "/config.xml";
+	copyFile( $globalConfig->param("$lcApplication.installDir") . "/config.xml",
+		$serverXMLFile );
+	chownFile( $osUser, $serverXMLFile );
+
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "//http", "bind",
+		":" . $globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/config", "control-bind",
+		"127.0.0.1:" . $globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "web-server", "context",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	#Run any additional steps
+	my $environmentProfileFile = "/etc/environment";
+	$log->info(
+"$subname: Inserting the FISHEYE_INST variable into '$environmentProfileFile'"
+		  . $serverXMLFile );
+	print
+	  "Inserting the FISHEYE_INST variable into '$environmentProfileFile'.\n\n";
+	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
+		$globalConfig->param("$lcApplication.dataDir") );
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir") . "/bin/",
+		"start.sh", "stop.sh" );
+
+#Finally run generic post install tasks
+#postInstallGeneric($application);
+#For the time being we do not run using post installer generic as a reboot is required before service can start
+#If set to run as a service, set to run on startup
+	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
+		$log->info(
+			"$subname: Setting up $application as a service to run on startup."
+		);
+		manageService( "INSTALL", $lcApplication );
+	}
+	print "Services configured successfully.\n\n";
+
+	#Check if we should start the service
+	print
+"Installation has completed successfully. The service SHOULD NOT be started before rebooting the server to reload /etc/environment.\n"
+	  . "Please remember to reboot the server before attempting to start Fisheye. Press enter to continue.";
+	$input = <STDIN>;
+
+}
+
+########################################
 #InstallGeneric                        #
 ########################################
 sub installGeneric {
@@ -3597,6 +3703,9 @@ is currently in use. We will continue however there is a good chance $applicatio
 		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
+		createAndChownDirectory($globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . "/lib/", $osUser)
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
@@ -4965,7 +5074,7 @@ bootStrapper();
 #	  "/opt/atlassian/stu", "crowd" );
 
 #installCrowd();
-installFisheye();
+#installFisheye();
 
 #updateXMLAttribute( "/opt/atlassian/fisheyestu/config.xml", "web-server", "context",
 #		"/fisheye" );
