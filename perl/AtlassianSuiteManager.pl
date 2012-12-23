@@ -3406,12 +3406,14 @@ sub installBamboo {
 	my $input;
 	my $application = "Bamboo";
 	my $osUser;
-	my $serverXMLFile;
+	my $serverConfigFile;
 	my $lcApplication;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/bamboo/download-archives";
 	my $configFile;
 	my @requiredConfigItems;
+	my $64BitWrapperDownloadUrl =
+"https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3432,49 +3434,38 @@ sub installBamboo {
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
 	#Perform application specific configuration
-	print "Copying example config file, please wait...\n\n";
-	$serverXMLFile =
-	  $globalConfig->param("$lcApplication.dataDir") . "/config.xml";
-	copyFile( $globalConfig->param("$lcApplication.installDir") . "/config.xml",
-		$serverXMLFile );
-	chownFile( $osUser, $serverXMLFile );
-
 	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverConfigFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile( $serverXMLFile, $osUser );
+	backupFile( $serverConfigFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
-	#Update the server config with the configured connector port
-	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
-	updateXMLAttribute( $serverXMLFile, "//http", "bind",
-		":" . $globalConfig->param("$lcApplication.connectorPort") );
-
-	#Update the server config with the configured server port
-	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
-	updateXMLAttribute( $serverXMLFile, "/config", "control-bind",
-		"127.0.0.1:" . $globalConfig->param("$lcApplication.serverPort") );
+	updateLineInFile(
+		$serverConfigFile,
+		"wrapper.app.parameter.2",
+		"wrapper.app.parameter.2="
+		  . $globalConfig->param("$lcApplication.connectorPort"),
+		""
+	);
 
 	#Apply application context
-	$log->info( "$subname: Applying application context to " . $serverXMLFile );
-	print "Applying application context to config...\n\n";
-	updateXMLAttribute( $serverXMLFile, "web-server", "context",
-		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+	updateLineInFile(
+		$serverConfigFile,
+		"wrapper.app.parameter.4",
+		"wrapper.app.parameter.4="
+		  . $globalConfig->param("$lcApplication.context"),
+		""
+	);
 
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
-	my $environmentProfileFile = "/etc/environment";
-	$log->info(
-"$subname: Inserting the FISHEYE_INST variable into '$environmentProfileFile'"
-		  . $serverXMLFile );
-	print
-	  "Inserting the FISHEYE_INST variable into '$environmentProfileFile'.\n\n";
-	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
-		$globalConfig->param("$lcApplication.dataDir") );
 
 	#Generate the init.d file
 	print
@@ -3545,6 +3536,7 @@ sub installGeneric {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
+
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		print
@@ -4687,6 +4679,89 @@ sub downloadLatestAtlassianSuite {
 		getstore( $downloadDetails[0],
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ] );
+	}
+
+}
+
+########################################
+#Download Generic File                 #
+########################################
+sub downloadFileAndChown {
+	my $destinationDir;    #This function assumes this directory already exists.
+	my $downloadURL;
+	my $architecture;
+	my $parsedURL;
+	my $input;
+	my $downloadResponseCode;
+	my $absoluteFilePath;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$destinationDir = $_[0];
+	$downloadURL    = $_[1];
+	$osUser         = $_[2];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_destinationDir", $destinationDir );
+	dumpSingleVarToLog( "$subname" . "_downloadURL",    $downloadURL );
+	dumpSingleVarToLog( "$subname" . "_osUser",         $osUser );
+
+	print "Beginning download of $downloadURL please wait...\n\n";
+
+	#Parse the URL so that we can get specific sections of it
+	$parsedURL = URI->new($downloadURL);
+	my @bits = $parsedURL->path_segments();
+
+	#Set the download to show progress as we download
+	$ua->show_progress(1);
+
+	$absoluteFilePath = $destinationDir . "/" . $bits[ @bits - 1 ];
+	dumpSingleVarToLog( "$subname" . "_absoluteFilePath", $absoluteFilePath );
+
+#Check if local file already exists and if it does, provide the option to skip downloading
+	if ( -e $absoluteFilePath ) {
+		$log->debug(
+			"$subname: The download file $absoluteFilePath already exists.");
+		print "The local download file "
+		  . $absoluteFilePath
+		  . " already exists. Would you like to skip re-downloading the file: [yes]";
+
+		$input = getBooleanInput();
+		dumpSingleVarToLog( "$subname" . "_input", $input );
+		print "\n";
+		if ( $input eq "yes" || $input eq "default" ) {
+			$log->debug(
+"$subname: User opted to skip redownloading the file $downloadURL."
+			);
+			chownFile( $osUser, $absoluteFilePath );
+			return $absoluteFilePath;
+		}
+	}
+	else {
+		$log->debug("$subname: Beginning download.");
+
+		#Download the file and store the HTTP response code
+		print "Downloading file $downloadURL...\n\n";
+		$downloadResponseCode = getstore( $downloadURL, $absoluteFilePath );
+		dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
+			$downloadResponseCode );
+
+#Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
+		if ( is_success($downloadResponseCode) ) {
+			$log->debug(
+"$subname: Download completed successfully with HTTP response code $downloadResponseCode."
+			);
+			print "\n";
+			print "Download completed successfully.\n\n";
+			chownFile( $osUser, $absoluteFilePath );
+			return $absoluteFilePath;
+		}
+		else {
+			$log->logdie(
+"Could not download $downloadURL version $version. HTTP Response received was: '$downloadResponseCode'"
+			);
+		}
 	}
 
 }
