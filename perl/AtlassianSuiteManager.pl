@@ -1795,7 +1795,7 @@ sub updateJavaOpts {
 	my $count = grep( /.*ATLASMGR_JAVA_OPTS.*/, $data[$index1] );
 	if ( $count == 0 ) {
 		$log->info(
-"$subname: ATLASMGR_JAVA_OPTS does not yet exists, splitting string to insert it."
+"$subname: ATLASMGR_JAVA_OPTS does not yet exist, splitting string to insert it."
 		);
 		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
 			my $result1 = $1;
@@ -2595,6 +2595,13 @@ Therefore script is terminating, please ensure port configuration is correct and
 		warn
 "Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
 	}
+
+	#Apply the JavaOpts configuration (if any)
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . "/bin/setenv.sh",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
 
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser =
@@ -5098,10 +5105,10 @@ sub displayMenu {
 
       Please select from the following options:
 
-      1) server1
-      2) server5
-      3) server7
-      4) server8
+      1) Install Jira
+      2) Install Confluence
+      3) None
+      D) Download Latest Atlassian Suite FULL (Testing & Debugging)
       Q) Quit
 
 END_TXT
@@ -5123,6 +5130,19 @@ END_TXT
 			$LOOP = 0;
 			exit 0;
 		}
+		elsif ( $choice eq "1\n" ) {
+			system 'clear';
+			installJira();
+		}
+		elsif ( $choice eq "2\n" ) {
+			system 'clear';
+			installConfluence();
+		}elsif ( lc($choice) eq "d\n" ) {
+			system 'clear';
+			downloadLatestAtlassianSuite( $globalArch );
+		}
+		
+		
 	}
 }
 bootStrapper();
@@ -5182,3 +5202,4 @@ bootStrapper();
 #"https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2",
 #	"fisheye"
 #);
+displayMenu();
