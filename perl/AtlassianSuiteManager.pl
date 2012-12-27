@@ -3419,6 +3419,7 @@ sub installBamboo {
 	  "http://www.atlassian.com/software/bamboo/download-archives";
 	my $configFile;
 	my @requiredConfigItems;
+	my $WrapperDownloadFile;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
@@ -3431,8 +3432,7 @@ sub installBamboo {
 		"bamboo.appContext",   "bamboo.enable",
 		"bamboo.dataDir",      "bamboo.installDir",
 		"bamboo.runAsService", "bamboo.osUser",
-		"bamboo.serverPort",   "bamboo.connectorPort",
-		"bamboo.tomcatDir",    "bamboo.webappDir",
+		"bamboo.connectorPort"
 	);
 
 	#Run generic installer steps
@@ -3466,41 +3466,38 @@ sub installBamboo {
 		$serverConfigFile,
 		"wrapper.app.parameter.4",
 		"wrapper.app.parameter.4="
-		  . $globalConfig->param("$lcApplication.context"),
+		  . $globalConfig->param("$lcApplication.appContext"),
 		""
 	);
 
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
+	$WrapperDownloadFile =
+	  downloadFileAndChown( $globalConfig->param("$lcApplication.installDir"),
+		$WrapperDownloadUrlFor64Bit, $osUser );
+
+	rmtree(
+		[ $globalConfig->param("$lcApplication.installDir") . "/wrapper" ] );
+
+	extractAndMoveDownload( $WrapperDownloadFile,
+		$globalConfig->param("$lcApplication.installDir") . "/wrapper",
+		$osUser, "" );
 
 	#Generate the init.d file
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir") . "/bin/",
-		"start.sh", "stop.sh" );
+	generateInitD(
+		$lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
+		"bamboo.sh start",
+		"bamboo.sh stop"
+	);
 
-#Finally run generic post install tasks
-#postInstallGeneric($application);
-#For the time being we do not run using post installer generic as a reboot is required before service can start
-#If set to run as a service, set to run on startup
-	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
-		$log->info(
-			"$subname: Setting up $application as a service to run on startup."
-		);
-		manageService( "INSTALL", $lcApplication );
-	}
-	print "Services configured successfully.\n\n";
-
-	#Check if we should start the service
-	print
-"Installation has completed successfully. The service SHOULD NOT be started before rebooting the server to reload /etc/environment.\n"
-	  . "Please remember to reboot the server before attempting to start Fisheye. Press enter to continue.";
-	$input = <STDIN>;
-
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
 }
 
 ########################################
@@ -4515,6 +4512,78 @@ sub generateConfluenceConfig {
 }
 
 ########################################
+#GenerateBambooConfig                  #
+########################################
+sub generateBambooConfig {
+	my $cfg;
+	my $mode;
+	my $defaultValue;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$mode = $_[0];
+	$cfg  = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode", $mode );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.installDir",
+		"Please enter the directory Bamboo will be installed into.",
+		$cfg->param("general.rootInstallDir") . "/bamboo"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.dataDir",
+		"Please enter the directory Bamboo's data will be stored in.",
+		$cfg->param("general.rootDataDir") . "/bamboo"
+	);
+	genConfigItem( $mode, $cfg, "bamboo.osUser",
+		"Enter the user that Bamboo will run under.", "bamboo" );
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.appContext",
+"Enter the context that Bamboo should run under (i.e. /bamboo). Write NULL to blank out the context.",
+		"/bamboo"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.connectorPort",
+"Please enter the Connector port Bamboo will run on (note this is the port you will access in the browser).",
+		"8085"
+	);
+	checkConfiguredPort( "bamboo.connectorPort", $cfg );
+
+#	genConfigItem(
+#		$mode,
+#		$cfg,
+#		"confluence.serverPort",
+#"Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).",
+#		"8000"
+#	);
+#
+#	checkConfiguredPort( "confluence.serverPort", $cfg );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.javaParams",
+"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		""
+	);
+
+	genBooleanConfigItem( $mode, $cfg, "bamboo.runAsService",
+		"Would you like to run Bamboo as a service? yes/no.", "yes" );
+
+}
+
+########################################
 #Download Atlassian Installer          #
 ########################################
 sub downloadAtlassianInstaller {
@@ -5107,7 +5176,7 @@ sub displayMenu {
 
       1) Install Jira
       2) Install Confluence
-      3) None
+      3) Install Bamboo
       D) Download Latest Atlassian Suite FULL (Testing & Debugging)
       Q) Quit
 
@@ -5137,12 +5206,16 @@ END_TXT
 		elsif ( $choice eq "2\n" ) {
 			system 'clear';
 			installConfluence();
-		}elsif ( lc($choice) eq "d\n" ) {
-			system 'clear';
-			downloadLatestAtlassianSuite( $globalArch );
 		}
-		
-		
+		elsif ( lc($choice) eq "d\n" ) {
+			system 'clear';
+			downloadLatestAtlassianSuite($globalArch);
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			installBamboo();
+		}
+
 	}
 }
 bootStrapper();
