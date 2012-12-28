@@ -1887,24 +1887,66 @@ sub updateJavaMemParameter {
 	#Search for the provided string in the file array
 	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
 
+	my $count = grep( /.*$referenceParameter.*/, $data[$index1] );
+	dumpSingleVarToLog( "$subname" . "_count",          $count );
 	dumpSingleVarToLog( "$subname" . " ORIGINAL LINE=", $data[$index1] );
 
-	$log->info("$subname: Splitting string to update the memory value.");
-	if ( $data[$index1] =~ /^(.*?)($referenceParameter)(.*?)([a-zA-Z])(.*)/ ) {
-		my $result1 = $1; #should equal everything before $referenceParameter
-		my $result2 = $2; #should equal $referenceParameter
-		my $result3 = $3; #should equal the memory value we are trying to change
-		my $result4 = $4
-		  ;  #should equal the letter i.e. 'm' of the reference memory attribute
-		my $result5 = $5;    #should equal the remainder of the line
-		dumpSingleVarToLog( "$subname" . " _result1", $result1 );
-		dumpSingleVarToLog( "$subname" . " _result2", $result2 );
-		dumpSingleVarToLog( "$subname" . " _result3", $result3 );
-		dumpSingleVarToLog( "$subname" . " _result4", $result4 );
-		dumpSingleVarToLog( "$subname" . " _result5", $result5 );
+	if ( $count == 1 ) {
+		$log->info("$subname: Splitting string to update the memory value.");
+		if (
+			$data[$index1] =~ /^(.*?)($referenceParameter)(.*?)([a-zA-Z])(.*)/ )
+		{
+			my $result1 =
+			  $1;    #should equal everything before $referenceParameter
+			my $result2 = $2;    #should equal $referenceParameter
+			my $result3 =
+			  $3;    #should equal the memory value we are trying to change
+			my $result4 = $4
+			  ; #should equal the letter i.e. 'm' of the reference memory attribute
+			my $result5 = $5;    #should equal the remainder of the line
+			dumpSingleVarToLog( "$subname" . " _result1", $result1 );
+			dumpSingleVarToLog( "$subname" . " _result2", $result2 );
+			dumpSingleVarToLog( "$subname" . " _result3", $result3 );
+			dumpSingleVarToLog( "$subname" . " _result4", $result4 );
+			dumpSingleVarToLog( "$subname" . " _result5", $result5 );
 
-		$data[$index1] = $result1 . $result2 . $newValue . $result5 . "\n";
-		dumpSingleVarToLog( "$subname" . " _newLine=", $data[$index1] );
+			$data[$index1] = $result1 . $result2 . $newValue . $result5 . "\n";
+			dumpSingleVarToLog( "$subname" . " _newLine=", $data[$index1] );
+		}
+	}
+	else {
+		$log->info(
+"$subname: $referenceParameter does not yet exist, splitting string to insert it."
+		);
+		if ( $data[$index1] =~ /^(.*?=)(['"`])(.*?)(['"`])/ ) {
+			my $result1 = $1; #should contain contents of $referenceVariable + =
+			my $result2 = $2; #should contain the quote character used
+			my $result3 = $3; #should contain the bulk of the current string
+			my $result4 = $4; #should contain the quote character used
+			dumpSingleVarToLog( "$subname" . " _result1", $result1 );
+			dumpSingleVarToLog( "$subname" . " _result2", $result2 );
+			dumpSingleVarToLog( "$subname" . " _result3", $result3 );
+			dumpSingleVarToLog( "$subname" . " _result4", $result4 );
+
+			if ( substr( $result3, -1, 1 ) eq " " ) {
+				$data[$index1] =
+				    $result1 
+				  . $result2 
+				  . $result3
+				  . $referenceParameter
+				  . $newValue
+				  . $result4 . "\n";
+			}
+			else {
+				$data[$index1] =
+				    $result1 
+				  . $result2 
+				  . $result3 . " "
+				  . $referenceParameter
+				  . $newValue
+				  . $result4 . "\n";
+			}
+		}
 	}
 
 	$log->info(
@@ -2749,6 +2791,14 @@ Therefore script is terminating, please ensure port configuration is correct and
 #PostInstallGenericAtlassianBinary     #
 ########################################
 sub postInstallGenericAtlassianBinary {
+	my $application;
+	my $lcApplication;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	$application   = $_[0];
+	$lcApplication = lc($application);
+
 	print "Configuration settings have been applied successfully.\n\n";
 
 	print "Do you wish to start the $application service? yes/no [yes]: ";
@@ -3133,7 +3183,8 @@ sub uninstallGenericAtlassianBinary {
 #Install Confluence                    #
 ########################################
 sub installConfluence {
-	my $application = "Confluence";
+	my $application   = "Confluence";
+	my $lcApplication = lc($application);
 	my $javaOptsFile;
 	my $osUser;
 	my $downloadArchivesUrl =
@@ -3174,7 +3225,7 @@ sub installConfluence {
 	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	postInstallGenericAtlassianBinary();
+	postInstallGenericAtlassianBinary($application);
 
 }
 
@@ -3182,7 +3233,8 @@ sub installConfluence {
 #UpgradeConfluence                     #
 ########################################
 sub upgradeConfluence {
-	my $application = "Confluence";
+	my $application   = "Confluence";
+	my $lcApplication = lc($application);
 	my $javaOptsFile;
 	my $osUser;
 	my $downloadArchivesUrl =
@@ -3222,7 +3274,7 @@ sub upgradeConfluence {
 	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	postInstallGenericAtlassianBinary();
+	postInstallGenericAtlassianBinary($application);
 }
 
 ########################################
@@ -3240,7 +3292,10 @@ sub uninstallConfluence {
 #Install Jira                          #
 ########################################
 sub installJira {
-	my $application = "JIRA";
+	my $application   = "JIRA";
+	my $lcApplication = lc($application);
+	my $javaOptsFile;
+	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -3250,10 +3305,11 @@ sub installJira {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"jira.appContext",   "jira.enable",
-		"jira.dataDir",      "jira.installDir",
-		"jira.runAsService", "jira.serverPort",
-		"jira.connectorPort"
+		"jira.appContext",    "jira.enable",
+		"jira.dataDir",       "jira.installDir",
+		"jira.runAsService",  "jira.serverPort",
+		"jira.connectorPort", "jira.javaMinMemory",
+		"jira.javaMaxMemory", "jira.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
@@ -3262,16 +3318,50 @@ sub installJira {
 		"JIRA_USER",  \@requiredConfigItems
 	);
 
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	$javaOptsFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+
+#backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
+
 	#Run any additional steps
 
-	postInstallGenericAtlassianBinary();
+	updateLineInFile(
+		$javaOptsFile,
+		"JVM_MINIMUM_MEMORY",
+		"JVM_MINIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMinMemory"),
+		"#JVM_MINIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaOptsFile,
+		"JVM_MAXIMUM_MEMORY",
+		"JVM_MAXIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
+		"#JVM_MAXIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaOptsFile,
+		"JIRA_MAX_PERM_SIZE",
+		"JIRA_MAX_PERM_SIZE="
+		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
+		"#JIRA_MAX_PERM_SIZE="
+	);
+
+	postInstallGenericAtlassianBinary($application);
 }
 
 ########################################
 #UpgradeJira                          #
 ########################################
 sub upgradeJira {
-	my $application = "JIRA";
+	my $application   = "JIRA";
+	my $lcApplication = lc($application);
+	my $javaOptsFile;
+	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -3281,10 +3371,11 @@ sub upgradeJira {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"jira.appContext",   "jira.enable",
-		"jira.dataDir",      "jira.installDir",
-		"jira.runAsService", "jira.serverPort",
-		"jira.connectorPort"
+		"jira.appContext",    "jira.enable",
+		"jira.dataDir",       "jira.installDir",
+		"jira.runAsService",  "jira.serverPort",
+		"jira.connectorPort", "jira.javaMinMemory",
+		"jira.javaMaxMemory", "jira.javaMaxPermSize"
 	);
 
 	upgradeGenericAtlassianBinary(
@@ -3292,7 +3383,40 @@ sub upgradeJira {
 		"JIRA_USER",  \@requiredConfigItems
 	);
 
-	postInstallGenericAtlassianBinary();
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	$javaOptsFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+
+#backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
+
+	#Run any additional steps
+
+	updateLineInFile(
+		$javaOptsFile,
+		"JVM_MINIMUM_MEMORY",
+		"JVM_MINIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMinMemory"),
+		"#JVM_MINIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaOptsFile,
+		"JVM_MAXIMUM_MEMORY",
+		"JVM_MAXIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
+		"#JVM_MAXIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaOptsFile,
+		"JIRA_MAX_PERM_SIZE",
+		"JIRA_MAX_PERM_SIZE="
+		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
+		"#JIRA_MAX_PERM_SIZE="
+	);
+
+	postInstallGenericAtlassianBinary($application);
 }
 
 ########################################
@@ -3523,6 +3647,7 @@ sub installFisheye {
 	my $application = "Fisheye";
 	my $osUser;
 	my $serverXMLFile;
+	my $javaMemParameterFile;
 	my $lcApplication;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/fisheye/download-archives";
@@ -4498,7 +4623,7 @@ sub generateJiraConfig {
 		$mode,
 		$cfg,
 		"jira.javaMinMemory",
-		"Enter the minimum amount of memory you would like to assisgn to Jira.",
+		"Enter the minimum amount of memory you would like to assign to Jira.",
 		"256m"
 	);
 
@@ -4506,7 +4631,7 @@ sub generateJiraConfig {
 		$mode,
 		$cfg,
 		"jira.javaMaxMemory",
-		"Enter the maximum amount of memory you would like to assisgn to Jira.",
+		"Enter the maximum amount of memory you would like to assign to Jira.",
 		"768m"
 	);
 
@@ -4514,7 +4639,7 @@ sub generateJiraConfig {
 		$mode,
 		$cfg,
 		"jira.javaMaxPermSize",
-"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Jira.",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Jira.",
 		"256m"
 	);
 
@@ -4594,7 +4719,7 @@ sub generateCrowdConfig {
 		$mode,
 		$cfg,
 		"crowd.javaMinMemory",
-"Enter the minimum amount of memory you would like to assisgn to Crowd.",
+		"Enter the minimum amount of memory you would like to assign to Crowd.",
 		"128m"
 	);
 
@@ -4602,7 +4727,7 @@ sub generateCrowdConfig {
 		$mode,
 		$cfg,
 		"crowd.javaMaxMemory",
-"Enter the maximum amount of memory you would like to assisgn to Crowd.",
+		"Enter the maximum amount of memory you would like to assign to Crowd.",
 		"512m"
 	);
 
@@ -4610,7 +4735,7 @@ sub generateCrowdConfig {
 		$mode,
 		$cfg,
 		"crowd.javaMaxPermSize",
-"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Crowd.",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Crowd.",
 		"256m"
 	);
 
@@ -4697,7 +4822,7 @@ sub generateFisheyeConfig {
 		$mode,
 		$cfg,
 		"fisheye.javaMinMemory",
-"Enter the minimum amount of memory you would like to assisgn to Fisheye.",
+"Enter the minimum amount of memory you would like to assign to Fisheye.",
 		"128m"
 	);
 
@@ -4705,7 +4830,7 @@ sub generateFisheyeConfig {
 		$mode,
 		$cfg,
 		"fisheye.javaMaxMemory",
-"Enter the maximum amount of memory you would like to assisgn to Fisheye.",
+"Enter the maximum amount of memory you would like to assign to Fisheye.",
 		"512m"
 	);
 
@@ -4713,7 +4838,7 @@ sub generateFisheyeConfig {
 		$mode,
 		$cfg,
 		"fisheye.javaMaxPermSize",
-"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Fisheye.",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Fisheye.",
 		"256m"
 	);
 
@@ -4797,7 +4922,7 @@ sub generateConfluenceConfig {
 		$mode,
 		$cfg,
 		"confluence.javaMinMemory",
-"Enter the minimum amount of memory you would like to assisgn to Confluence.",
+"Enter the minimum amount of memory you would like to assign to Confluence.",
 		"256m"
 	);
 
@@ -4805,7 +4930,7 @@ sub generateConfluenceConfig {
 		$mode,
 		$cfg,
 		"confluence.javaMaxMemory",
-"Enter the maximum amount of memory you would like to assisgn to Confluence.",
+"Enter the maximum amount of memory you would like to assign to Confluence.",
 		"512m"
 	);
 
@@ -4813,7 +4938,7 @@ sub generateConfluenceConfig {
 		$mode,
 		$cfg,
 		"confluence.javaMaxPermSize",
-"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Confluence.",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Confluence.",
 		"256m"
 	);
 
@@ -4893,7 +5018,7 @@ sub generateBambooConfig {
 		$mode,
 		$cfg,
 		"bamboo.javaMinMemory",
-"Enter the minimum amount of memory you would like to assisgn to Bamboo.",
+"Enter the minimum amount of memory you would like to assign to Bamboo.",
 		"256m"
 	);
 
@@ -4901,7 +5026,7 @@ sub generateBambooConfig {
 		$mode,
 		$cfg,
 		"bamboo.javaMaxMemory",
-"Enter the maximum amount of memory you would like to assisgn to Bamboo.",
+"Enter the maximum amount of memory you would like to assign to Bamboo.",
 		"512m"
 	);
 
@@ -4909,7 +5034,7 @@ sub generateBambooConfig {
 		$mode,
 		$cfg,
 		"bamboo.javaMaxPermSize",
-"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Bamboo.",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Bamboo.",
 		"256m"
 	);
 
@@ -4987,7 +5112,7 @@ sub generateStashConfig {
 		$mode,
 		$cfg,
 		"stash.javaMinMemory",
-"Enter the minimum amount of memory you would like to assisgn to Stash.",
+		"Enter the minimum amount of memory you would like to assign to Stash.",
 		"512m"
 	);
 
@@ -4995,7 +5120,7 @@ sub generateStashConfig {
 		$mode,
 		$cfg,
 		"stash.javaMaxMemory",
-"Enter the maximum amount of memory you would like to assisgn to Stash.",
+		"Enter the maximum amount of memory you would like to assign to Stash.",
 		"768m"
 	);
 
@@ -5003,7 +5128,7 @@ sub generateStashConfig {
 		$mode,
 		$cfg,
 		"stash.javaMaxPermSize",
-"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Stash.",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Stash.",
 		"256m"
 	);
 
@@ -5642,6 +5767,8 @@ sub displayMenu {
       1) Install Jira
       2) Install Confluence
       3) Install Bamboo
+      4) Uninstall Jira
+      5) Uninstall Confluence
       D) Download Latest Atlassian Suite FULL (Testing & Debugging)
       Q) Quit
 
@@ -5661,6 +5788,7 @@ END_TXT
 		# and finally print it
 		#print "You entered: ",$choice;
 		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
 			$LOOP = 0;
 			exit 0;
 		}
@@ -5680,11 +5808,19 @@ END_TXT
 			system 'clear';
 			installBamboo();
 		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			uninstallJira();
+		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			uninstallConfluence();
+		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
 			updateJavaMemParameter(
-				"/opt/atlassian/confluence/bin/setenv.sh", "JAVA_OPTS",
-				"-Xms",                                    "512m"
+				"/opt/atlassian/fisheye/bin/fisheyectl.sh", "FISHEYE_OPTS",
+				"-Xms",                                     "512m"
 			);
 		}
 	}
