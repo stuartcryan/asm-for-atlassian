@@ -3301,6 +3301,102 @@ sub installCrowd {
 }
 
 ########################################
+#Install Stash                         #
+########################################
+sub installStash {
+	my $application = "Stash";
+	my $osUser;
+	my $lcApplication;
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/it/software/stash/download-archives";
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @requiredConfigItems;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up list of config items that are requred for this install to run
+	$lcApplication       = lc($application);
+	@requiredConfigItems = (
+		"stash.appContext",    "stash.enable",
+		"stash.dataDir",       "stash.installDir",
+		"stash.runAsService",  "stash.serverPort",
+		"stash.connectorPort", "stash.osUser",
+		"stash.tomcatDir",     "stash.webappDir",
+	);
+
+	#Run generic installer steps
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . $globalConfig->param("$lcApplication.tomcatDir")
+	  . "/conf/server.xml";
+	$initPropertiesFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . "/bin/setenv.sh";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Edit Stash config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"STASH_HOME",
+		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") ."\"",
+		"#STASH_HOME="
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	#Run any additional steps
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
+		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
+
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
+}
+
+########################################
 #Install Fisheye                       #
 ########################################
 sub installFisheye {
@@ -4584,6 +4680,83 @@ sub generateBambooConfig {
 }
 
 ########################################
+#GenerateStashConfig                   #
+########################################
+sub generateStashConfig {
+	my $cfg;
+	my $mode;
+	my $defaultValue;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$mode = $_[0];
+	$cfg  = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode", $mode );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.installDir",
+		"Please enter the directory Stash will be installed into.",
+		$cfg->param("general.rootInstallDir") . "/stash"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.dataDir",
+		"Please enter the directory Stash's data will be stored in.",
+		$cfg->param("general.rootDataDir") . "/stash"
+	);
+	genConfigItem( $mode, $cfg, "stash.osUser",
+		"Enter the user that Stash will run under.", "stash" );
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.appContext",
+"Enter the context that Stash should run under (i.e. /stash). Write NULL to blank out the context.",
+		"/stash"
+	);
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.connectorPort",
+"Please enter the Connector port Stash will run on (note this is the port you will access in the browser).",
+		"8085"
+	);
+	checkConfiguredPort( "stash.connectorPort", $cfg );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.serverPort",
+"Please enter the SERVER port Stash will run on (note this is the control port not the port you access in a browser).",
+		"8000"
+	);
+
+	checkConfiguredPort( "stash.serverPort", $cfg );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.javaParams",
+"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		""
+	);
+
+	genBooleanConfigItem( $mode, $cfg, "stash.runAsService",
+		"Would you like to run Stash as a service? yes/no.", "yes" );
+		
+	#Set up some defaults for Crowd
+	$cfg->param( "stash.tomcatDir", "" );
+	$cfg->param( "stash.webappDir", "/atlassian-stash" );
+
+}
+
+
+########################################
 #Download Atlassian Installer          #
 ########################################
 sub downloadAtlassianInstaller {
@@ -4968,7 +5141,39 @@ sub generateSuiteConfig {
 
 		if ( $input eq "yes" ) {
 			print "\n";
-			generateJiraConfig( $mode, $cfg );
+			generateFisheyeConfig( $mode, $cfg );
+		}
+	}
+	
+	#Get Bamboo configuration
+	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
+		"Do you wish to install/manage Bamboo? yes/no ", "yes" );
+
+	if ( $cfg->param("bamboo.enable") eq "TRUE" ) {
+		print
+		  "Do you wish to set up/update the Bamboo configuration now? [no]: ";
+
+		$input = getBooleanInput();
+
+		if ( $input eq "yes" ) {
+			print "\n";
+			generateBambooConfig( $mode, $cfg );
+		}
+	}
+	
+	#Get Stash configuration
+	genBooleanConfigItem( $mode, $cfg, "stash.enable",
+		"Do you wish to install/manage Stash? yes/no ", "yes" );
+
+	if ( $cfg->param("stash.enable") eq "TRUE" ) {
+		print
+		  "Do you wish to set up/update the Stash configuration now? [no]: ";
+
+		$input = getBooleanInput();
+
+		if ( $input eq "yes" ) {
+			print "\n";
+			generateStashConfig( $mode, $cfg );
 		}
 	}
 
