@@ -3185,7 +3185,7 @@ sub uninstallGenericAtlassianBinary {
 sub installConfluence {
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
-	my $javaOptsFile;
+	my $javaMemParameterFile;
 	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
@@ -3211,18 +3211,21 @@ sub installConfluence {
 
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
-	$javaOptsFile =
+	$javaMemParameterFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
-	backupFile( $javaOptsFile, $osUser );
+	backupFile( $javaMemParameterFile, $osUser );
 
 	#Run any additional steps
 
 	#Update Java Memory Parameters
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xms",
+		print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xmx",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	postInstallGenericAtlassianBinary($application);
@@ -3235,7 +3238,7 @@ sub installConfluence {
 sub upgradeConfluence {
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
-	my $javaOptsFile;
+	my $javaMemParameterFile;
 	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
@@ -3260,18 +3263,21 @@ sub upgradeConfluence {
 
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
-	$javaOptsFile =
+	$javaMemParameterFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
-	backupFile( $javaOptsFile, $osUser );
+	backupFile( $javaMemParameterFile, $osUser );
 
 	#Run any additional steps
 
 	#Update Java Memory Parameters
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xms",
+		print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xmx",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	postInstallGenericAtlassianBinary($application);
@@ -3441,7 +3447,7 @@ sub installCrowd {
 	  "http://www.atlassian.com/software/crowd/download-archive";
 	my $serverXMLFile;
 	my $initPropertiesFile;
-	my $javaOptsFile;
+	my $javaMemParameterFile;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -3475,7 +3481,7 @@ sub installCrowd {
 	    $globalConfig->param("$lcApplication.installDir")
 	  . $globalConfig->param("$lcApplication.webappDir")
 	  . "/WEB-INF/classes/$lcApplication-init.properties";
-	$javaOptsFile =
+	$javaMemParameterFile =
 	    $globalConfig->param("$lcApplication.installDir")
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/bin/setenv.sh";
@@ -3487,7 +3493,7 @@ sub installCrowd {
 
 	backupFile( $initPropertiesFile, $osUser );
 
-	backupFile( $javaOptsFile, $osUser );
+	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
@@ -3520,11 +3526,14 @@ sub installCrowd {
 	);
 
 	#Update Java Memory Parameters
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xms",
+			print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xmx",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	print "Configuration settings have been applied successfully.\n\n";
@@ -3660,11 +3669,13 @@ sub installFisheye {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"fisheye.appContext",   "fisheye.enable",
-		"fisheye.dataDir",      "fisheye.installDir",
-		"fisheye.runAsService", "fisheye.osUser",
-		"fisheye.serverPort",   "fisheye.connectorPort",
-		"fisheye.tomcatDir",    "fisheye.webappDir",
+		"fisheye.appContext",    "fisheye.enable",
+		"fisheye.dataDir",       "fisheye.installDir",
+		"fisheye.runAsService",  "fisheye.osUser",
+		"fisheye.serverPort",    "fisheye.connectorPort",
+		"fisheye.tomcatDir",     "fisheye.webappDir",
+		"fisheye.javaMinMemory", "fisheye.javaMaxMemory",
+		"fisheye.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
@@ -3704,6 +3715,22 @@ sub installFisheye {
 	print "Applying application context to config...\n\n";
 	updateXMLAttribute( $serverXMLFile, "web-server", "context",
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	$javaMemParameterFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
+
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateJavaMemParameter( $javaMemParameterFile, "FISHEYE_OPTS", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+
+	updateJavaMemParameter( $javaMemParameterFile, "FISHEYE_OPTS", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+
+	updateJavaMemParameter( $javaMemParameterFile, "FISHEYE_OPTS",
+		"-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	print "Configuration settings have been applied successfully.\n\n";
 
