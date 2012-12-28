@@ -2827,7 +2827,8 @@ Therefore script is terminating, please ensure port configuration is correct and
 	#Apply the JavaOpts configuration (if any)
 	updateJavaOpts(
 		$globalConfig->param( $lcApplication . ".installDir" )
-		  . "/bin/setenv.sh", "JAVA_OPTS",
+		  . "/bin/setenv.sh",
+		"JAVA_OPTS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
 	);
 
@@ -3187,6 +3188,14 @@ sub upgradeGenericAtlassianBinary {
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
+
+	#Apply the JavaOpts configuration (if any)
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . "/bin/setenv.sh",
+		"JAVA_OPTS",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
 
 #If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
@@ -3651,6 +3660,16 @@ sub installCrowd {
 		"#crowd.home=/var/crowd-home"
 	);
 
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+		  . "/bin/setenv.sh",
+		"JAVA_OPTS",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
+
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
@@ -3760,6 +3779,15 @@ sub installStash {
 		"STASH_HOME",
 		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") . "\"",
 		"#STASH_HOME="
+	);
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . "/bin/setenv.sh",
+		"JVM_REQUIRED_ARGS",
+		$globalConfig->param( $lcApplication . ".javaParams" )
 	);
 
 	print "Configuration settings have been applied successfully.\n\n";
@@ -3891,6 +3919,15 @@ sub installFisheye {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . "/bin/fisheyectl.sh",
+		"FISHEYE_OPTS",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
+
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
@@ -4016,6 +4053,16 @@ sub installBamboo {
 	updateLineInBambooWrapperConf( $javaMemParameterFile,
 		"wrapper.java.additional.", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
+	#Apply the JavaOpts configuration (if any) - I know this is not ideal to be editing the RUN_CMD parameter
+	#however I expect this will be deprecated as soon as Bamboo moves away from Jetty.
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . "/bamboo.sh",
+		"RUN_CMD",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
 
 	print "Configuration settings have been applied successfully.\n\n";
 
