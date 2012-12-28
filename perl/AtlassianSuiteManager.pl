@@ -3294,7 +3294,8 @@ sub installCrowd {
 		"crowd.dataDir",       "crowd.installDir",
 		"crowd.runAsService",  "crowd.serverPort",
 		"crowd.connectorPort", "crowd.osUser",
-		"crowd.tomcatDir",     "crowd.webappDir",
+		"crowd.tomcatDir", "crowd.webappDir", "crowd.javaMinMemory",
+		"crowd.javaMaxMemory", "crowd.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
