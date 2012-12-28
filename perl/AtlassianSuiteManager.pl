@@ -1849,6 +1849,76 @@ sub updateJavaOpts {
 }
 
 ########################################
+#updateJavaMemParameter                #
+########################################
+sub updateJavaMemParameter {
+	my $inputFile;    #Must Be Absolute Path
+	my $referenceVariable;
+	my $referenceParameter;
+	my $newValue;
+	my $searchFor;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile          = $_[0];
+	$referenceVariable  = $_[1];    #such as JAVA_OPTS
+	$referenceParameter = $_[2];    #such as Xmx, Xms, -XX:MaxPermSize and so on
+	$newValue           = $_[3];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",         $inputFile );
+	dumpSingleVarToLog( "$subname" . "_referenceVariable", $referenceVariable );
+	dumpSingleVarToLog( "$subname" . "_referenceParameter",
+		$referenceParameter );
+	dumpSingleVarToLog( "$subname" . "_newValue", $newValue );
+
+	#Try to open the provided file
+	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	$searchFor = $referenceVariable;
+
+	#Search for the provided string in the file array
+	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+	dumpSingleVarToLog( "$subname" . " ORIGINAL LINE=", $data[$index1] );
+
+	$log->info("$subname: Splitting string to update the memory value.");
+	if ( $data[$index1] =~ /^(.*?)($referenceParameter)(.*?)([a-zA-Z])(.*)/ ) {
+		my $result1 = $1; #should equal everything before $referenceParameter
+		my $result2 = $2; #should equal $referenceParameter
+		my $result3 = $3; #should equal the memory value we are trying to change
+		my $result4 = $4
+		  ;  #should equal the letter i.e. 'm' of the reference memory attribute
+		my $result5 = $5;    #should equal the remainder of the line
+		dumpSingleVarToLog( "$subname" . " _result1", $result1 );
+		dumpSingleVarToLog( "$subname" . " _result2", $result2 );
+		dumpSingleVarToLog( "$subname" . " _result3", $result3 );
+		dumpSingleVarToLog( "$subname" . " _result4", $result4 );
+		dumpSingleVarToLog( "$subname" . " _result5", $result5 );
+
+		$data[$index1] = $result1 . $result2 . $newValue . $result5 . "\n";
+		dumpSingleVarToLog( "$subname" . " _newLine=", $data[$index1] );
+	}
+
+	$log->info(
+		"$subname: Value updated, outputting new line to file $inputFile.");
+
+	#Try to open file, output the lines that are in memory and close
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file $inputFile $!");
+	print FILE @data;
+	close FILE;
+
+}
+
+########################################
 #updateEnvironmentVars                 #
 ########################################
 sub updateEnvironmentVars {
@@ -5560,7 +5630,13 @@ END_TXT
 			system 'clear';
 			installBamboo();
 		}
-
+		elsif ( lc($choice) eq "t\n" ) {
+			system 'clear';
+			updateJavaMemParameter(
+				"/opt/atlassian/confluence/bin/setenv.sh", "JAVA_OPTS",
+				"-Xms",                                    "512m"
+			);
+		}
 	}
 }
 bootStrapper();
