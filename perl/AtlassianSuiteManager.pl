@@ -1764,13 +1764,15 @@ sub updateJavaOpts {
 	my $inputFile;    #Must Be Absolute Path
 	my $javaOpts;
 	my $searchFor;
+	my $referenceVariable;
 	my @data;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$inputFile = $_[0];
-	$javaOpts  = $_[1];
+	$inputFile         = $_[0];
+	$referenceVariable = $_[1];
+	$javaOpts          = $_[2];
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
@@ -1784,7 +1786,7 @@ sub updateJavaOpts {
 
 	close(FILE);
 
-	$searchFor = "JAVA_OPTS";
+	$searchFor = $referenceVariable;
 
 	#Search for the provided string in the file array
 	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
@@ -2825,7 +2827,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 	#Apply the JavaOpts configuration (if any)
 	updateJavaOpts(
 		$globalConfig->param( $lcApplication . ".installDir" )
-		  . "/bin/setenv.sh",
+		  . "/bin/setenv.sh", "JAVA_OPTS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
 	);
 
@@ -3517,7 +3519,7 @@ sub upgradeJira {
 #backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
 
 	#Run any additional steps
-	
+
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
@@ -3689,6 +3691,7 @@ sub installStash {
 	  "http://www.atlassian.com/it/software/stash/download-archives";
 	my $serverXMLFile;
 	my $initPropertiesFile;
+	my $javaMemParameterFile;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -3701,8 +3704,8 @@ sub installStash {
 		"stash.dataDir",       "stash.installDir",
 		"stash.runAsService",  "stash.serverPort",
 		"stash.connectorPort", "stash.osUser",
-		"stash.tomcatDir", "stash.webappDir", "stash.javaMinMemory",
-		"stash.javaMaxMemory",
+		"stash.tomcatDir",     "stash.webappDir",
+		"stash.javaMinMemory", "stash.javaMaxMemory",
 		"stash.javaMaxPermSize"
 	);
 
@@ -3718,7 +3721,7 @@ sub installStash {
 	    $globalConfig->param("$lcApplication.installDir")
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/conf/server.xml";
-	
+
 	$initPropertiesFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
 
