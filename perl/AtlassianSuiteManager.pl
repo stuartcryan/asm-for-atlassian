@@ -2107,6 +2107,7 @@ sub updateLineInBambooWrapperConf {
 	my @data;
 	my $index1;
 	my $line;
+	my $newLine;
 	my $count   = 0;
 	my $subname = ( caller(0) )[3];
 
@@ -3957,17 +3958,24 @@ sub installBamboo {
 		""
 	);
 
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
 	$javaMemParameterFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
 	backupFile( $javaMemParameterFile, $osUser );
 
-	updateLineInFile(
-		$javaMemParameterFile,
-		"wrapper.app.parameter.4",
-		"wrapper.app.parameter.4="
-		  . $globalConfig->param("$lcApplication.appContext"),
-		""
-	);
+	updateLineInBambooWrapperConf( $javaMemParameterFile,
+		"wrapper.java.additional.", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+
+	updateLineInBambooWrapperConf( $javaMemParameterFile,
+		"wrapper.java.additional.", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+
+	updateLineInBambooWrapperConf( $javaMemParameterFile,
+		"wrapper.java.additional.", "-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	print "Configuration settings have been applied successfully.\n\n";
 
