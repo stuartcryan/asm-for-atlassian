@@ -2041,7 +2041,6 @@ sub updateLineInFile {
 	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
 	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
 	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
-
 	open( FILE, $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
@@ -3218,14 +3217,15 @@ sub installConfluence {
 	#Run any additional steps
 
 	#Update Java Memory Parameters
-		print "Applying Java memory configuration to install...\n\n";
+	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
 	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
 	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	postInstallGenericAtlassianBinary($application);
@@ -3270,14 +3270,15 @@ sub upgradeConfluence {
 	#Run any additional steps
 
 	#Update Java Memory Parameters
-		print "Applying Java memory configuration to install...\n\n";
+	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
 	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
 	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	postInstallGenericAtlassianBinary($application);
@@ -3526,14 +3527,15 @@ sub installCrowd {
 	);
 
 	#Update Java Memory Parameters
-			print "Applying Java memory configuration to install...\n\n";
+	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
 	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
 	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	print "Configuration settings have been applied successfully.\n\n";
@@ -3781,6 +3783,7 @@ sub installBamboo {
 	my $application = "Bamboo";
 	my $osUser;
 	my $serverConfigFile;
+	my $javaMemParameterFile;
 	my $lcApplication;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/bamboo/download-archives";
@@ -3796,10 +3799,11 @@ sub installBamboo {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"bamboo.appContext",   "bamboo.enable",
-		"bamboo.dataDir",      "bamboo.installDir",
-		"bamboo.runAsService", "bamboo.osUser",
-		"bamboo.connectorPort"
+		"bamboo.appContext",    "bamboo.enable",
+		"bamboo.dataDir",       "bamboo.installDir",
+		"bamboo.runAsService",  "bamboo.osUser",
+		"bamboo.connectorPort", "bamboo.javaMinMemory",
+		"bamboo.javaMaxMemory", "bamboo.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
@@ -3831,6 +3835,18 @@ sub installBamboo {
 	#Apply application context
 	updateLineInFile(
 		$serverConfigFile,
+		"wrapper.app.parameter.4",
+		"wrapper.app.parameter.4="
+		  . $globalConfig->param("$lcApplication.appContext"),
+		""
+	);
+
+	$javaMemParameterFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	backupFile( $javaMemParameterFile, $osUser );
+
+	updateLineInFile(
+		$javaMemParameterFile,
 		"wrapper.app.parameter.4",
 		"wrapper.app.parameter.4="
 		  . $globalConfig->param("$lcApplication.appContext"),
