@@ -3339,8 +3339,7 @@ sub installStash {
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/conf/server.xml";
 	$initPropertiesFile =
-	    $globalConfig->param("$lcApplication.installDir")
-	  . "/bin/setenv.sh";
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
@@ -3375,7 +3374,7 @@ sub installStash {
 	updateLineInFile(
 		$initPropertiesFile,
 		"STASH_HOME",
-		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") ."\"",
+		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") . "\"",
 		"#STASH_HOME="
 	);
 
@@ -4375,6 +4374,30 @@ sub generateJiraConfig {
 		""
 	);
 
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.javaMinMemory",
+		"Enter the minimum amount of memory you would like to assisgn to Jira.",
+		"256m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.javaMaxMemory",
+		"Enter the maximum amount of memory you would like to assisgn to Jira.",
+		"768m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.javaMaxPermSize",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Jira.",
+		"256m"
+	);
+
 	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
 		"Would you like to run Jira as a service? yes/no.", "yes" );
 
@@ -4445,6 +4468,30 @@ sub generateCrowdConfig {
 		"crowd.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
 		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.javaMinMemory",
+"Enter the minimum amount of memory you would like to assisgn to Crowd.",
+		"128m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.javaMaxMemory",
+"Enter the maximum amount of memory you would like to assisgn to Crowd.",
+		"512m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.javaMaxPermSize",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Crowd.",
+		"256m"
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
@@ -4526,6 +4573,30 @@ sub generateFisheyeConfig {
 		""
 	);
 
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.javaMinMemory",
+"Enter the minimum amount of memory you would like to assisgn to Fisheye.",
+		"128m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.javaMaxMemory",
+"Enter the maximum amount of memory you would like to assisgn to Fisheye.",
+		"512m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.javaMaxPermSize",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Fisheye.",
+		"256m"
+	);
+
 	genBooleanConfigItem( $mode, $cfg, "fisheye.runAsService",
 		"Would you like to run Fisheye as a service? yes/no.", "yes" );
 
@@ -4602,6 +4673,30 @@ sub generateConfluenceConfig {
 		""
 	);
 
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.javaMinMemory",
+"Enter the minimum amount of memory you would like to assisgn to Confluence.",
+		"256m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.javaMaxMemory",
+"Enter the maximum amount of memory you would like to assisgn to Confluence.",
+		"512m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.javaMaxPermSize",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Confluence.",
+		"256m"
+	);
+
 	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
 		"Would you like to run Confluence as a service? yes/no.", "yes" );
 
@@ -4674,6 +4769,30 @@ sub generateBambooConfig {
 		""
 	);
 
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.javaMinMemory",
+"Enter the minimum amount of memory you would like to assisgn to Bamboo.",
+		"256m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.javaMaxMemory",
+"Enter the maximum amount of memory you would like to assisgn to Bamboo.",
+		"512m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.javaMaxPermSize",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Bamboo.",
+		"256m"
+	);
+
 	genBooleanConfigItem( $mode, $cfg, "bamboo.runAsService",
 		"Would you like to run Bamboo as a service? yes/no.", "yes" );
 
@@ -4704,9 +4823,7 @@ sub generateStashConfig {
 		$cfg->param("general.rootInstallDir") . "/stash"
 	);
 	genConfigItem(
-		$mode,
-		$cfg,
-		"stash.dataDir",
+		$mode, $cfg, "stash.dataDir",
 		"Please enter the directory Stash's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/stash"
 	);
@@ -4746,15 +4863,38 @@ sub generateStashConfig {
 		""
 	);
 
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.javaMinMemory",
+"Enter the minimum amount of memory you would like to assisgn to Stash.",
+		"512m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.javaMaxMemory",
+"Enter the maximum amount of memory you would like to assisgn to Stash.",
+		"768m"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.javaMaxPermSize",
+"Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assisgn to Stash.",
+		"256m"
+	);
+
 	genBooleanConfigItem( $mode, $cfg, "stash.runAsService",
 		"Would you like to run Stash as a service? yes/no.", "yes" );
-		
+
 	#Set up some defaults for Crowd
 	$cfg->param( "stash.tomcatDir", "" );
 	$cfg->param( "stash.webappDir", "/atlassian-stash" );
 
 }
-
 
 ########################################
 #Download Atlassian Installer          #
@@ -5144,7 +5284,7 @@ sub generateSuiteConfig {
 			generateFisheyeConfig( $mode, $cfg );
 		}
 	}
-	
+
 	#Get Bamboo configuration
 	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
 		"Do you wish to install/manage Bamboo? yes/no ", "yes" );
@@ -5160,7 +5300,7 @@ sub generateSuiteConfig {
 			generateBambooConfig( $mode, $cfg );
 		}
 	}
-	
+
 	#Get Stash configuration
 	genBooleanConfigItem( $mode, $cfg, "stash.enable",
 		"Do you wish to install/manage Stash? yes/no ", "yes" );
