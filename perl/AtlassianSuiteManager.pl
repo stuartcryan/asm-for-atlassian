@@ -3416,7 +3416,7 @@ sub uninstallConfluence {
 sub installJira {
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
-	my $javaOptsFile;
+	my $javaMemParameterFile;
 	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
@@ -3442,15 +3442,19 @@ sub installJira {
 
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
-	$javaOptsFile =
+	$javaMemParameterFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
 
 #backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
 
 	#Run any additional steps
 
+	#Update Java Memory Parameters
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
 	updateLineInFile(
-		$javaOptsFile,
+		$javaMemParameterFile,
 		"JVM_MINIMUM_MEMORY",
 		"JVM_MINIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMinMemory"),
@@ -3458,7 +3462,7 @@ sub installJira {
 	);
 
 	updateLineInFile(
-		$javaOptsFile,
+		$javaMemParameterFile,
 		"JVM_MAXIMUM_MEMORY",
 		"JVM_MAXIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
@@ -3466,7 +3470,7 @@ sub installJira {
 	);
 
 	updateLineInFile(
-		$javaOptsFile,
+		$javaMemParameterFile,
 		"JIRA_MAX_PERM_SIZE",
 		"JIRA_MAX_PERM_SIZE="
 		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
@@ -3482,7 +3486,7 @@ sub installJira {
 sub upgradeJira {
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
-	my $javaOptsFile;
+	my $javaMemParameterFile;
 	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/jira/download-archives";
@@ -3507,15 +3511,19 @@ sub upgradeJira {
 
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
-	$javaOptsFile =
+	$javaMemParameterFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
 
 #backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
 
 	#Run any additional steps
-
+	
+	#Update Java Memory Parameters
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
 	updateLineInFile(
-		$javaOptsFile,
+		$javaMemParameterFile,
 		"JVM_MINIMUM_MEMORY",
 		"JVM_MINIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMinMemory"),
@@ -3523,7 +3531,7 @@ sub upgradeJira {
 	);
 
 	updateLineInFile(
-		$javaOptsFile,
+		$javaMemParameterFile,
 		"JVM_MAXIMUM_MEMORY",
 		"JVM_MAXIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
@@ -3531,7 +3539,7 @@ sub upgradeJira {
 	);
 
 	updateLineInFile(
-		$javaOptsFile,
+		$javaMemParameterFile,
 		"JIRA_MAX_PERM_SIZE",
 		"JIRA_MAX_PERM_SIZE="
 		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
@@ -3693,7 +3701,9 @@ sub installStash {
 		"stash.dataDir",       "stash.installDir",
 		"stash.runAsService",  "stash.serverPort",
 		"stash.connectorPort", "stash.osUser",
-		"stash.tomcatDir",     "stash.webappDir",
+		"stash.tomcatDir", "stash.webappDir", "stash.javaMinMemory",
+		"stash.javaMaxMemory",
+		"stash.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
@@ -3708,6 +3718,7 @@ sub installStash {
 	    $globalConfig->param("$lcApplication.installDir")
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/conf/server.xml";
+	
 	$initPropertiesFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
 
@@ -3751,6 +3762,34 @@ sub installStash {
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
+
+	#Update Java Memory Parameters
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MINIMUM_MEMORY",
+		"JVM_MINIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMinMemory"),
+		"#JVM_MINIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MAXIMUM_MEMORY",
+		"JVM_MAXIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
+		"#JVM_MAXIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaMemParameterFile,
+		"STASH_MAX_PERM_SIZE",
+		"STASH_MAX_PERM_SIZE="
+		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
+		"#STASH_MAX_PERM_SIZE="
+	);
 
 	#Generate the init.d file
 	print
