@@ -2682,6 +2682,18 @@ Therefore script is terminating, please ensure port configuration is correct and
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
+	#Check if user wants to remove the downloaded installer
+	print "Do you wish to delete the downloaded installer "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$log->info("$subname: User opted to delete downloaded installer.");
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
 #If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
@@ -2725,19 +2737,19 @@ Therefore script is terminating, please ensure port configuration is correct and
 		getConfigItem( "$lcApplication.appContext", $globalConfig )
 	);
 
-	print "Configuration settings have been applied successfully.\n\n";
+	#Update config to reflect new version that is installed
+	$log->info("$subname: Writing new installed version to the config file.");
+	$globalConfig->param( $lcApplication . ".installedVersion", $version );
+	$log->info("Writing out config file to disk.");
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+}
 
-	#Check if user wants to remove the downloaded installer
-	print "Do you wish to delete the downloaded installer "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to delete downloaded installer.");
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
+########################################
+#PostInstallGenericAtlassianBinary     #
+########################################
+sub postInstallGenericAtlassianBinary {
+	print "Configuration settings have been applied successfully.\n\n";
 
 	print "Do you wish to start the $application service? yes/no [yes]: ";
 	$input = getBooleanInput();
@@ -2753,13 +2765,6 @@ Therefore script is terminating, please ensure port configuration is correct and
 		}
 		print "\n\n";
 	}
-
-	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
-	$globalConfig->param( $lcApplication . ".installedVersion", $version );
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
 }
 
 ########################################
@@ -3005,6 +3010,18 @@ sub upgradeGenericAtlassianBinary {
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
+	#Check if user wants to remove the downloaded installer
+	print "Do you wish to delete the downloaded installer "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$log->info("$subname: User opted to delete downloaded installer.");
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
 #If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
@@ -3047,34 +3064,6 @@ sub upgradeGenericAtlassianBinary {
 		getConfigItem( "$lcApplication.appContext", $globalConfig )
 	);
 
-	print "Configuration settings have been applied successfully.\n\n";
-
-	#Check if user wants to remove the downloaded installer
-	print "Do you wish to delete the downloaded installer "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to delete downloaded installer.");
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
-
-	print "Do you wish to start the $application service? yes/no [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to start application service.");
-		system( "service "
-			  . $globalConfig->param( $lcApplication . ".osUser" )
-			  . " start" );
-		if ( $? == -1 ) {
-			warn
-"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-		}
-		print "\n\n";
-	}
 }
 
 ########################################
@@ -3168,6 +3157,8 @@ sub installConfluence {
 
 	#Run any additional steps
 
+	postInstallGenericAtlassianBinary();
+
 }
 
 ########################################
@@ -3194,6 +3185,8 @@ sub upgradeConfluence {
 		$application, $downloadArchivesUrl,
 		"CONF_USER",  \@requiredConfigItems
 	);
+
+	postInstallGenericAtlassianBinary();
 }
 
 ########################################
@@ -3234,6 +3227,8 @@ sub installJira {
 	);
 
 	#Run any additional steps
+
+	postInstallGenericAtlassianBinary();
 }
 
 ########################################
@@ -3260,6 +3255,8 @@ sub upgradeJira {
 		$application, $downloadArchivesUrl,
 		"JIRA_USER",  \@requiredConfigItems
 	);
+
+	postInstallGenericAtlassianBinary();
 }
 
 ########################################
