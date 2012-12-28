@@ -2092,6 +2092,85 @@ sub updateLineInFile {
 }
 
 ########################################
+#updateLineInBambooWrapperConf         #
+#This can be used under certain        #
+#circumstances to update lines in the  #
+#Bamboo Jetty Wrapper as per the issues#
+#defined in [#ATLASMGR-143]            #
+########################################
+sub updateLineInBambooWrapperConf {
+	my $inputFile;    #Must Be Absolute Path
+	my $variableReference;
+	my $searchFor;
+	my $parameterReference;
+	my $newValue;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile          = $_[0];
+	$variableReference  = $_[1];
+	$parameterReference = $_[2];
+	$newValue           = $_[3];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",         $inputFile );
+	dumpSingleVarToLog( "$subname" . "_variableReference", $variableReference );
+	dumpSingleVarToLog( "$subname" . "_parameterReference",
+		$parameterReference );
+	dumpSingleVarToLog( "$subname" . "_newValue", $newValue );
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		$log->info(
+"$subname: Line with $parameterReference not found. Going to add it."
+		);
+
+	}
+	else {
+		#$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
+
+		if ( $data[$index1] =~
+			/^($variableReference)(.*)(=)($parameterReference)(.*)/ )
+		{
+			my $result1 = $1;    #Should contain $variableReference
+			my $result2 = $2;    #Should contain the item ID number we need
+			my $result3 = $3;    #Should contain '='
+			my $result4 = $4;    #Should contain $parameterReference
+			my $result5 =
+			  $5;    #Should contain the existing value of the parameter
+			dumpSingleVarToLog( "$subname" . " _result1", $result1 );
+			dumpSingleVarToLog( "$subname" . " _result2", $result2 );
+			dumpSingleVarToLog( "$subname" . " _result3", $result3 );
+			dumpSingleVarToLog( "$subname" . " _result4", $result4 );
+			dumpSingleVarToLog( "$subname" . " _result5", $result5 );
+
+			$data[$index1] =
+			  $result1 . $result2 . $result3 . $result4 . $newValue . "\n";
+		}
+
+	}
+
+	#Write out the updated file
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+	print FILE @data;
+	close FILE;
+
+}
+
+########################################
 #Compare two versions                  #
 #compareTwoVersions("current","new");  #
 ########################################
@@ -5861,10 +5940,9 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			updateJavaMemParameter(
-				"/opt/atlassian/fisheye/bin/fisheyectl.sh", "FISHEYE_OPTS",
-				"-Xms",                                     "512m"
-			);
+			updateLineInBambooWrapperConf(
+				"/opt/atlassian/bamboo/conf/wrapper.conf",
+				"wrapper.java.additional.", "-XX:MaxPermSize=", "512m" );
 		}
 	}
 }
