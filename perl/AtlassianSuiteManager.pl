@@ -4054,15 +4054,12 @@ sub installBamboo {
 		"wrapper.java.additional.", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	#Apply the JavaOpts configuration (if any) - I know this is not ideal to be editing the RUN_CMD parameter
-	#however I expect this will be deprecated as soon as Bamboo moves away from Jetty.
+#Apply the JavaOpts configuration (if any) - I know this is not ideal to be editing the RUN_CMD parameter
+#however I expect this will be deprecated as soon as Bamboo moves away from Jetty.
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
-		  . "/bamboo.sh",
-		"RUN_CMD",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
+		$globalConfig->param( $lcApplication . ".installDir" ) . "/bamboo.sh",
+		"RUN_CMD", $globalConfig->param( $lcApplication . ".javaParams" ) );
 
 	print "Configuration settings have been applied successfully.\n\n";
 
@@ -4367,7 +4364,6 @@ sub postInstallGeneric {
 		  . ".\n\n";
 		print "If you have any issues please check the \n\n";
 	}
-
 }
 
 ########################################
