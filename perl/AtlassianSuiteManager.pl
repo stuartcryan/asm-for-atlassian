@@ -3284,6 +3284,7 @@ sub installCrowd {
 	  "http://www.atlassian.com/software/crowd/download-archive";
 	my $serverXMLFile;
 	my $initPropertiesFile;
+	my $javaOptsFile;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -3314,7 +3315,10 @@ sub installCrowd {
 	$initPropertiesFile =
 	    $globalConfig->param("$lcApplication.installDir")
 	  . $globalConfig->param("$lcApplication.webappDir")
-	  . "/WEB-INF/classes/$lcApplication-init.properties";
+	  . "/WEB-INF/classes/$lcApplication-init.properties" $javaOptsFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . $globalConfig->param("$lcApplication.tomcatDir")
+	  . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
@@ -3322,6 +3326,8 @@ sub installCrowd {
 	backupFile( $serverXMLFile, $osUser );
 
 	backupFile( $initPropertiesFile, $osUser );
+
+	backupFile( $javaOptsFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
@@ -3352,6 +3358,14 @@ sub installCrowd {
 		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
 		"#crowd.home=/var/crowd-home"
 	);
+
+	#Update Java Memory Parameters
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	print "Configuration settings have been applied successfully.\n\n";
 
