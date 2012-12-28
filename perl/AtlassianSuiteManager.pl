@@ -2134,8 +2134,6 @@ sub updateLineInBambooWrapperConf {
 
 	#Search for reference line
 	($index1) = grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
-
-	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
 		$log->info(
 "$subname: Line with $parameterReference not found. Going to add it."
