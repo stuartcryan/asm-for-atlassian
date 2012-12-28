@@ -3134,6 +3134,8 @@ sub uninstallGenericAtlassianBinary {
 ########################################
 sub installConfluence {
 	my $application = "Confluence";
+	my $javaOptsFile;
+	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -3143,10 +3145,11 @@ sub installConfluence {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"confluence.appContext",   "confluence.enable",
-		"confluence.dataDir",      "confluence.installDir",
-		"confluence.runAsService", "confluence.serverPort",
-		"confluence.connectorPort"
+		"confluence.appContext",    "confluence.enable",
+		"confluence.dataDir",       "confluence.installDir",
+		"confluence.runAsService",  "confluence.serverPort",
+		"confluence.connectorPort", "confluence.javaMinMemory",
+		"confluence.javaMaxMemory", "confluence.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
@@ -3155,7 +3158,21 @@ sub installConfluence {
 		"CONF_USER",  \@requiredConfigItems
 	);
 
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	$javaOptsFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	backupFile( $javaOptsFile, $osUser );
+
 	#Run any additional steps
+
+	#Update Java Memory Parameters
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	postInstallGenericAtlassianBinary();
 
@@ -3166,6 +3183,8 @@ sub installConfluence {
 ########################################
 sub upgradeConfluence {
 	my $application = "Confluence";
+	my $javaOptsFile;
+	my $osUser;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -3175,16 +3194,33 @@ sub upgradeConfluence {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"confluence.appContext",   "confluence.enable",
-		"confluence.dataDir",      "confluence.installDir",
-		"confluence.runAsService", "confluence.serverPort",
-		"confluence.connectorPort"
+		"confluence.appContext",    "confluence.enable",
+		"confluence.dataDir",       "confluence.installDir",
+		"confluence.runAsService",  "confluence.serverPort",
+		"confluence.connectorPort", "confluence.javaMinMemory",
+		"confluence.javaMaxMemory", "confluence.javaMaxPermSize"
 	);
 
 	upgradeGenericAtlassianBinary(
 		$application, $downloadArchivesUrl,
 		"CONF_USER",  \@requiredConfigItems
 	);
+
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	$javaOptsFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	backupFile( $javaOptsFile, $osUser );
+
+	#Run any additional steps
+
+	#Update Java Memory Parameters
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+	updateJavaMemParameter( $javaOptsFile, "JAVA_OPTS", "-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	postInstallGenericAtlassianBinary();
 }
@@ -3294,8 +3330,9 @@ sub installCrowd {
 		"crowd.dataDir",       "crowd.installDir",
 		"crowd.runAsService",  "crowd.serverPort",
 		"crowd.connectorPort", "crowd.osUser",
-		"crowd.tomcatDir", "crowd.webappDir", "crowd.javaMinMemory",
-		"crowd.javaMaxMemory", "crowd.javaMaxPermSize"
+		"crowd.tomcatDir",     "crowd.webappDir",
+		"crowd.javaMinMemory", "crowd.javaMaxMemory",
+		"crowd.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
@@ -3313,7 +3350,8 @@ sub installCrowd {
 	$initPropertiesFile =
 	    $globalConfig->param("$lcApplication.installDir")
 	  . $globalConfig->param("$lcApplication.webappDir")
-	  . "/WEB-INF/classes/$lcApplication-init.properties" $javaOptsFile =
+	  . "/WEB-INF/classes/$lcApplication-init.properties";
+	$javaOptsFile =
 	    $globalConfig->param("$lcApplication.installDir")
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/bin/setenv.sh";
