@@ -2932,6 +2932,11 @@ sub postInstallGenericAtlassianBinary {
 		}
 		print "\n\n";
 	}
+
+	print
+"The $application install has completed. Please press enter to return to the main menu";
+	$input = <STDIN>;
+
 }
 
 ########################################
@@ -4362,8 +4367,11 @@ sub postInstallGeneric {
 		  . $globalConfig->param("$lcApplication.connectorPort")
 		  . getConfigItem( "$lcApplication.appContext", $globalConfig )
 		  . ".\n\n";
-		print "If you have any issues please check the \n\n";
 	}
+
+	print
+"The $application install has completed. Please press enter to return to the main menu.";
+	$input = <STDIN>;
 }
 
 ########################################
