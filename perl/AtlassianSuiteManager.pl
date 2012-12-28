@@ -2105,6 +2105,9 @@ sub updateLineInBambooWrapperConf {
 	my $parameterReference;
 	my $newValue;
 	my @data;
+	my $index1;
+	my $line;
+	my $count   = 0;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -2129,7 +2132,7 @@ sub updateLineInBambooWrapperConf {
 	close(FILE);
 
 	#Search for reference line
-	my ($index1) = grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
+	($index1) = grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
@@ -2137,8 +2140,39 @@ sub updateLineInBambooWrapperConf {
 "$subname: Line with $parameterReference not found. Going to add it."
 		);
 
+#Find the number of paramaters already existing to get the next number
+#This is not ideal however I expect this will be deprecated soon when Bamboo moves off Jetty.
+		foreach $line (@data) {
+			if ( $line =~ /^$variableReference.*/ ) {
+				$count++;
+			}
+		}
+
+		dumpSingleVarToLog( "$subname" . "_count", $count );
+
+		#Now we know the final ID number find it's index in the file
+		($index1) =
+		  grep { $data[$_] =~ /^$variableReference$count.*/ } 0 .. $#data;
+
+		dumpSingleVarToLog( "$subname" . "_index1", $index1 );
+
+		$index1++
+		  ; #add 1 to the found index as the splice inserts before the index not after
+		$count++
+		  ;   # add 1 to the count as that is the next value that should be used
+
+		#Splicing the array and inserting a new line
+		my $newLine =
+		    $variableReference 
+		  . $count . "="
+		  . $parameterReference
+		  . $newValue . "\n";
+		dumpSingleVarToLog( "$subname" . "_newLine", $newLine );
+		splice( @data, $index1, 0, $newLine );
+
 	}
 	else {
+
 		#$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
 
 		if ( $data[$index1] =~
@@ -2156,8 +2190,11 @@ sub updateLineInBambooWrapperConf {
 			dumpSingleVarToLog( "$subname" . " _result4", $result4 );
 			dumpSingleVarToLog( "$subname" . " _result5", $result5 );
 
-			$data[$index1] =
+			dumpSingleVarToLog( "$subname" . " _oldLine", $data[$index1] );
+			$newLine =
 			  $result1 . $result2 . $result3 . $result4 . $newValue . "\n";
+			dumpSingleVarToLog( "$subname" . " _newLine", $newLine );
+			$data[$index1] = $newLine;
 		}
 
 	}
@@ -5942,7 +5979,7 @@ END_TXT
 			system 'clear';
 			updateLineInBambooWrapperConf(
 				"/opt/atlassian/bamboo/conf/wrapper.conf",
-				"wrapper.java.additional.", "-XX:MaxPermSize=", "512m" );
+				"wrapper.java.additional.", "-Xma", "512m" );
 		}
 	}
 }
