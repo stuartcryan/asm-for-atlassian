@@ -5504,34 +5504,32 @@ sub downloadAtlassianInstaller {
 			return @downloadDetails;
 		}
 	}
-	else {
-		$log->debug("$subname: Beginning download.");
+	$log->debug("$subname: Beginning download.");
 
-		#Download the file and store the HTTP response code
-		print "Downloading file from Atlassian...\n\n";
-		$downloadResponseCode = getstore( $downloadDetails[0],
-			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ] );
-		dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
-			$downloadResponseCode );
+	#Download the file and store the HTTP response code
+	print "Downloading file from Atlassian...\n\n";
+	$downloadResponseCode = getstore( $downloadDetails[0],
+		    $globalConfig->param("general.rootInstallDir") . "/"
+		  . $bits[ @bits - 1 ] );
+	dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
+		$downloadResponseCode );
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
-		if ( is_success($downloadResponseCode) ) {
-			$log->debug(
+	if ( is_success($downloadResponseCode) ) {
+		$log->debug(
 "$subname: Download completed successfully with HTTP response code $downloadResponseCode."
-			);
-			print "\n";
-			print "Download completed successfully.\n\n";
-			$downloadDetails[2] =
-			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ];
-			return @downloadDetails;
-		}
-		else {
-			$log->logdie(
+		);
+		print "\n";
+		print "Download completed successfully.\n\n";
+		$downloadDetails[2] =
+		    $globalConfig->param("general.rootInstallDir") . "/"
+		  . $bits[ @bits - 1 ];
+		return @downloadDetails;
+	}
+	else {
+		$log->logdie(
 "Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'"
-			);
-		}
+		);
 	}
 
 }
@@ -6028,6 +6026,8 @@ sub displayMenu {
       4) Uninstall Jira
       5) Uninstall Confluence
       D) Download Latest Atlassian Suite FULL (Testing & Debugging)
+      G) Generate Suite Config
+      T) Testing Function (varies)
       Q) Quit
 
 END_TXT
@@ -6073,6 +6073,10 @@ END_TXT
 		elsif ( lc($choice) eq "5\n" ) {
 			system 'clear';
 			uninstallConfluence();
+		}
+		elsif ( lc($choice) eq "g\n" ) {
+			system 'clear';
+			generateSuiteConfig();
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
