@@ -637,6 +637,7 @@ sub downloadJDBCConnector {
 	$downloadResponseCode = getstore( $url, $archiveFile );
 	dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
 		$downloadResponseCode );
+
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 	if ( is_success($downloadResponseCode) ) {
 		print "\n";
@@ -5509,7 +5510,9 @@ sub downloadAtlassianInstaller {
 	print "Downloading file from Atlassian...\n\n";
 	$downloadResponseCode = getstore( $downloadDetails[0],
 		    $globalConfig->param("general.rootInstallDir") . "/"
-		  . $bits[ @bits - 1 ] );
+		  . $bits[ @bits - 1 ] )
+	  or $log->logdie(
+		"Fatal error while attempting to download $downloadDetails[0]: $?");
 	dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
 		$downloadResponseCode );
 
@@ -5569,7 +5572,9 @@ sub downloadLatestAtlassianSuite {
 
 		$downloadResponseCode = getstore( $downloadDetails[0],
 			    $globalConfig->param("general.rootInstallDir") . "/"
-			  . $bits[ @bits - 1 ] );
+			  . $bits[ @bits - 1 ] )
+		  or $log->logdie(
+			"Fatal error while attempting to download $downloadDetails[0]: $?");
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 		if ( is_success($downloadResponseCode) ) {
@@ -5651,7 +5656,9 @@ sub downloadFileAndChown {
 		print "Downloading file $downloadURL...\n\n";
 		$downloadResponseCode = getstore( $downloadURL, $absoluteFilePath );
 		dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
-			$downloadResponseCode );
+			$downloadResponseCode )
+		  or $log->logdie(
+			"Fatal error while attempting to download $downloadURL: $?");
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 		if ( is_success($downloadResponseCode) ) {
