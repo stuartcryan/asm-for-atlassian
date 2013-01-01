@@ -637,7 +637,6 @@ sub downloadJDBCConnector {
 	$downloadResponseCode = getstore( $url, $archiveFile );
 	dumpSingleVarToLog( "$subname" . "_downloadResponseCode",
 		$downloadResponseCode );
-
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 	if ( is_success($downloadResponseCode) ) {
 		print "\n";
@@ -5546,6 +5545,7 @@ sub downloadLatestAtlassianSuite {
 	my $parsedURL;
 	my @downloadDetails;
 	my @suiteProducts;
+	my $downloadResponseCode;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -5567,9 +5567,23 @@ sub downloadLatestAtlassianSuite {
 		my @bits = $parsedURL->path_segments();
 		$ua->show_progress(1);
 
-		getstore( $downloadDetails[0],
+		$downloadResponseCode = getstore( $downloadDetails[0],
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ] );
+
+#Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
+		if ( is_success($downloadResponseCode) ) {
+			$log->debug(
+"$subname: Download completed successfully with HTTP response code $downloadResponseCode."
+			);
+			print "\n";
+			print "Download completed successfully.\n\n";
+		}
+		else {
+			$log->logdie(
+"Could not download $_. HTTP Response received was: '$downloadResponseCode'"
+			);
+		}
 	}
 
 }
