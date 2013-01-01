@@ -1774,6 +1774,11 @@ sub updateJavaOpts {
 	$referenceVariable = $_[1];
 	$javaOpts          = $_[2];
 
+#If no javaOpts parameters defined we get an undefined variable. This accounts for that.
+	if ( !defined $javaOpts ) {
+		$javaOpts = "";
+	}
+
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
 	dumpSingleVarToLog( "$subname" . "_javaOpts",  $javaOpts );
