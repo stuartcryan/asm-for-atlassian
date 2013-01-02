@@ -4604,23 +4604,15 @@ sub upgradeGeneric {
 "We will now stop the existing Crowd service, please press enter to continue...";
 	$input = <STDIN>;
 	print "\n";
-	if ( -e "/etc/init.d/crowd" ) {
-		system("service crowd stop")
-		  or $log->logdie("Could not stop Crowd: $!");
+	if ( -e "/etc/init.d/$lcApplication" ) {
+		system("service $lcApplication stop")
+		  or $log->logdie("Could not stop $application. Unable to upgrade while $application is running: $!");
 	}
 	else {
-		if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" ) {
-			system( $globalConfig->param("crowd.installDir")
-				  . "/stop_crowd.sh" )
-			  or $log->logdie(
-"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n"
-			  );
-		}
-		else {
 			$log->logdie(
-"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again"
+"Unable to find current $application init.d script to stop the service.\nPlease check the init.d folder and try again"
 			);
-		}
+		
 	}
 
 	#Extract the download and move into place
@@ -4675,12 +4667,12 @@ sub upgradeGeneric {
 			  . "/lib/" );
 	}
 
-	#Create home/data directory if it does not exist
+	#Force a re-chowning of the application data directory in case the service user has changed
 	$log->info(
-"$subname: Checking for and creating $application home directory (if it does not exist)."
+"$subname: Checking for and chowning $application home directory."
 	);
 	print
-"Checking if data directory exists and creating if not, please wait...\n\n";
+"Checking if data directory exists and re-chowning it...\n\n";
 	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
 		$osUser );
 
@@ -4715,7 +4707,7 @@ sub postUpgradeGeneric {
 
 	#Check if we should start the service
 	print
-"Installation has completed successfully. Would you like to start the $application service now? Yes/No [yes]: ";
+"The upgrade has completed successfully. Would you like to start the $application service now? Yes/No [yes]: ";
 	$input = getBooleanInput();
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
@@ -4729,7 +4721,7 @@ sub postUpgradeGeneric {
 	}
 
 	print
-"The $application install has completed. Please press enter to return to the main menu.";
+"The $application upgrade has completed. Please press enter to return to the main menu.";
 	$input = <STDIN>;
 }
 
