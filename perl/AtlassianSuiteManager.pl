@@ -4389,9 +4389,11 @@ sub upgradeGeneric {
 	my $application;
 	my $lcApplication;
 	my @downloadDetails;
+	my @downloadVersionCheck;
 	my $downloadArchivesUrl;
 	my @requiredConfigItems;
 	my $archiveLocation;
+	my $versionSupported;
 	my $osUser;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
@@ -4423,7 +4425,7 @@ sub upgradeGeneric {
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		print
-"Would you like to review the $application config before installing? Yes/No [yes]: ";
+"Would you like to review the $application config before upgrading? Yes/No [yes]: ";
 
 		$input = getBooleanInput();
 		print "\n";
@@ -4438,56 +4440,75 @@ sub upgradeGeneric {
 		}
 	}
 
+  #Set up list of config items that are requred for this specific upgrade to run
+	@requiredConfigItems = ("$lcApplication.installedVersion");
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		genConfigItem(
+			$mode,
+			$globalConfig,
+			"$lcApplication.installedVersion",
+"There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
+			""
+		);
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
 	#Get the user the application will run as
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	#Check the user exists or create if not
 	createOSUser($osUser);
 
-	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
+#Commenting out for the time being... will be correctly enabled as part of [#ATLASMGR-146]
+#	$serverPortAvailCode =
+#	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
+#
+#	$connectorPortAvailCode =
+#	  isPortAvailable( $globalConfig->param("lcApplication.connectorPort") );
+#
+#	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+#		$log->info(
+#"$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0
+#is currently in use. We will continue however there is a good chance $application will not start."
+#		);
+#		print
+#"One or more of the ports configured for $application are currently in use. We can proceed however there is a very good chance"
+#		  . " that $application will not start correctly.\n\n";
+#		print
+#"Would you like to continue even though the ports are in use? yes/no [yes]: ";
+#
+#		$input = getBooleanInput();
+#		print "\n";
+#		if ( $input eq "no" ) {
+#			$log->logdie(
+#"User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n"
+#			);
+#		}
+#		else {
+#			$log->info(
+#				"$subname: User opted to continue even though ports are in use."
+#			);
+#		}
+#
+#	}
 
-	$connectorPortAvailCode =
-	  isPortAvailable( $globalConfig->param("lcApplication.connectorPort") );
-
-	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-		$log->info(
-"$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0 
-is currently in use. We will continue however there is a good chance $application will not start."
-		);
-		print
-"One or more of the ports configured for $application are currently in use. We can proceed however there is a very good chance"
-		  . " that $application will not start correctly.\n\n";
-		print
-"Would you like to continue even though the ports are in use? yes/no [yes]: ";
-
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "no" ) {
-			$log->logdie(
-"User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n"
-			);
-		}
-		else {
-			$log->info(
-				"$subname: User opted to continue even though ports are in use."
-			);
-		}
-
-	}
-
-	print "Would you like to install the latest version? yes/no [yes]: ";
+	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
 
 	$input = getBooleanInput();
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info(
-			"$subname: User opted to install latest version of $application");
+"$subname: User opted to upgrade to the latest version of $application"
+		);
 		$mode = "LATEST";
 	}
 	else {
 		$log->info(
-			"$subname: User opted to install specific version of $application"
+"$subname: User opted to upgrade to a specific version of $application"
 		);
 		$mode = "SPECIFIC";
 	}
@@ -4496,7 +4517,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 	if ( $mode eq "SPECIFIC" ) {
 		while ( $VERSIONLOOP == 1 ) {
 			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+"Please enter the version number you would like to upgrade to. i.e. 4.2.2 []: ";
 
 			$version = <STDIN>;
 			print "\n";
@@ -4514,17 +4535,17 @@ is currently in use. We will continue however there is a good chance $applicatio
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
 				$log->info(
-"$subname: User selected to install version $version of $application"
+"$subname: User selected to upgrade to version $version of $application"
 				);
 				$VERSIONLOOP = 0;
 				print "$application version $version found. Continuing...\n\n";
 			}
 			else {
 				$log->warn(
-"$subname: User selected to install version $version of $application. No such version exists, asking for input again."
+"$subname: User selected to upgrade to version $version of $application. No such version exists, asking for input again."
 				);
 				print
-"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
+"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number to upgrade to and try again.\n\n";
 			}
 		}
 
@@ -4532,9 +4553,39 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
+		@downloadVersionCheck =
+		  getLatestDownloadURL( $application, $globalArch );
+		my $versionSupported = compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"),
+			$downloadVersionCheck[1] );
+		if ( $versionSupported eq "GREATER" ) {
+			$log->logdie( "The version of $application to be downloaded ("
+				  . $downloadVersionCheck[1]
+				  . ") is older than the currently installed version ("
+				  . $globalConfig->param("$lcApplication.installedVersion")
+				  . "). Downgrading is not supported and this script will now exit.\n\n"
+			);
+		}
+
+	}
+	elsif ( $mode eq "SPECIFIC" ) {
+		my $versionSupported = compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), $version );
+		if ( $versionSupported eq "GREATER" ) {
+			$log->logdie( "The version of $application to be downloaded (" 
+				  . $version
+				  . ") is older than the currently installed version ("
+				  . $globalConfig->param("$lcApplication.installedVersion")
+				  . "). Downgrading is not supported and this script will now exit.\n\n"
+			);
+		}
+	}
+
+	#Download the latest version
+	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
+		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
 		$version = $downloadDetails[1];
 
 	}
@@ -4543,8 +4594,33 @@ is currently in use. We will continue however there is a good chance $applicatio
 	else {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
+		  downloadAtlassianInstaller( $mode, $application, $version,
 			$globalArch );
+	}
+
+	#Prompt user to stop existing service
+	$log->info("$subname: Stopping existing $application service...");
+	print
+"We will now stop the existing Crowd service, please press enter to continue...";
+	$input = <STDIN>;
+	print "\n";
+	if ( -e "/etc/init.d/crowd" ) {
+		system("service crowd stop")
+		  or $log->logdie("Could not stop Crowd: $!");
+	}
+	else {
+		if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" ) {
+			system( $globalConfig->param("crowd.installDir")
+				  . "/stop_crowd.sh" )
+			  or $log->logdie(
+"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n"
+			  );
+		}
+		else {
+			$log->logdie(
+"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again"
+			);
+		}
 	}
 
 	#Extract the download and move into place
