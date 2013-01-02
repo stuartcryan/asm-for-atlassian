@@ -4380,6 +4380,284 @@ sub postInstallGeneric {
 }
 
 ########################################
+#UpgradeGeneric                        #
+########################################
+sub upgradeGeneric {
+	my $input;
+	my $mode;
+	my $version;
+	my $application;
+	my $lcApplication;
+	my @downloadDetails;
+	my $downloadArchivesUrl;
+	my @requiredConfigItems;
+	my $archiveLocation;
+	my $osUser;
+	my $VERSIONLOOP = 1;
+	my @uidGid;
+	my $serverPortAvailCode;
+	my $connectorPortAvailCode;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application         = $_[0];
+	$downloadArchivesUrl = $_[1];
+	@requiredConfigItems = @{ $_[2] };
+
+	$lcApplication = lc($application);
+
+#Iterate through required config items, if an are missing force an update of configuration
+	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
+		$log->info(
+"$subname: Some of the config parameters are invalid or null. Forcing generation"
+		);
+		print
+"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
+		generateApplicationConfig( $application, "UPDATE", $globalConfig );
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#Otherwise provide the option to update the configuration before proceeding
+	else {
+		print
+"Would you like to review the $application config before installing? Yes/No [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			$log->info(
+				"$subname: User opted to update config prior to installation."
+			);
+			generateApplicationConfig( $application, "UPDATE", $globalConfig );
+			$log->info("Writing out config file to disk.");
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+		}
+	}
+
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	#Check the user exists or create if not
+	createOSUser($osUser);
+
+	$serverPortAvailCode =
+	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
+
+	$connectorPortAvailCode =
+	  isPortAvailable( $globalConfig->param("lcApplication.connectorPort") );
+
+	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
+		$log->info(
+"$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0 
+is currently in use. We will continue however there is a good chance $application will not start."
+		);
+		print
+"One or more of the ports configured for $application are currently in use. We can proceed however there is a very good chance"
+		  . " that $application will not start correctly.\n\n";
+		print
+"Would you like to continue even though the ports are in use? yes/no [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "no" ) {
+			$log->logdie(
+"User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n"
+			);
+		}
+		else {
+			$log->info(
+				"$subname: User opted to continue even though ports are in use."
+			);
+		}
+
+	}
+
+	print "Would you like to install the latest version? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$log->info(
+			"$subname: User opted to install latest version of $application");
+		$mode = "LATEST";
+	}
+	else {
+		$log->info(
+			"$subname: User opted to install specific version of $application"
+		);
+		$mode = "SPECIFIC";
+	}
+
+	#If a specific version is selected, ask for the version number
+	if ( $mode eq "SPECIFIC" ) {
+		while ( $VERSIONLOOP == 1 ) {
+			print
+			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
+
+			$version = <STDIN>;
+			print "\n";
+			chomp $version;
+			dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
+
+			#Check that the input version actually exists
+			print
+"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
+
+			#get the version specific URL to test
+			@downloadDetails =
+			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
+
+			#Try to get the header of the version URL to ensure it exists
+			if ( head( $downloadDetails[0] ) ) {
+				$log->info(
+"$subname: User selected to install version $version of $application"
+				);
+				$VERSIONLOOP = 0;
+				print "$application version $version found. Continuing...\n\n";
+			}
+			else {
+				$log->warn(
+"$subname: User selected to install version $version of $application. No such version exists, asking for input again."
+				);
+				print
+"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
+			}
+		}
+
+	}
+
+	#Download the latest version
+	if ( $mode eq "LATEST" ) {
+		$log->info("$subname: Downloading latest version of $application");
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
+		$version = $downloadDetails[1];
+
+	}
+
+	#Download a specific version
+	else {
+		$log->info("$subname: Downloading version $version of $application");
+		@downloadDetails =
+		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
+			$globalArch );
+	}
+
+	#Extract the download and move into place
+	$log->info("$subname: Extracting $downloadDetails[2]...");
+	extractAndMoveDownload( $downloadDetails[2],
+		$globalConfig->param("$lcApplication.installDir"),
+		$osUser, "" );
+
+	#Check if user wants to remove the downloaded archive
+	print "Do you wish to delete the downloaded archive "
+	  . $downloadDetails[2]
+	  . "? [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$log->info("$subname: User opted to delete downloaded installer.");
+		unlink $downloadDetails[2]
+		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
+	}
+
+	#Update config to reflect new version that is installed
+	$log->info("$subname: Writing new installed version to the config file.");
+	$globalConfig->param( "$lcApplication.installedVersion", $version );
+	$log->info("Writing out config file to disk.");
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
+#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
+	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
+		$log->info(
+"$subname: Copying MySQL JDBC connector to $application install directory."
+		);
+		createAndChownDirectory(
+			$globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir") . "/lib/",
+			$osUser
+		);
+		print
+"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
+		copyFile( $globalConfig->param("general.dbJDBCJar"),
+			    $globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . "/lib/" );
+
+		#Chown the files again
+		$log->info( "$subname: Chowning "
+			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
+			  . " to $osUser following MySQL JDBC install." );
+		chownRecursive( $osUser,
+			    $globalConfig->param("$lcApplication.installDir")
+			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . "/lib/" );
+	}
+
+	#Create home/data directory if it does not exist
+	$log->info(
+"$subname: Checking for and creating $application home directory (if it does not exist)."
+	);
+	print
+"Checking if data directory exists and creating if not, please wait...\n\n";
+	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
+		$osUser );
+
+	#GenericInstallCompleted
+}
+
+########################################
+#PostUpgradeGeneric                    #
+########################################
+sub postUpgradeGeneric {
+	my $application;
+	my $lcApplication;
+	my $input;
+	my $osUser;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application = $_[0];
+
+	$lcApplication = lc($application);
+	$osUser        = $globalConfig->param("$lcApplication.osUser");
+
+	#If set to run as a service, set to run on startup
+	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
+		$log->info(
+			"$subname: Setting up $application as a service to run on startup."
+		);
+		manageService( "INSTALL", $lcApplication );
+	}
+	print "Services configured successfully.\n\n";
+
+	#Check if we should start the service
+	print
+"Installation has completed successfully. Would you like to start the $application service now? Yes/No [yes]: ";
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$log->info("$subname: User opted to start application service.");
+		system("service $lcApplication start");
+		print "\n"
+		  . "$application can now be accessed on http://localhost:"
+		  . $globalConfig->param("$lcApplication.connectorPort")
+		  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+		  . ".\n\n";
+	}
+
+	print
+"The $application install has completed. Please press enter to return to the main menu.";
+	$input = <STDIN>;
+}
+
+########################################
 #UpgradeCrowd                          #
 ########################################
 sub upgradeCrowd {
