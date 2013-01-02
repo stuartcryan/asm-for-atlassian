@@ -4726,360 +4726,134 @@ sub postUpgradeGeneric {
 }
 
 ########################################
-#UpgradeCrowd                          #
+#Upgrade Crowd                         #
 ########################################
 sub upgradeCrowd {
-	my $input;
-	my $mode;
-	my $version;
-	my $application = "crowd";
-	my $lcApplication;
-	my @downloadDetails;
-	my @downloadVersionCheck;
-	my $archiveLocation;
+	my $application = "Crowd";
 	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
+	my $lcApplication;
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/crowd/download-archive";
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $javaMemParameterFile;
+	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	$lcApplication = lc($application);
 
 	#Set up list of config items that are requred for this install to run
-	my @requiredConfigItems;
+	$lcApplication       = lc($application);
 	@requiredConfigItems = (
 		"crowd.appContext",    "crowd.enable",
 		"crowd.dataDir",       "crowd.installDir",
 		"crowd.runAsService",  "crowd.serverPort",
-		"crowd.connectorPort", "crowd.osUser"
+		"crowd.connectorPort", "crowd.osUser",
+		"crowd.tomcatDir",     "crowd.webappDir",
+		"crowd.javaMinMemory", "crowd.javaMaxMemory",
+		"crowd.javaMaxPermSize"
 	);
 
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info(
-"$subname: Some of the config parameters are invalid or null. Forcing generation"
-		);
-		print
-"Some of the Crowd config parameters are incomplete. You must review the Crowd configuration before continuing: \n\n";
-		generateCrowdConfig( "UPDATE", $globalConfig );
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
+	#Run generic installer steps
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
 
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		print
-"Would you like to review the Crowd config before upgrading? Yes/No [yes]: ";
-
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-				"$subname: User opted to update config prior to installation."
-			);
-			generateCrowdConfig( "UPDATE", $globalConfig );
-			$log->info("Writing out config file to disk.");
-			$globalConfig->write($configFile);
-			loadSuiteConfig();
-		}
-	}
-
-	#Set up list of config items that are requred for this install to run
-	@requiredConfigItems = ("crowd.installedVersion");
-
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"crowd.installedVersion",
-"There is no version listed in the config file for the currently installed version of Crowd . Please enter the version of Crowd that is CURRENTLY installed.",
-			""
-		);
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
-
-	#Get the user Crowd will run as
-	$osUser = $globalConfig->param("crowd.osUser");
-
-	#Check the user exists or create if not
-	createOSUser($osUser);
-
-	#We are upgrading, get the latest version
-	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
-
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info(
-			"$subname: User opted to install latest version of $application");
-		$mode = "LATEST";
-	}
-	else {
-		$log->info(
-			"$subname: User opted to install specific version of $application"
-		);
-		$mode = "SPECIFIC";
-	}
-
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
-
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
-			dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
-
-			#Check that the input version actually exists
-			print
-"Please wait, checking that version $version of Crowd exists (may take a few moments)... \n\n";
-
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $application, $globalArch, $version );
-
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$log->info(
-"$subname: User selected to install version $version of $application"
-				);
-				$VERSIONLOOP = 0;
-				print "Crowd version $version found. Continuing...\n\n";
-			}
-			else {
-				$log->warn(
-"$subname: User selected to install version $version of $application. No such version exists, asking for input again."
-				);
-				print
-"No such version of Crowd exists. Please visit http://www.atlassian.com/software/crowd/download-archive and pick a valid version number and try again.\n\n";
-			}
-		}
-
-	}
-
-	#Get the URL for the version we want to download
-	if ( $mode eq "LATEST" ) {
-		@downloadVersionCheck =
-		  getLatestDownloadURL( $application, $globalArch );
-		my $versionSupported =
-		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
-			$downloadVersionCheck[1] );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded ("
-				  . $downloadVersionCheck[1]
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("crowd.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-	elsif ( $mode eq "SPECIFIC" ) {
-		my $versionSupported =
-		  compareTwoVersions( $globalConfig->param("crowd.installedVersion"),
-			$version );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded (" 
-				  . $version
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("crowd.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		$log->info("$subname: Downloading latest version of $application");
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
-
-	}
-
-	#Download a specific version
-	else {
-		$log->info("$subname: Downloading version $version of $application");
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
-			$globalArch );
-	}
-
-	#Prompt user to stop existing service
-	$log->info("$subname: Stopping existing $application service...");
-	print
-"We will now stop the existing Crowd service, please press enter to continue...";
-	$input = <STDIN>;
-	print "\n";
-	if ( -e "/etc/init.d/crowd" ) {
-		system("service crowd stop")
-		  or $log->logdie("Could not stop Crowd: $!");
-	}
-	else {
-		if ( -e $globalConfig->param("crowd.installDir") . "/stop_crowd.sh" ) {
-			system( $globalConfig->param("crowd.installDir")
-				  . "/stop_crowd.sh" )
-			  or $log->logdie(
-"Unable to stop Crowd service, unable to continue please stop manually and try again...\n\n"
-			  );
-		}
-		else {
-			$log->logdie(
-"Unable to find current Crowd installation to stop the service.\nPlease check the Crowd configuration and try again"
-			);
-		}
-	}
-
-	#Extract the download and move into place
-	$log->info("$subname: Extracting $downloadDetails[2]...");
-	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("crowd.installDir"),
-		$osUser, "UPGRADE" );
-
-	#Check if user wants to remove the downloaded archive
-	print "Do you wish to delete the downloaded archive "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to delete downloaded installer.");
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
-
-	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
-	$globalConfig->param( "crowd.installedVersion", $version );
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		$log->info(
-"$subname: Copying MySQL JDBC connector to $application install directory."
-		);
-		print
-"Database is configured as MySQL, copying the JDBC connector to Crowd install.\n\n";
-		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			    $globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir")
-			  . "/lib/" );
-
-		#Chown the files again
-		$log->info( "$subname: Chowning "
-			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
-			  . " to $osUser following MySQL JDBC install." );
-		chownRecursive( $osUser,
-			$globalConfig->param("crowd.installDir") . "/apache-tomcat/lib/" );
-	}
-
+	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . $globalConfig->param("$lcApplication.tomcatDir")
+	  . "/conf/server.xml";
+	$initPropertiesFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . $globalConfig->param("$lcApplication.webappDir")
+	  . "/WEB-INF/classes/$lcApplication-init.properties";
+	$javaMemParameterFile =
+	    $globalConfig->param("$lcApplication.installDir")
+	  . $globalConfig->param("$lcApplication.tomcatDir")
+	  . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		$osUser
-	);
+	backupFile( $serverXMLFile, $osUser );
 
-	backupFile(
-		$globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
-		$osUser
-	);
+	backupFile( $initPropertiesFile, $osUser );
+
+	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
 	#Update the server config with the configured connector port
-	$log->info( "$subname: Updating the connector port in "
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . "/conf/server.xml" );
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"///Connector", "port", $globalConfig->param("crowd.connectorPort")
-	);
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
 
 	#Update the server config with the configured server port
-	$log->info( "$subname: Updating the server port in "
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . "/conf/server.xml" );
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"/Server", "port", $globalConfig->param("crowd.serverPort")
-	);
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
 
 	#Apply application context
-	$log->info( "$subname: Applying application context to "
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . "/conf/server.xml" );
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
 	print "Applying application context to config...\n\n";
-	updateXMLAttribute(
-		$globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "crowd.appContext", $globalConfig )
-	);
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
 
 	print "Applying home directory location to config...\n\n";
 
 	#Edit Crowd config file to reference homedir
-	$log->info( "$subname: Applying homedir to"
-		  . $globalConfig->param("$lcApplication.installDir")
-		  . " in /conf/server.xml" );
-
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
 	updateLineInFile(
-		$globalConfig->param("crowd.installDir")
-		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		$initPropertiesFile,
 		"crowd.home",
-		"crowd.home=" . $globalConfig->param("crowd.dataDir"),
+		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
 		"#crowd.home=/var/crowd-home"
 	);
 
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+		  . "/bin/setenv.sh",
+		"JAVA_OPTS",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
+
+	#Update Java Memory Parameters
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+		"-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
 	print "Configuration settings have been applied successfully.\n\n";
 
-	#Set up init.d again just incase any params have changed.
-	print
-"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	#Run any additional steps
 
 	#Generate the init.d file
-	generateInitD( $application, $osUser,
-		$globalConfig->param("crowd.installDir"),
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
 		"start_crowd.sh", "stop_crowd.sh" );
 
-	#If set to run as a service, set to run on startup
-	if ( $globalConfig->param("crowd.runAsService") eq "TRUE" ) {
-		$log->info("$subname: Setting up as a service to run on startup.");
-		manageService( "INSTALL", $application );
-	}
-	print "Services configured successfully.\n\n";
-
-	#Check if we should start the service
-	print
-"Upgrade has completed successfully. Would you like to Start the Crowd service now? Yes/No [yes]: ";
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to start application service.");
-		system("service $application start");
-		print "\nCrowd can now be accessed on http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig ) . ".\n\n";
-		print "If you have any issues please check the log at "
-		  . $globalConfig->param("crowd.installDir")
-		  . "/apache-tomcat/logs/catalina.out\n\n";
-	}
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
 }
+
+
 
 ########################################
 #Uninstall Crowd                       #
