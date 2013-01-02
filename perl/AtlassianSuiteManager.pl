@@ -4606,13 +4606,15 @@ sub upgradeGeneric {
 	print "\n";
 	if ( -e "/etc/init.d/$lcApplication" ) {
 		system("service $lcApplication stop")
-		  or $log->logdie("Could not stop $application. Unable to upgrade while $application is running: $!");
+		  or $log->logdie(
+"Could not stop $application. Unable to upgrade while $application is running: $!"
+		  );
 	}
 	else {
-			$log->logdie(
+		$log->logdie(
 "Unable to find current $application init.d script to stop the service.\nPlease check the init.d folder and try again"
-			);
-		
+		);
+
 	}
 
 	#Extract the download and move into place
@@ -4667,12 +4669,10 @@ sub upgradeGeneric {
 			  . "/lib/" );
 	}
 
-	#Force a re-chowning of the application data directory in case the service user has changed
+#Force a re-chowning of the application data directory in case the service user has changed
 	$log->info(
-"$subname: Checking for and chowning $application home directory."
-	);
-	print
-"Checking if data directory exists and re-chowning it...\n\n";
+		"$subname: Checking for and chowning $application home directory." );
+	print "Checking if data directory exists and re-chowning it...\n\n";
 	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
 		$osUser );
 
@@ -4745,19 +4745,19 @@ sub upgradeCrowd {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"crowd.appContext",    "crowd.enable",
-		"crowd.dataDir",       "crowd.installDir",
-		"crowd.runAsService",  "crowd.serverPort",
-		"crowd.connectorPort", "crowd.osUser",
-		"crowd.tomcatDir",     "crowd.webappDir",
-		"crowd.javaMinMemory", "crowd.javaMaxMemory",
-		"crowd.javaMaxPermSize"
+		"crowd.appContext",      "crowd.enable",
+		"crowd.dataDir",         "crowd.installDir",
+		"crowd.runAsService",    "crowd.serverPort",
+		"crowd.connectorPort",   "crowd.osUser",
+		"crowd.tomcatDir",       "crowd.webappDir",
+		"crowd.javaMinMemory",   "crowd.javaMaxMemory",
+		"crowd.javaMaxPermSize", "crowd.installedVersion"
 	);
 
-	#Run generic installer steps
-	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	#Run generic upgrader steps
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
-	  ; #we get this after install in CASE the installer changes the configured user in future
+	  ; #we get this after install in CASE the upgrader changes the configured user in future
 
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -4840,20 +4840,17 @@ sub upgradeCrowd {
 
 	#Run any additional steps
 
-	#Generate the init.d file
+	#Re-Generate the init.d file in case any config parameters changed.
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
-
 	generateInitD( $lcApplication, $osUser,
 		$globalConfig->param("$lcApplication.installDir"),
 		"start_crowd.sh", "stop_crowd.sh" );
 
 	#Finally run generic post install tasks
-	postInstallGeneric($application);
+	postUpgradeGeneric($application);
 }
-
-
 
 ########################################
 #Uninstall Crowd                       #
