@@ -4532,7 +4532,7 @@ sub upgradeGeneric {
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		@downloadVersionCheck =
-		  getLatestDownloadURL( $application, $globalArch );
+		  getLatestDownloadURL( $lcApplication, $globalArch );
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"),
 			$downloadVersionCheck[1] );
@@ -4563,7 +4563,7 @@ sub upgradeGeneric {
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
+		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
 		$version = $downloadDetails[1];
 
 	}
@@ -4572,18 +4572,18 @@ sub upgradeGeneric {
 	else {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $application, $version,
+		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			$globalArch );
 	}
 
 	#Prompt user to stop existing service
 	$log->info("$subname: Stopping existing $application service...");
 	print
-"We will now stop the existing Crowd service, please press enter to continue...";
+"We will now stop the existing $application service, please press enter to continue...";
 	$input = <STDIN>;
 	print "\n";
 	if ( -e "/etc/init.d/$lcApplication" ) {
-		system("service $lcApplication stop")
+		system("service $lcApplication stop") == 0
 		  or $log->logdie(
 "Could not stop $application. Unable to upgrade while $application is running: $!"
 		  );
@@ -4654,7 +4654,7 @@ sub upgradeGeneric {
 	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
 		$osUser );
 
-	#GenericInstallCompleted
+	#GenericUpgradeCompleted
 }
 
 ########################################
