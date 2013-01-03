@@ -1170,7 +1170,7 @@ sub bootStrapper {
 #Get the latest URL to download XXX    #
 ########################################
 sub getLatestDownloadURL {
-	my $product;
+	my $application;
 	my $architecture;
 	my @returnArray;
 	my $decoded_json;
@@ -1178,45 +1178,51 @@ sub getLatestDownloadURL {
 
 	$log->info("BEGIN: $subname");
 
-	$product      = $_[0];
+	$application  = $_[0];
 	$architecture = $_[1];
 
+	$lcApplication = lc($application);
+
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_product",      $product );
+	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
 	#Build URL to check latest version for a particular product
-	my $versionurl =
-	  "https://my.atlassian.com/download/feeds/current/" . $product . ".json";
+	my $versionurl = "https://my.atlassian.com/download/feeds/current/"
+	  . $lcApplication . ".json";
 	dumpSingleVarToLog( "$subname" . "_versionurl", $versionurl );
 	my $searchString;
 
  #For each product define the file type that we are looking for in the json feed
-	if ( $product eq "confluence" ) {
+	if ( $lcApplication eq "confluence" ) {
 		$searchString = ".*Linux.*$architecture.*";
 	}
-	elsif ( $product eq "jira" ) {
+	elsif ( $lcApplication eq "jira" ) {
 		$searchString = ".*Linux.*$architecture.*";
 	}
-	elsif ( $product eq "stash" ) {
+	elsif ( $lcApplication eq "stash" ) {
 		$searchString = ".*TAR.*";
 	}
-	elsif ( $product eq "fisheye" ) {
+	elsif ( $lcApplication eq "fisheye" ) {
 		$searchString = ".*FishEye.*";
 	}
-	elsif ( $product eq "crowd" ) {
+	elsif ( $lcApplication eq "crowd" ) {
 		$searchString = ".*TAR.*";
 	}
-	elsif ( $product eq "bamboo" ) {
+	elsif ( $lcApplication eq "bamboo" ) {
 		$searchString = ".*TAR\.GZ.*";
 	}
 	else {
 		print
-"That package is not recognised - Really you should never get here so if you managed to *wavesHi*";
+"That application ($lcApplication) is not recognised - Really you should never get here so if you managed to *wavesHi*";
 		exit 2;
 	}
 
 	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
+
+	print
+"Downloading and parsing the Atlassian feed for the latest version of $application please wait...\n\n"
+	  ;
 
 	#Try and download the feed
 	my $json = get($versionurl);
@@ -1230,7 +1236,7 @@ sub getLatestDownloadURL {
 	# Decode the entire JSON
 	$decoded_json = decode_json($json);
 
-	#Loop through the feed and find the specific file we want for this product
+  #Loop through the feed and find the specific file we want for this application
 	for my $item ( @{ $decoded_json->{downloads} } ) {
 		foreach ( $item->{description} ) {
 			if (/$searchString/) {
