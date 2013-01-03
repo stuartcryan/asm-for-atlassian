@@ -1049,10 +1049,7 @@ sub bootStrapper {
 		else {
 			@parameterNull = $globalConfig->param("general.dbJDBCJar");
 			if (
-				(
-					   $globalConfig->param("general.targetDBType") eq "Oracle"
-					|| $globalConfig->param("general.targetDBType") eq "MSSQL"
-				) & (
+				( $globalConfig->param("general.targetDBType") eq "MySQL" ) & (
 					( $#parameterNull == -1 )
 					  || $globalConfig->param("general.dbJDBCJar") eq ""
 				)
@@ -1061,27 +1058,8 @@ sub bootStrapper {
 				print
 "In order to continue you must download the JDBC JAR file for "
 				  . $globalConfig->param("general.targetDBType")
-				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
-				$log->logdie(
-					"JAR PARAM is NULL. This script will now exit.\n\n");
-			}
-			elsif (
-				(
-					   $globalConfig->param("general.targetDBType") eq "MySQL"
-					|| $globalConfig->param("general.targetDBType") eq
-					"PostgreSQL"
-				) & (
-					( $#parameterNull == -1 )
-					  || $globalConfig->param("general.dbJDBCJar") eq ""
-				)
-			  )
-			{
-				print
-"In order to continue you must download the JDBC JAR file for "
-				  . $globalConfig->param("general.targetDBType")
-				  . " and edit $configFile and add the absolute path to the jar file in [general]-->dbJDBCJar.\n\n";
-				$log->logdie(
-					"JAR PARAM is NULL. This script will now exit.\n\n");
+				  . " attempting to do so now.\n\n";
+				downloadJDBCConnector( "MySQL", $globalConfig );
 			}
 		}
 	}
@@ -4671,7 +4649,7 @@ sub upgradeGeneric {
 
 #Force a re-chowning of the application data directory in case the service user has changed
 	$log->info(
-		"$subname: Checking for and chowning $application home directory." );
+		"$subname: Checking for and chowning $application home directory.");
 	print "Checking if data directory exists and re-chowning it...\n\n";
 	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
 		$osUser );
@@ -6078,45 +6056,13 @@ sub generateSuiteConfig {
 	@parameterNull = $cfg->param("general.dbJDBCJar");
 
 	if ( $cfg->param("general.targetDBType") eq "MySQL" &
-		( $#parameterNull == -1 ) )
+		( ( $#parameterNull == -1 ) || $cfg->param("general.dbJDBCJar") eq "" )
+	  )
 	{
 		$log->info(
 "$subname: MySQL has been selected and no valid JDBC entry defined in config. Download MySQL JDBC driver."
 		);
 		downloadJDBCConnector( "MySQL", $cfg );
-	}
-	if (
-		(
-			   $cfg->param("general.targetDBType") eq "Oracle"
-			|| $cfg->param("general.targetDBType") eq "MSSQL"
-		) &
-		( ( $#parameterNull == -1 ) || $cfg->param("general.dbJDBCJar") eq "" )
-	  )
-	{
-
-		#createNullOptionInConfigFile
-		$cfg->param( "general.dbJDBCJar", "" );
-		print "In order to support your target database type ["
-		  . $cfg->param("general.targetDBType")
-		  . "] you need to download the appropriate JAR file.\n\n";
-
-		if ( $cfg->param("general.targetDBType") eq "Oracle" ) {
-			print
-"Please visit http://www.oracle.com/technetwork/database/features/jdbc/index-091264.html and download the appropriate JDBC JAR File\n";
-		}
-		elsif ( $cfg->param("general.targetDBType") eq "MSSQL" ) {
-			print
-"Please visit http://msdn.microsoft.com/en-us/sqlserver/aa937724.aspx and download the appropriate JDBC JAR File\n";
-		}
-		print
-"Once you have downloaded this (any location is fine, I recommend to the folder this script is installed into),\nplease edit the 'dbJDBCJar' option under [general] in '$configFile' to point to the full absolute path (including filename) of the jar file.\n\n";
-		print
-"This script will now exit. Please update the aforementioned config before running again.\n\n";
-
-		#Write config and exit;
-		$log->info("Writing out config file to disk and terminating script.");
-		$cfg->write($configFile);
-		exit;
 	}
 
 	#Write config and reload
@@ -6168,6 +6114,8 @@ sub displayMenu {
       3) Install Bamboo
       4) Uninstall Jira
       5) Uninstall Confluence
+      6) Install Crowd
+      7) Upgrade Crowd
       D) Download Latest Atlassian Suite FULL (Testing & Debugging)
       G) Generate Suite Config
       T) Testing Function (varies)
@@ -6216,6 +6164,14 @@ END_TXT
 		elsif ( lc($choice) eq "5\n" ) {
 			system 'clear';
 			uninstallConfluence();
+		}
+		elsif ( lc($choice) eq "6\n" ) {
+			system 'clear';
+			installCrowd();
+		}
+		elsif ( lc($choice) eq "7\n" ) {
+			system 'clear';
+			upgradeCrowd();
 		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
