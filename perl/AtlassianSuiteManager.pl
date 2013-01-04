@@ -5110,9 +5110,15 @@ sub generateCrowdConfig {
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
-	genConfigItem( $mode, $cfg, "crowd.osUser",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.osUser",
 		"Enter the user that Crowd will run under.",
-		"crowd", "", "" );
+		"crowd",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	);
 
 	genConfigItem(
 		$mode,
@@ -5235,9 +5241,15 @@ sub generateFisheyeConfig {
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
-	genConfigItem( $mode, $cfg, "fisheye.osUser",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"fisheye.osUser",
 		"Enter the user that Fisheye will run under.",
-		"fisheye", "", "" );
+		"fisheye",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	);
 
 	genConfigItem(
 		$mode,
@@ -5477,9 +5489,15 @@ sub generateBambooConfig {
 		  . "leading '/' and NO trailing '/'.\n\n"
 
 	);
-	genConfigItem( $mode, $cfg, "bamboo.osUser",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.osUser",
 		"Enter the user that Bamboo will run under.",
-		"bamboo", "", "" );
+		"bamboo",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	);
 
 	genConfigItem(
 		$mode,
@@ -5596,9 +5614,15 @@ sub generateStashConfig {
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
-	genConfigItem( $mode, $cfg, "stash.osUser",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.osUser",
 		"Enter the user that Stash will run under.",
-		"stash", "", "" );
+		"stash",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	);
 
 	genConfigItem(
 		$mode,
@@ -5750,7 +5774,6 @@ sub downloadAtlassianInstaller {
 			);
 		}
 	}
-
 	#Parse the URL so that we can get specific sections of it
 	$parsedURL = URI->new( $downloadDetails[0] );
 	my @bits = $parsedURL->path_segments();
