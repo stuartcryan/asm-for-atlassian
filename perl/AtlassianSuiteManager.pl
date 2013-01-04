@@ -248,8 +248,8 @@ sub checkConfiguredPort {
 				$configItem,
 "No port number has been entered. Please enter the new port number for $configItem",
 				"",
-				"",
-				""
+				'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 			);
 		}
 		else {
@@ -275,9 +275,15 @@ sub checkConfiguredPort {
 					|| $input eq "default" )
 				{
 					$log->debug("User selected to configure new port.");
-					genConfigItem( "UPDATE", $cfg, $configItem,
+					genConfigItem(
+						"UPDATE",
+						$cfg,
+						$configItem,
 						"Please enter the new port number to configure",
-						"", "", "" );
+						"",
+						'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+					);
 
 				}
 				elsif ( $input eq "no" ) {
@@ -5008,8 +5014,8 @@ sub generateJiraConfig {
 		"jira.connectorPort",
 "Please enter the Connector port Jira will run on (note this is the port you will access in the browser).",
 		"8080",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
 	checkConfiguredPort( "jira.connectorPort", $cfg );
@@ -5020,8 +5026,8 @@ sub generateJiraConfig {
 		"jira.serverPort",
 "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).",
 		"8000",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
 	checkConfiguredPort( "jira.serverPort", $cfg );
@@ -5137,8 +5143,8 @@ sub generateCrowdConfig {
 		"crowd.connectorPort",
 "Please enter the Connector port Crowd will run on (note this is the port you will access in the browser).",
 		"8095",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 	checkConfiguredPort( "crowd.connectorPort", $cfg );
 
@@ -5148,8 +5154,8 @@ sub generateCrowdConfig {
 		"crowd.serverPort",
 "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).",
 		"8000",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 	checkConfiguredPort( "crowd.serverPort", $cfg );
 
@@ -5268,8 +5274,8 @@ sub generateFisheyeConfig {
 		"fisheye.connectorPort",
 "Please enter the Connector port Fisheye will run on (note this is the port you will access in the browser).",
 		"8060",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 	checkConfiguredPort( "fisheye.connectorPort", $cfg );
 
@@ -5279,8 +5285,8 @@ sub generateFisheyeConfig {
 		"fisheye.serverPort",
 "Please enter the SERVER port Fisheye will run on (note this is the control port not the port you access in a browser).",
 		"8059",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 	checkConfiguredPort( "fisheye.serverPort", $cfg );
 
@@ -5388,8 +5394,8 @@ sub generateConfluenceConfig {
 		"confluence.connectorPort",
 "Please enter the Connector port Confluence will run on (note this is the port you will access in the browser).",
 		"8090",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 	checkConfiguredPort( "confluence.connectorPort", $cfg );
 
@@ -5399,8 +5405,8 @@ sub generateConfluenceConfig {
 		"confluence.serverPort",
 "Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).",
 		"8000",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
 	checkConfiguredPort( "confluence.serverPort", $cfg );
@@ -5515,8 +5521,8 @@ sub generateBambooConfig {
 		"bamboo.connectorPort",
 "Please enter the Connector port Bamboo will run on (note this is the port you will access in the browser).",
 		"8085",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 	checkConfiguredPort( "bamboo.connectorPort", $cfg );
 
@@ -5640,8 +5646,8 @@ sub generateStashConfig {
 		"stash.connectorPort",
 "Please enter the Connector port Stash will run on (note this is the port you will access in the browser).",
 		"8085",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 	checkConfiguredPort( "stash.connectorPort", $cfg );
 
@@ -5651,8 +5657,8 @@ sub generateStashConfig {
 		"stash.serverPort",
 "Please enter the SERVER port Stash will run on (note this is the control port not the port you access in a browser).",
 		"8000",
-		"",
-		""
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
 	checkConfiguredPort( "stash.serverPort", $cfg );
@@ -5774,6 +5780,7 @@ sub downloadAtlassianInstaller {
 			);
 		}
 	}
+
 	#Parse the URL so that we can get specific sections of it
 	$parsedURL = URI->new( $downloadDetails[0] );
 	my @bits = $parsedURL->path_segments();
