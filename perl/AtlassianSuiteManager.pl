@@ -247,7 +247,7 @@ sub checkConfiguredPort {
 				$cfg,
 				$configItem,
 "No port number has been entered. Please enter the new port number for $configItem",
-				""
+				"", "", ""
 			);
 		}
 		else {
@@ -274,7 +274,8 @@ sub checkConfiguredPort {
 				{
 					$log->debug("User selected to configure new port.");
 					genConfigItem( "UPDATE", $cfg, $configItem,
-						"Please enter the new port number to configure", "" );
+						"Please enter the new port number to configure",
+						"", "", "" );
 
 				}
 				elsif ( $input eq "no" ) {
@@ -1221,8 +1222,7 @@ sub getLatestDownloadURL {
 	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
 
 	print
-"Downloading and parsing the Atlassian feed for the latest version of $application please wait...\n\n"
-	  ;
+"Downloading and parsing the Atlassian feed for the latest version of $application please wait...\n\n";
 
 	#Try and download the feed
 	my $json = get($versionurl);
@@ -1549,21 +1549,29 @@ sub genConfigItem {
 	my $defaultValue;
 	my $input;
 	my @parameterNull;
+	my $validationRegex;
+	my $validationFailureMessage;
+	my $LOOP    = 1;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$mode              = $_[0];
-	$cfg               = $_[1];
-	$configParam       = $_[2];
-	$messageText       = $_[3];
-	$defaultInputValue = $_[4];
+	$mode                     = $_[0];
+	$cfg                      = $_[1];
+	$configParam              = $_[2];
+	$messageText              = $_[3];
+	$defaultInputValue        = $_[4];
+	$validationRegex          = $_[5];
+	$validationFailureMessage = $_[6];
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_mode",              $mode );
 	dumpSingleVarToLog( "$subname" . "_configParam",       $configParam );
 	dumpSingleVarToLog( "$subname" . "_messageText",       $messageText );
 	dumpSingleVarToLog( "$subname" . "_defaultInputValue", $defaultInputValue );
+	dumpSingleVarToLog( "$subname" . "_validationRegex",   $validationRegex );
+	dumpSingleVarToLog( "$subname" . "_validationFailureRegex",
+		$validationFailureMessage );
 
 	#Check if the paramater is null (undefined)
 	@parameterNull = $cfg->param($configParam);
@@ -1588,25 +1596,44 @@ sub genConfigItem {
 	}
 	print $messageText . " [" . $defaultValue . "]: ";
 
-	$input = getGenericInput();
-	print "\n";
+	while ( $LOOP == 1 ) {
+		$input = getGenericInput();
+		print "\n";
 
 #If default option is selected (i.e. just a return), use default value, otherwise use input
-	if ( $input eq "default" ) {
-		$cfg->param( $configParam, $defaultValue );
-		$log->debug(
-			"$subname: default selected, setting $configParam to $defaultValue"
-		);
+		if ( $input eq "default" ) {
+			$cfg->param( $configParam, $defaultValue );
+			$log->debug(
+"$subname: default selected, setting $configParam to $defaultValue"
+			);
+			$LOOP = 0;    #accept input
+		}
+		elsif ( lc($input) eq "null" ) {
+			$cfg->param( $configParam, "NULL" );
+			$log->debug("$subname: NULL input, setting $configParam to 'NULL'");
+			$LOOP = 0;    #accept input
+		}
+		else {
+			if ( $validationRegex ne "" ) {
+				if ( lc($input) =~ $validationRegex ) {
+					$cfg->param( $configParam, $input );
+					$log->debug("$subname: Setting $configParam to '$input'");
+					$LOOP = 0;    #accept input
+				}
+				else {
+					$log->info(
+"$subname: The input '$input' did not match the regex '$validationRexex'. Getting input again."
+					);
+					print $validationFailureMessage;
+				}
+			}
+			else {                #no regex checking needed
+				$cfg->param( $configParam, $input );
+				$log->debug("$subname: Setting $configParam to '$input'");
+				$LOOP = 0;        #accept input
+			}
+		}
 	}
-	elsif ( lc($input) eq "null" ) {
-		$cfg->param( $configParam, "NULL" );
-		$log->debug("$subname: NULL input, setting $configParam to 'NULL'");
-	}
-	else {
-		$cfg->param( $configParam, $input );
-		$log->debug("$subname: Setting $configParam to '$input'");
-	}
-
 }
 
 ########################################
@@ -3010,6 +3037,8 @@ sub upgradeGenericAtlassianBinary {
 			$globalConfig,
 			"$lcApplication.installedVersion",
 "There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
+			"",
+			"",
 			""
 		);
 		$log->info("Writing out config file to disk.");
@@ -4434,6 +4463,8 @@ sub upgradeGeneric {
 			$globalConfig,
 			"$lcApplication.installedVersion",
 "There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
+			"",
+			"",
 			""
 		);
 		$log->info("Writing out config file to disk.");
@@ -4936,15 +4967,23 @@ sub generateJiraConfig {
 	dumpSingleVarToLog( "$subname" . "_mode", $mode );
 
 	genConfigItem(
-		$mode, $cfg, "jira.installDir",
+		$mode,
+		$cfg,
+		"jira.installDir",
 		"Please enter the directory Jira will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/jira"
+		$cfg->param("general.rootInstallDir") . "/jira",
+		"",
+		""
 	);
 
 	genConfigItem(
-		$mode, $cfg, "jira.dataDir",
+		$mode,
+		$cfg,
+		"jira.dataDir",
 		"Please enter the directory Jira's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/jira"
+		$cfg->param("general.rootDataDir") . "/jira",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -4952,7 +4991,9 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.appContext",
 "Enter the context that Jira should run under (i.e. /jira or /bugtraq). Write NULL to blank out the context.",
-		"/jira"
+		"/jira",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -4960,7 +5001,9 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.connectorPort",
 "Please enter the Connector port Jira will run on (note this is the port you will access in the browser).",
-		"8080"
+		"8080",
+		"",
+		""
 	);
 
 	checkConfiguredPort( "jira.connectorPort", $cfg );
@@ -4970,7 +5013,9 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.serverPort",
 "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).",
-		"8000"
+		"8000",
+		"",
+		""
 	);
 
 	checkConfiguredPort( "jira.serverPort", $cfg );
@@ -4980,6 +5025,8 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
 		""
 	);
 
@@ -4988,7 +5035,9 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.javaMinMemory",
 		"Enter the minimum amount of memory you would like to assign to Jira.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -4996,7 +5045,9 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.javaMaxMemory",
 		"Enter the maximum amount of memory you would like to assign to Jira.",
-		"768m"
+		"768m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5004,7 +5055,9 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Jira.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
@@ -5034,31 +5087,42 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.installDir",
 		"Please enter the directory Crowd will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/crowd"
+		$cfg->param("general.rootInstallDir") . "/crowd",
+		"",
+		""
 	);
 
 	genConfigItem(
-		$mode, $cfg, "crowd.dataDir",
+		$mode,
+		$cfg,
+		"crowd.dataDir",
 		"Please enter the directory Crowd's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/crowd"
+		$cfg->param("general.rootDataDir") . "/crowd",
+		"",
+		""
 	);
 
 	genConfigItem( $mode, $cfg, "crowd.osUser",
-		"Enter the user that Crowd will run under.", "crowd" );
+		"Enter the user that Crowd will run under.",
+		"crowd", "", "" );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"crowd.appContext",
 "Enter the context that Crowd should run under (i.e. /crowd or /login). Write NULL to blank out the context.",
-		"/crowd"
+		"/crowd",
+		"",
+		""
 	);
 	genConfigItem(
 		$mode,
 		$cfg,
 		"crowd.connectorPort",
 "Please enter the Connector port Crowd will run on (note this is the port you will access in the browser).",
-		"8095"
+		"8095",
+		"",
+		""
 	);
 	checkConfiguredPort( "crowd.connectorPort", $cfg );
 
@@ -5067,7 +5131,9 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.serverPort",
 "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).",
-		"8000"
+		"8000",
+		"",
+		""
 	);
 	checkConfiguredPort( "crowd.serverPort", $cfg );
 
@@ -5076,6 +5142,8 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
 		""
 	);
 
@@ -5084,7 +5152,9 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.javaMinMemory",
 		"Enter the minimum amount of memory you would like to assign to Crowd.",
-		"128m"
+		"128m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5092,7 +5162,9 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.javaMaxMemory",
 		"Enter the maximum amount of memory you would like to assign to Crowd.",
-		"512m"
+		"512m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5100,7 +5172,9 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Crowd.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
@@ -5134,7 +5208,9 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.installDir",
 		"Please enter the directory Fisheye will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/fisheye"
+		$cfg->param("general.rootInstallDir") . "/fisheye",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5142,18 +5218,23 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.dataDir",
 		"Please enter the directory Fisheye's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/fisheye"
+		$cfg->param("general.rootDataDir") . "/fisheye",
+		"",
+		""
 	);
 
 	genConfigItem( $mode, $cfg, "fisheye.osUser",
-		"Enter the user that Fisheye will run under.", "fisheye" );
+		"Enter the user that Fisheye will run under.",
+		"fisheye", "", "" );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"fisheye.appContext",
 "Enter the context that Fisheye should run under (i.e. /fisheye). Write NULL to blank out the context.",
-		"/fisheye"
+		"/fisheye",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5161,7 +5242,9 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.connectorPort",
 "Please enter the Connector port Fisheye will run on (note this is the port you will access in the browser).",
-		"8060"
+		"8060",
+		"",
+		""
 	);
 	checkConfiguredPort( "fisheye.connectorPort", $cfg );
 
@@ -5170,7 +5253,9 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.serverPort",
 "Please enter the SERVER port Fisheye will run on (note this is the control port not the port you access in a browser).",
-		"8059"
+		"8059",
+		"",
+		""
 	);
 	checkConfiguredPort( "fisheye.serverPort", $cfg );
 
@@ -5179,6 +5264,8 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
 		""
 	);
 
@@ -5187,7 +5274,9 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.javaMinMemory",
 "Enter the minimum amount of memory you would like to assign to Fisheye.",
-		"128m"
+		"128m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5195,7 +5284,9 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.javaMaxMemory",
 "Enter the maximum amount of memory you would like to assign to Fisheye.",
-		"512m"
+		"512m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5203,7 +5294,9 @@ sub generateFisheyeConfig {
 		$cfg,
 		"fisheye.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Fisheye.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "fisheye.runAsService",
@@ -5239,28 +5332,36 @@ sub generateConfluenceConfig {
 		$cfg,
 		"confluence.installDir",
 		"Please enter the directory Confluence will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/confluence"
+		$cfg->param("general.rootInstallDir") . "/confluence",
+		"",
+		""
 	);
 	genConfigItem(
 		$mode,
 		$cfg,
 		"confluence.dataDir",
 		"Please enter the directory Confluence's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/confluence"
+		$cfg->param("general.rootDataDir") . "/confluence",
+		"",
+		""
 	);
 	genConfigItem(
 		$mode,
 		$cfg,
 		"confluence.appContext",
 "Enter the context that Confluence should run under (i.e. /wiki or /confluence). Write NULL to blank out the context.",
-		"/confluence"
+		"/confluence",
+		"",
+		""
 	);
 	genConfigItem(
 		$mode,
 		$cfg,
 		"confluence.connectorPort",
 "Please enter the Connector port Confluence will run on (note this is the port you will access in the browser).",
-		"8090"
+		"8090",
+		"",
+		""
 	);
 	checkConfiguredPort( "confluence.connectorPort", $cfg );
 
@@ -5269,7 +5370,9 @@ sub generateConfluenceConfig {
 		$cfg,
 		"confluence.serverPort",
 "Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).",
-		"8000"
+		"8000",
+		"",
+		""
 	);
 
 	checkConfiguredPort( "confluence.serverPort", $cfg );
@@ -5279,6 +5382,8 @@ sub generateConfluenceConfig {
 		$cfg,
 		"confluence.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
 		""
 	);
 
@@ -5287,7 +5392,9 @@ sub generateConfluenceConfig {
 		$cfg,
 		"confluence.javaMinMemory",
 "Enter the minimum amount of memory you would like to assign to Confluence.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5295,7 +5402,9 @@ sub generateConfluenceConfig {
 		$cfg,
 		"confluence.javaMaxMemory",
 "Enter the maximum amount of memory you would like to assign to Confluence.",
-		"512m"
+		"512m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5303,7 +5412,9 @@ sub generateConfluenceConfig {
 		$cfg,
 		"confluence.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Confluence.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
@@ -5333,30 +5444,39 @@ sub generateBambooConfig {
 		$cfg,
 		"bamboo.installDir",
 		"Please enter the directory Bamboo will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/bamboo"
+		$cfg->param("general.rootInstallDir") . "/bamboo",
+		"",
+		""
 	);
 	genConfigItem(
 		$mode,
 		$cfg,
 		"bamboo.dataDir",
 		"Please enter the directory Bamboo's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/bamboo"
+		$cfg->param("general.rootDataDir") . "/bamboo",
+		"",
+		""
 	);
 	genConfigItem( $mode, $cfg, "bamboo.osUser",
-		"Enter the user that Bamboo will run under.", "bamboo" );
+		"Enter the user that Bamboo will run under.",
+		"bamboo", "", "" );
 	genConfigItem(
 		$mode,
 		$cfg,
 		"bamboo.appContext",
 "Enter the context that Bamboo should run under (i.e. /bamboo). Write NULL to blank out the context.",
-		"/bamboo"
+		"/bamboo",
+		"",
+		""
 	);
 	genConfigItem(
 		$mode,
 		$cfg,
 		"bamboo.connectorPort",
 "Please enter the Connector port Bamboo will run on (note this is the port you will access in the browser).",
-		"8085"
+		"8085",
+		"",
+		""
 	);
 	checkConfiguredPort( "bamboo.connectorPort", $cfg );
 
@@ -5375,6 +5495,8 @@ sub generateBambooConfig {
 		$cfg,
 		"bamboo.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
 		""
 	);
 
@@ -5383,7 +5505,9 @@ sub generateBambooConfig {
 		$cfg,
 		"bamboo.javaMinMemory",
 "Enter the minimum amount of memory you would like to assign to Bamboo.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5391,7 +5515,9 @@ sub generateBambooConfig {
 		$cfg,
 		"bamboo.javaMaxMemory",
 "Enter the maximum amount of memory you would like to assign to Bamboo.",
-		"512m"
+		"512m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5399,7 +5525,9 @@ sub generateBambooConfig {
 		$cfg,
 		"bamboo.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Bamboo.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "bamboo.runAsService",
@@ -5429,28 +5557,42 @@ sub generateStashConfig {
 		$cfg,
 		"stash.installDir",
 		"Please enter the directory Stash will be installed into.",
-		$cfg->param("general.rootInstallDir") . "/stash"
+		$cfg->param("general.rootInstallDir") . "/stash",
+		"",
+		""
 	);
+
 	genConfigItem(
-		$mode, $cfg, "stash.dataDir",
+		$mode,
+		$cfg,
+		"stash.dataDir",
 		"Please enter the directory Stash's data will be stored in.",
-		$cfg->param("general.rootDataDir") . "/stash"
+		$cfg->param("general.rootDataDir") . "/stash",
+		"",
+		""
 	);
+
 	genConfigItem( $mode, $cfg, "stash.osUser",
-		"Enter the user that Stash will run under.", "stash" );
+		"Enter the user that Stash will run under.",
+		"stash", "", "" );
+
 	genConfigItem(
 		$mode,
 		$cfg,
 		"stash.appContext",
 "Enter the context that Stash should run under (i.e. /stash). Write NULL to blank out the context.",
-		"/stash"
+		"/stash",
+		"",
+		""
 	);
 	genConfigItem(
 		$mode,
 		$cfg,
 		"stash.connectorPort",
 "Please enter the Connector port Stash will run on (note this is the port you will access in the browser).",
-		"8085"
+		"8085",
+		"",
+		""
 	);
 	checkConfiguredPort( "stash.connectorPort", $cfg );
 
@@ -5459,7 +5601,9 @@ sub generateStashConfig {
 		$cfg,
 		"stash.serverPort",
 "Please enter the SERVER port Stash will run on (note this is the control port not the port you access in a browser).",
-		"8000"
+		"8000",
+		"",
+		""
 	);
 
 	checkConfiguredPort( "stash.serverPort", $cfg );
@@ -5469,6 +5613,8 @@ sub generateStashConfig {
 		$cfg,
 		"stash.javaParams",
 "Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
 		""
 	);
 
@@ -5477,7 +5623,9 @@ sub generateStashConfig {
 		$cfg,
 		"stash.javaMinMemory",
 		"Enter the minimum amount of memory you would like to assign to Stash.",
-		"512m"
+		"512m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5485,7 +5633,9 @@ sub generateStashConfig {
 		$cfg,
 		"stash.javaMaxMemory",
 		"Enter the maximum amount of memory you would like to assign to Stash.",
-		"768m"
+		"768m",
+		"",
+		""
 	);
 
 	genConfigItem(
@@ -5493,7 +5643,9 @@ sub generateStashConfig {
 		$cfg,
 		"stash.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Stash.",
-		"256m"
+		"256m",
+		"",
+		""
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "stash.runAsService",
@@ -5838,7 +5990,7 @@ sub generateSuiteConfig {
 	#Get root installation directory
 	genConfigItem( $mode, $cfg, "general.rootInstallDir",
 		"Please enter the root directory the suite will be installed into.",
-		"/opt/atlassian" );
+		"/opt/atlassian", "", "" );
 
 	#Get root data directory
 	genConfigItem(
@@ -5846,7 +5998,9 @@ sub generateSuiteConfig {
 		$cfg,
 		"general.rootDataDir",
 "Please enter the root directory the suite data/home directories will be stored.",
-		"/var/atlassian/application-data"
+		"/var/atlassian/application-data",
+		"",
+		""
 	);
 
 	#Get Crowd configuration
