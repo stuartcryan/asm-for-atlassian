@@ -247,7 +247,9 @@ sub checkConfiguredPort {
 				$cfg,
 				$configItem,
 "No port number has been entered. Please enter the new port number for $configItem",
-				"", "", ""
+				"",
+				"",
+				""
 			);
 		}
 		else {
@@ -1175,6 +1177,7 @@ sub getLatestDownloadURL {
 	my $architecture;
 	my @returnArray;
 	my $decoded_json;
+	my $lcApplication;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -1594,9 +1597,9 @@ sub genConfigItem {
 		$defaultValue = $defaultInputValue;
 		dumpSingleVarToLog( "$subname" . "_defaultValue", $defaultValue );
 	}
-	print $messageText . " [" . $defaultValue . "]: ";
 
 	while ( $LOOP == 1 ) {
+		print $messageText . " [" . $defaultValue . "]: ";
 		$input = getGenericInput();
 		print "\n";
 
@@ -1622,7 +1625,7 @@ sub genConfigItem {
 				}
 				else {
 					$log->info(
-"$subname: The input '$input' did not match the regex '$validationRexex'. Getting input again."
+"$subname: The input '$input' did not match the regex '$validationRegex'. Getting input again."
 					);
 					print $validationFailureMessage;
 				}
@@ -4972,8 +4975,9 @@ sub generateJiraConfig {
 		"jira.installDir",
 		"Please enter the directory Jira will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/jira",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem(
@@ -4982,8 +4986,9 @@ sub generateJiraConfig {
 		"jira.dataDir",
 		"Please enter the directory Jira's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/jira",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem(
@@ -4992,8 +4997,9 @@ sub generateJiraConfig {
 		"jira.appContext",
 "Enter the context that Jira should run under (i.e. /jira or /bugtraq). Write NULL to blank out the context.",
 		"/jira",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem(
@@ -5088,8 +5094,9 @@ sub generateCrowdConfig {
 		"crowd.installDir",
 		"Please enter the directory Crowd will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/crowd",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem(
@@ -5098,8 +5105,9 @@ sub generateCrowdConfig {
 		"crowd.dataDir",
 		"Please enter the directory Crowd's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/crowd",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem( $mode, $cfg, "crowd.osUser",
@@ -5112,9 +5120,11 @@ sub generateCrowdConfig {
 		"crowd.appContext",
 "Enter the context that Crowd should run under (i.e. /crowd or /login). Write NULL to blank out the context.",
 		"/crowd",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -5209,8 +5219,9 @@ sub generateFisheyeConfig {
 		"fisheye.installDir",
 		"Please enter the directory Fisheye will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/fisheye",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem(
@@ -5219,8 +5230,9 @@ sub generateFisheyeConfig {
 		"fisheye.dataDir",
 		"Please enter the directory Fisheye's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/fisheye",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem( $mode, $cfg, "fisheye.osUser",
@@ -5233,8 +5245,9 @@ sub generateFisheyeConfig {
 		"fisheye.appContext",
 "Enter the context that Fisheye should run under (i.e. /fisheye). Write NULL to blank out the context.",
 		"/fisheye",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem(
@@ -5333,8 +5346,9 @@ sub generateConfluenceConfig {
 		"confluence.installDir",
 		"Please enter the directory Confluence will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/confluence",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 	genConfigItem(
 		$mode,
@@ -5342,8 +5356,9 @@ sub generateConfluenceConfig {
 		"confluence.dataDir",
 		"Please enter the directory Confluence's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/confluence",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 	genConfigItem(
 		$mode,
@@ -5351,8 +5366,9 @@ sub generateConfluenceConfig {
 		"confluence.appContext",
 "Enter the context that Confluence should run under (i.e. /wiki or /confluence). Write NULL to blank out the context.",
 		"/confluence",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 	genConfigItem(
 		$mode,
@@ -5445,29 +5461,35 @@ sub generateBambooConfig {
 		"bamboo.installDir",
 		"Please enter the directory Bamboo will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/bamboo",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
 		"bamboo.dataDir",
 		"Please enter the directory Bamboo's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/bamboo",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
+
 	);
 	genConfigItem( $mode, $cfg, "bamboo.osUser",
 		"Enter the user that Bamboo will run under.",
 		"bamboo", "", "" );
+
 	genConfigItem(
 		$mode,
 		$cfg,
 		"bamboo.appContext",
 "Enter the context that Bamboo should run under (i.e. /bamboo). Write NULL to blank out the context.",
 		"/bamboo",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 	genConfigItem(
 		$mode,
@@ -5558,8 +5580,9 @@ sub generateStashConfig {
 		"stash.installDir",
 		"Please enter the directory Stash will be installed into.",
 		$cfg->param("general.rootInstallDir") . "/stash",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem(
@@ -5568,8 +5591,9 @@ sub generateStashConfig {
 		"stash.dataDir",
 		"Please enter the directory Stash's data will be stored in.",
 		$cfg->param("general.rootDataDir") . "/stash",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	genConfigItem( $mode, $cfg, "stash.osUser",
@@ -5582,8 +5606,9 @@ sub generateStashConfig {
 		"stash.appContext",
 "Enter the context that Stash should run under (i.e. /stash). Write NULL to blank out the context.",
 		"/stash",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 	genConfigItem(
 		$mode,
@@ -5988,9 +6013,16 @@ sub generateSuiteConfig {
 	}
 
 	#Get root installation directory
-	genConfigItem( $mode, $cfg, "general.rootInstallDir",
+	genConfigItem(
+		$mode,
+		$cfg,
+		"general.rootInstallDir",
 		"Please enter the root directory the suite will be installed into.",
-		"/opt/atlassian", "", "" );
+		"/opt/atlassian",
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
+	);
 
 	#Get root data directory
 	genConfigItem(
@@ -5999,8 +6031,9 @@ sub generateSuiteConfig {
 		"general.rootDataDir",
 "Please enter the root directory the suite data/home directories will be stored.",
 		"/var/atlassian/application-data",
-		"",
-		""
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	#Get Crowd configuration
@@ -6339,9 +6372,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			updateLineInBambooWrapperConf(
-				"/opt/atlassian/bamboo/conf/wrapper.conf",
-				"wrapper.java.additional.", "-Xma", "512m" );
+			generateCrowdConfig( "UPDATE", $globalConfig );
 		}
 	}
 }
