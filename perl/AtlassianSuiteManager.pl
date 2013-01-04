@@ -5175,8 +5175,8 @@ sub generateCrowdConfig {
 		"crowd.javaMinMemory",
 		"Enter the minimum amount of memory you would like to assign to Crowd.",
 		"128m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5185,8 +5185,8 @@ sub generateCrowdConfig {
 		"crowd.javaMaxMemory",
 		"Enter the maximum amount of memory you would like to assign to Crowd.",
 		"512m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5195,8 +5195,8 @@ sub generateCrowdConfig {
 		"crowd.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Crowd.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
@@ -5306,8 +5306,8 @@ sub generateFisheyeConfig {
 		"fisheye.javaMinMemory",
 "Enter the minimum amount of memory you would like to assign to Fisheye.",
 		"128m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5316,8 +5316,8 @@ sub generateFisheyeConfig {
 		"fisheye.javaMaxMemory",
 "Enter the maximum amount of memory you would like to assign to Fisheye.",
 		"512m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5326,8 +5326,8 @@ sub generateFisheyeConfig {
 		"fisheye.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Fisheye.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "fisheye.runAsService",
@@ -5427,8 +5427,8 @@ sub generateConfluenceConfig {
 		"confluence.javaMinMemory",
 "Enter the minimum amount of memory you would like to assign to Confluence.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5437,8 +5437,8 @@ sub generateConfluenceConfig {
 		"confluence.javaMaxMemory",
 "Enter the maximum amount of memory you would like to assign to Confluence.",
 		"512m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5447,8 +5447,8 @@ sub generateConfluenceConfig {
 		"confluence.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Confluence.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
@@ -5552,8 +5552,8 @@ sub generateBambooConfig {
 		"bamboo.javaMinMemory",
 "Enter the minimum amount of memory you would like to assign to Bamboo.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5562,8 +5562,8 @@ sub generateBambooConfig {
 		"bamboo.javaMaxMemory",
 "Enter the maximum amount of memory you would like to assign to Bamboo.",
 		"512m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5572,8 +5572,8 @@ sub generateBambooConfig {
 		"bamboo.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Bamboo.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "bamboo.runAsService",
@@ -5679,8 +5679,8 @@ sub generateStashConfig {
 		"stash.javaMinMemory",
 		"Enter the minimum amount of memory you would like to assign to Stash.",
 		"512m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5689,8 +5689,8 @@ sub generateStashConfig {
 		"stash.javaMaxMemory",
 		"Enter the maximum amount of memory you would like to assign to Stash.",
 		"768m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5699,8 +5699,8 @@ sub generateStashConfig {
 		"stash.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Stash.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "stash.runAsService",
