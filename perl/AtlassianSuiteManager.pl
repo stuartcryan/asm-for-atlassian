@@ -5048,8 +5048,8 @@ sub generateJiraConfig {
 		"jira.javaMinMemory",
 		"Enter the minimum amount of memory you would like to assign to Jira.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5058,8 +5058,8 @@ sub generateJiraConfig {
 		"jira.javaMaxMemory",
 		"Enter the maximum amount of memory you would like to assign to Jira.",
 		"768m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genConfigItem(
@@ -5068,8 +5068,8 @@ sub generateJiraConfig {
 		"jira.javaMaxPermSize",
 "Enter the amount of memory for the MAX_PERM_SIZE parameter that you would like to assign to Jira.",
 		"256m",
-		"",
-		""
+		'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
 	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
