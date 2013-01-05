@@ -211,6 +211,112 @@ sub isPortAvailable {
 }
 
 ########################################
+#getPIDList                            #
+########################################
+sub getPIDList {
+	my @PIDs;
+	my $line;
+	my $i;
+	my $grep1stParam;
+	my $grep2ndParam;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+	$grep1stParam = $_[0];
+	$grep2ndParam = $_[1];
+	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
+	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
+
+	open( PIDLIST,
+"/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v \"ps -ef | grep\" |"
+	);
+	$i = 0;
+	while (<PIDLIST>) {
+		$line = $_;
+		chomp $line;
+		dumpSingleVarToLog( "$subname" . "_line_$i", $line );
+		$PIDs[$i] = $line;
+		$i++;
+	}
+	close PIDLIST;
+	print "PID count is: " . @PIDs;
+	print "\n\n";
+	print Dumper(@PIDs);
+	return @PIDs;
+}
+
+########################################
+#startService                          #
+########################################
+sub startService {
+	my @PIDs;
+	my $line;
+	my $i;
+	my $application;
+	my $lcApplication;
+	my @pidList;
+	my $grep1stParam;
+	my $grep2ndParam;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+	$application   = $_[0];
+	$lcApplication = lc($application);
+	$grep1stParam  = $_[1];
+	$grep2ndParam  = $_[2];
+	dumpSingleVarToLog( "$subname" . "_application",  $application );
+	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
+	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
+
+	#first make sure service is not already started
+	@pidList = getPIDList( $grep1stParam, $grep2ndParam );
+
+	if ( @pidList > 0 ) {
+
+		#Service is started we need to stop it
+		$log->info(
+			"$subname: $application is already started. Attempting to stop.");
+		print
+"The $application service is already started. We will need to stop this first before attempting to start. Please wait...\n\n";
+		stopService( $application, $grep1stParam, $grep2ndParam );
+	}
+
+	#then start the service
+	system( "service "
+		  . $globalConfig->param( $lcApplication . ".osUser" )
+		  . " start" );
+
+	@pidList = getPIDList( $grep1stParam, $grep2ndParam );
+	if ( @pidList == 1 ) {
+
+		#service started successfully
+		$log->info(
+"$subname: $application started successfully. 1 process now running."
+		);
+		print "The $application service has been started successfully.\n\n";
+		return "SUCCESS";
+	}
+	elsif ( @pidList == 0 ) {
+
+		#service did not start successfully
+		$log->warn(
+"$subname: $application did not start successfully. No such process running."
+		);
+		print "The $application service did not start correctly.\n\n";
+		return "WARN";
+	}
+	elsif ( @pidList > 0 ) {
+
+		#duplicate processes running
+		$log->warn( "$subname: $application has duplicate processes running." );
+		print
+"The $application service has spawned duplicate processes. This should not happen and should be investigated.\n\n";
+		return "WARN";
+	}
+
+}
+
+########################################
 #Check configured port                 #
 ########################################
 sub checkConfiguredPort {
@@ -4919,8 +5025,7 @@ sub uninstallCrowd {
 				  . $globalConfig->param("crowd.installDir")
 				  . ". Directory does not exist." );
 			print
-"Could not find configured install directory... possibly not installed?"
-			  ;
+"Could not find configured install directory... possibly not installed?";
 		}
 
 		#Check if you REALLY want to remove data directory
@@ -6504,7 +6609,8 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			generateCrowdConfig( "UPDATE", $globalConfig );
+			getPIDList( "java", "/opt/atlassian/crowd" );
+			my $test = <STDIN>;
 		}
 	}
 }
