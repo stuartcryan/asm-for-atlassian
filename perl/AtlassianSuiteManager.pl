@@ -4919,7 +4919,8 @@ sub uninstallCrowd {
 				  . $globalConfig->param("crowd.installDir")
 				  . ". Directory does not exist." );
 			print
-"Could not find configured install directory... possibly not installed?";
+"Could not find configured install directory... possibly not installed?"
+			  ;
 		}
 
 		#Check if you REALLY want to remove data directory
@@ -5029,8 +5030,8 @@ sub upgradeFisheye {
 	$log->info(
 "$subname: Updating the FISHEYE_INST variable in '$environmentProfileFile'"
 		  . $serverXMLFile );
-	print "Updating the FISHEYE_INST variable in '$environmentProfileFile'.\n\n"
-	  ;
+	print
+	  "Updating the FISHEYE_INST variable in '$environmentProfileFile'.\n\n";
 	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
 		$globalConfig->param("$lcApplication.dataDir") );
 
