@@ -3892,7 +3892,6 @@ sub installFisheye {
 		"fisheye.dataDir",       "fisheye.installDir",
 		"fisheye.runAsService",  "fisheye.osUser",
 		"fisheye.serverPort",    "fisheye.connectorPort",
-		"fisheye.tomcatDir",     "fisheye.webappDir",
 		"fisheye.javaMinMemory", "fisheye.javaMaxMemory",
 		"fisheye.javaMaxPermSize"
 	);
@@ -4957,6 +4956,94 @@ sub uninstallCrowd {
 "Crowd has been uninstalled successfully and the config file updated to reflect Crowd as disabled. Press enter to continue...\n\n";
 		$input = <STDIN>;
 	}
+}
+
+########################################
+#Upgrade Fisheye                       #
+########################################
+sub upgradeFisheye {
+	my $application = "Fisheye";
+	my $osUser;
+	my $lcApplication;
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/fisheye/download-archives";
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $javaMemParameterFile;
+	my @requiredConfigItems;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up list of config items that are requred for this install to run
+	$lcApplication       = lc($application);
+	@requiredConfigItems = (
+		"fisheye.appContext",    "fisheye.enable",
+		"fisheye.dataDir",       "fisheye.installDir",
+		"fisheye.runAsService",  "fisheye.osUser",
+		"fisheye.serverPort",    "fisheye.connectorPort",
+		"fisheye.javaMinMemory", "fisheye.javaMaxMemory",
+		"fisheye.javaMaxPermSize"
+	);
+
+	#Run generic upgrader steps
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the upgrader changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$javaMemParameterFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
+
+	#backupFilesFirst
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateJavaMemParameter( $javaMemParameterFile, "FISHEYE_OPTS", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+
+	updateJavaMemParameter( $javaMemParameterFile, "FISHEYE_OPTS", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+
+	updateJavaMemParameter( $javaMemParameterFile, "FISHEYE_OPTS",
+		"-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . "/bin/fisheyectl.sh",
+		"FISHEYE_OPTS",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	#Run any additional steps
+	my $environmentProfileFile = "/etc/environment";
+	$log->info(
+"$subname: Updating the FISHEYE_INST variable in '$environmentProfileFile'"
+		  . $serverXMLFile );
+	print "Updating the FISHEYE_INST variable in '$environmentProfileFile'.\n\n"
+	  ;
+	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
+		$globalConfig->param("$lcApplication.dataDir") );
+
+	#Re-Generate the init.d file in case any config parameters changed.
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
+		"start_crowd.sh", "stop_crowd.sh" );
+
+	#Finally run generic post install tasks
+	postUpgradeGeneric($application);
 }
 
 ########################################
@@ -6295,8 +6382,7 @@ sub generateSuiteConfig {
 	$globalArch = whichApplicationArchitecture();
 
 	print
-"The suite configuration has been generated successfully. Please press enter to return to the main menu."
-	  ;
+"The suite configuration has been generated successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
 }
 
@@ -6344,6 +6430,8 @@ sub displayMenu {
       5) Uninstall Confluence
       6) Install Crowd
       7) Upgrade Crowd
+      8) Install Fisheye
+      9) Upgrade Fisheye
       D) Download Latest Atlassian Suite FULL (Testing & Debugging)
       G) Generate Suite Config
       T) Testing Function (varies)
@@ -6400,6 +6488,14 @@ END_TXT
 		elsif ( lc($choice) eq "7\n" ) {
 			system 'clear';
 			upgradeCrowd();
+		}
+		elsif ( lc($choice) eq "8\n" ) {
+			system 'clear';
+			installFisheye();
+		}
+		elsif ( lc($choice) eq "9\n" ) {
+			system 'clear';
+			upgradeFisheye();
 		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
