@@ -6293,6 +6293,11 @@ sub generateSuiteConfig {
 	$cfg->write($configFile);
 	loadSuiteConfig();
 	$globalArch = whichApplicationArchitecture();
+
+	print
+"The suite configuration has been generated successfully. Please press enter to return to the main menu."
+	  ;
+	$input = <STDIN>;
 }
 
 ########################################
