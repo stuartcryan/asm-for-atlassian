@@ -239,14 +239,16 @@ sub getPIDList {
 		$i++;
 	}
 	close PIDLIST;
-	print "PID count is: " . @PIDs;
-	print "\n\n";
-	print Dumper(@PIDs);
 	return @PIDs;
 }
 
 ########################################
 #startService                          #
+#When using this function you need to  #
+#cater for returns of:                 #
+#1. SUCCESS                            #
+#2. FAIL                               #
+#3. WARN                               #
 ########################################
 sub startService {
 	my @PIDs;
@@ -274,11 +276,9 @@ sub startService {
 	if ( @pidList > 0 ) {
 
 		#Service is started we need to stop it
-		$log->info(
-			"$subname: $application is already started. Attempting to stop.");
-		print
-"The $application service is already started. We will need to stop this first before attempting to start. Please wait...\n\n";
-		stopService( $application, $grep1stParam, $grep2ndParam );
+		$log->info("$subname: $application is already running.");
+		print "The $application service is already running.\n\n";
+		return "SUCCESS";
 	}
 
 	#then start the service
@@ -293,7 +293,8 @@ sub startService {
 		$log->info(
 "$subname: $application started successfully. 1 process now running."
 		);
-		print "The $application service has been started successfully.\n\n";
+		print
+		  "\n\n The $application service has been started successfully.\n\n";
 		return "SUCCESS";
 	}
 	elsif ( @pidList == 0 ) {
@@ -302,16 +303,292 @@ sub startService {
 		$log->warn(
 "$subname: $application did not start successfully. No such process running."
 		);
-		print "The $application service did not start correctly.\n\n";
+		print "\n\n The $application service did not start correctly.\n\n";
 		return "WARN";
 	}
 	elsif ( @pidList > 0 ) {
 
 		#duplicate processes running
-		$log->warn( "$subname: $application has duplicate processes running." );
+		$log->warn("$subname: $application has duplicate processes running.");
 		print
 "The $application service has spawned duplicate processes. This should not happen and should be investigated.\n\n";
 		return "WARN";
+	}
+
+}
+
+########################################
+#stopService                           #
+#When using this function you need to  #
+#cater for returns of:                 #
+#1. SUCCESS                            #
+#2. FAIL                               #
+########################################
+sub stopService {
+	my @PIDs;
+	my $line;
+	my $i;
+	my $application;
+	my $lcApplication;
+	my @pidList;
+	my $processID;
+	my $grep1stParam;
+	my $grep2ndParam;
+	my $LOOP  = 1;
+	my $LOOP2 = 1;
+	my $LOOP3 = 1;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+	$application   = $_[0];
+	$lcApplication = lc($application);
+	$grep1stParam  = $_[1];
+	$grep2ndParam  = $_[2];
+	dumpSingleVarToLog( "$subname" . "_application",  $application );
+	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
+	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
+
+	while ( $LOOP == 1 ) {
+
+		#first make sure the service is actually running
+		@pidList = getPIDList( $grep1stParam, $grep2ndParam );
+
+		if ( @pidList == 0 ) {
+
+			#Service is not running... no need to stop it
+			$log->info(
+"$subname: $application is not running. There is no need to stop."
+			);
+			print "The $application service is already stopped.\n\n";
+			$LOOP = 0;
+			return "SUCCESS";
+		}
+		elsif ( @pidList == 1 ) {
+
+			#attempt to stop the service
+			print "Attempting to stop the $application service.\n\n";
+			$log->info(
+				"$subname: Attempting to stop the $application service.");
+			system( "service "
+				  . $globalConfig->param( $lcApplication . ".osUser" )
+				  . " stop" );
+			print
+"Stop command completed successfully. Sleeping for 60 seconds before testing to ensure process has died.\n\n";
+			$log->info(
+				"$subname: Stop command completed. Sleeing for 60 seconds.");
+			sleep 60;
+
+			#Testing to see if the process stop has succeeded
+			@pidList = getPIDList( $grep1stParam, $grep2ndParam );
+			if ( @pidList == 0 ) {
+
+				#Stop completed successfully
+				print "The $application service was stopped succesfully.\n\n";
+				$log->info(
+					"$subname: $application service stopped succesfully.");
+				$LOOP = 0;
+				return "SUCCESS";
+			}
+			elsif ( @pidList == 1 ) {
+
+				#Process is still running sleep for another 60 seconds
+				print
+"The process still appears to be running... Sleeping for another 60 seconds after which you can opt to kill the process.\n\n";
+				$log->info(
+"$subname: $application Process still running. Sleeing for another 60 seconds."
+				);
+				sleep 60;
+
+			   #Testing again and if still running see what the user wants to do
+				@pidList = getPIDList( $grep1stParam, $grep2ndParam );
+				if ( @pidList == 0 ) {
+
+					#Stop completed successfully
+					print
+					  "The $application service was stopped succesfully.\n\n";
+					$log->info(
+						"$subname: $application service stopped succesfully.");
+					$LOOP = 0;
+					return "SUCCESS";
+				}
+				elsif ( @pidList == 1 ) {
+
+					#Process is still running try again or kill?
+					$log->info(
+"$subname: $application process still running. Offering option to try again or kill."
+					);
+
+					print
+"The process still appears to be running... Would you like to try again or kill the process? (try/kill) [kill]: ";
+					$LOOP2 = 1
+					  ; #Resetting the loop in case we have deliberately broken out.
+					while ( $LOOP2 == 1 ) {
+
+						$input = <STDIN>;
+						print "\n";
+						chomp $input;
+
+						if (   ( lc $input ) eq "kill"
+							|| ( lc $input ) eq "k"
+							|| ( lc $input ) eq "" )
+						{
+
+							#Kill The Process
+							if ( $pidList[0] =~
+								/^([A-Za-z0-9]*)\s*([0-9]*)\s*(.*)$/ )
+							{
+								$processID = $2;
+
+								system("kill -9 $processID");
+								sleep 1;    #sleep for a second just for safety.
+
+								@pidList =
+								  getPIDList( $grep1stParam, $grep2ndParam );
+								if ( @pidList == 0 ) {
+
+									#Stop completed successfully
+									print
+"The $application service was killed succesfully.\n\n";
+									$log->info(
+"$subname: $application service killed succesfully."
+									);
+									$LOOP = 0;
+									return "SUCCESS";
+								}
+								elsif ( @pidList == 1 ) {
+									print
+"The $application service could not be killed.\n\n";
+									$log->info(
+"$subname: $application service could not be killed."
+									);
+									return "FAIL";
+								}
+
+							}
+						}
+						elsif ( ( lc $input ) eq "try" || ( lc $input ) eq "t" )
+						{
+							$LOOP2 = 0
+							  ; #break this inner loop to return to the outer loop
+						}
+						else {
+							$log->info(
+"$subname: Input not recognised, asking user for input again."
+							);
+							print "Your input '" . $input
+							  . "'was not recognised. Please try again and write 'try' or 'kill'.\n";
+						}
+					}
+
+				}
+			}
+		}
+		elsif ( @pidList > 1 ) {
+
+			#Multiple matching processes running
+			$log->info(
+"$subname: Multiple $application process running. Offering option to kill them manually."
+			);
+
+			print
+"There are duplicate processes running for $application, these will have to be killed manually. Please press enter to continue. ";
+			$input = <STDIN>;
+			print "\n";
+
+			while ( $LOOP3 == 1 ) {
+
+				print
+"The following duplicate processes are running for $application:\n\n "
+				  ;
+				print "UID        PID  PPID  C STIME TTY          TIME CMD\n";
+
+				foreach (@pidList) {
+					$log->info("$subname: Duplicate process --> $_");
+					print "$_" . "\n";
+				}
+				print "\n\n";
+
+				print
+"Please enter the process ID you would like to kill (one at a time): ";
+				$input = <STDIN>;
+				print "\n";
+				chomp $input;
+
+				#Kill The Process
+
+				system("kill -9 $input");
+				sleep 1;    #sleep for a second just for safety.
+
+				@pidList = getPIDList( $grep1stParam, $grep2ndParam );
+				if ( @pidList == 0 ) {
+
+					#Stop completed successfully
+					print
+					  "The $application services were killed succesfully.\n\n";
+					$log->info(
+"$subname: $application services were killed succesfully."
+					);
+					$LOOP  = 0;
+					$LOOP3 = 0;
+					return "SUCCESS";
+				}
+				elsif ( @pidList > 0 ) {
+					$LOOP3 =
+					  1;  #continue providing option to kill remaining processes
+				}
+
+			}
+
+		}
+	}
+}
+
+########################################
+#restartService                        #
+########################################
+sub restartService {
+	my @PIDs;
+	my $application;
+	my $lcApplication;
+	my $grep1stParam;
+	my $grep2ndParam;
+	my $startReturn;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+	$application   = $_[0];
+	$lcApplication = lc($application);
+	$grep1stParam  = $_[1];
+	$grep2ndParam  = $_[2];
+	dumpSingleVarToLog( "$subname" . "_application",  $application );
+	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
+	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
+
+	if (
+		stopService( $application, $grep1stParam, $grep2ndParam ) eq "SUCCESS" )
+	{
+		$log->info("$subname: Service stop for $application succeeded.");
+		$startReturn =
+		  startService( $application, $grep1stParam, $grep2ndParam );
+
+		if ( $startReturn eq "SUCCESS" ) {
+			$log->info("$subname: Service start for $application succeeded.");
+			return "SUCCESS";
+		}
+		elsif ( $startReturn eq "FAIL" ) {
+			$log->info("$subname: Service start for $application failed.");
+			return "FAIL";
+		}
+		elsif ( $startReturn eq "WARN" ) {
+			$log->info(
+				"$subname: Service start for $application returned 'WARN'.");
+			return "WARN";
+		}
+	}
+	else {
+		$log->info("$subname: Service stop for $application failed.");
+		return "FAIL";
 	}
 
 }
@@ -1470,7 +1747,8 @@ sub getBooleanInput {
 		}
 		else {
 			$log->info(
-				"$subname: Input not recognised, asking user for input again.");
+				"$subname: Input not recognised, asking user for input again."
+			);
 			print "Your input '" . $input
 			  . "'was not recognised. Please try again and write yes or no.\n";
 		}
@@ -1540,7 +1818,8 @@ sub extractAndMoveDownload {
 	#Make sure file exists
 	if ( !-e $inputFile ) {
 		$log->logdie(
-			"File $inputFile could not be extracted. File does not exist.\n\n");
+			"File $inputFile could not be extracted. File does not exist.\n\n"
+		);
 	}
 
 	#Set up extract object
@@ -1824,14 +2103,16 @@ sub genBooleanConfigItem {
 		|| ( $input eq "default" && $defaultValue eq "yes" ) )
 	{
 		$log->debug(
-			"$subname: Input entered was 'yes' setting $configParam to 'TRUE'");
+			"$subname: Input entered was 'yes' setting $configParam to 'TRUE'"
+		);
 		$cfg->param( $configParam, "TRUE" );
 	}
 	elsif ( $input eq "no"
 		|| ( $input eq "default" && $defaultValue eq "no" ) )
 	{
 		$log->debug(
-			"$subname: Input entered was 'no' setting $configParam to 'FALSE'");
+			"$subname: Input entered was 'no' setting $configParam to 'FALSE'"
+		);
 		$cfg->param( $configParam, "FALSE" );
 	}
 
@@ -1910,7 +2191,8 @@ sub updateJavaOpts {
 	dumpSingleVarToLog( "$subname" . "_javaOpts",  $javaOpts );
 
 	#Try to open the provided file
-	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile");
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
 	@data = <FILE>;
@@ -2008,7 +2290,8 @@ sub updateJavaMemParameter {
 	dumpSingleVarToLog( "$subname" . "_newValue", $newValue );
 
 	#Try to open the provided file
-	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile");
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
 	@data = <FILE>;
@@ -2116,7 +2399,8 @@ sub updateEnvironmentVars {
 	dumpSingleVarToLog( "$subname" . "_newValue",     $newValue );
 
 	#Try to open the provided file
-	open( FILE, $inputFile ) or $log->logdie("Unable to open file: $inputFile");
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
 	@data = <FILE>;
@@ -2777,7 +3061,8 @@ sub installGenericAtlassianBinary {
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
-				"$subname: User opted to update config prior to installation.");
+				"$subname: User opted to update config prior to installation."
+			);
 			generateApplicationConfig( $application, "UPDATE", $globalConfig );
 		}
 	}
@@ -2811,7 +3096,8 @@ Therefore script is terminating, please ensure port configuration is correct and
 	}
 	else {
 		$log->info(
-			"$subname: User opted to install specific version of $application");
+			"$subname: User opted to install specific version of $application"
+		);
 		$mode = "SPECIFIC";
 	}
 
@@ -3134,7 +3420,8 @@ sub upgradeGenericAtlassianBinary {
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
-				"$subname: User opted to update config prior to installation.");
+				"$subname: User opted to update config prior to installation."
+			);
 			generateApplicationConfig( $application, "UPDATE", $globalConfig );
 		}
 	}
@@ -3173,7 +3460,8 @@ sub upgradeGenericAtlassianBinary {
 	}
 	else {
 		$log->info(
-			"$subname: User opted to install specific version of $application");
+			"$subname: User opted to install specific version of $application"
+		);
 		$mode = "SPECIFIC";
 	}
 
@@ -6080,7 +6368,8 @@ sub downloadLatestAtlassianSuite {
 			    $globalConfig->param("general.rootInstallDir") . "/"
 			  . $bits[ @bits - 1 ] )
 		  or $log->logdie(
-			"Fatal error while attempting to download $downloadDetails[0]: $?");
+			"Fatal error while attempting to download $downloadDetails[0]: $?"
+		  );
 
 #Test if the download was a success, if not die and return HTTP response code otherwise return the absolute path to file
 		if ( is_success($downloadResponseCode) ) {
@@ -6609,7 +6898,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			getPIDList( "java", "/opt/atlassian/crowd" );
+			startService( "Crowd", "java", "/opt/atlassian/crowd" );
 			my $test = <STDIN>;
 		}
 	}
