@@ -4217,6 +4217,7 @@ sub installStash {
 	);
 
 	#Apply the JavaOpts configuration (if any)
+	$javaMemParameterFile = $initPropertiesFile;
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
 		$globalConfig->param( $lcApplication . ".installDir" )
@@ -4747,26 +4748,51 @@ is currently in use. We will continue however there is a good chance $applicatio
 		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
-		createAndChownDirectory(
-			$globalConfig->param("$lcApplication.installDir")
-			  . $tomcatDir . "/lib/",
-			$osUser
-		);
+		if ( $tomcatDir eq "" ) {
+			createAndChownDirectory(
+				$globalConfig->param("$lcApplication.installDir") . "/lib/",
+				$osUser );
+		}
+		else {
+			createAndChownDirectory(
+				$globalConfig->param("$lcApplication.installDir")
+				  . $tomcatDir . "/lib/",
+				$osUser
+			);
+		}
+
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			    $globalConfig->param("$lcApplication.installDir")
-			  . $tomcatDir
-			  . "/lib/" );
+		if ( $tomcatDir eq "" ) {
+			copyFile( $globalConfig->param("general.dbJDBCJar"),
+				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+		}
+		else {
+			copyFile( $globalConfig->param("general.dbJDBCJar"),
+				    $globalConfig->param("$lcApplication.installDir")
+				  . $tomcatDir
+				  . "/lib/" );
+		}
 
 		#Chown the files again
-		$log->info( "$subname: Chowning "
-			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
-			  . " to $osUser following MySQL JDBC install." );
-		chownRecursive( $osUser,
-			    $globalConfig->param("$lcApplication.installDir")
-			  . $tomcatDir
-			  . "/lib/" );
+		if ( $tomcatDir eq "" ) {
+			$log->info( "$subname: Chowning "
+				  . $globalConfig->param( $lcApplication . ".installDir" )
+				  . "/lib/"
+				  . " to $osUser following MySQL JDBC install." );
+			chownRecursive( $osUser,
+				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+		}
+		else {
+			$log->info( "$subname: Chowning "
+				  . $globalConfig->param( $lcApplication . ".installDir" )
+				  . $tomcatDir . "/lib/"
+				  . " to $osUser following MySQL JDBC install." );
+			chownRecursive( $osUser,
+				    $globalConfig->param("$lcApplication.installDir")
+				  . $tomcatDir
+				  . "/lib/" );
+		}
 	}
 
 	#Create home/data directory if it does not exist
@@ -5133,26 +5159,51 @@ sub upgradeGeneric {
 		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
-		createAndChownDirectory(
-			$globalConfig->param("$lcApplication.installDir")
-			  . $tomcatDir . "/lib/",
-			$osUser
-		);
+		if ( $tomcatDir eq "" ) {
+			createAndChownDirectory(
+				$globalConfig->param("$lcApplication.installDir") . "/lib/",
+				$osUser );
+		}
+		else {
+			createAndChownDirectory(
+				$globalConfig->param("$lcApplication.installDir")
+				  . $tomcatDir . "/lib/",
+				$osUser
+			);
+		}
+
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			    $globalConfig->param("$lcApplication.installDir")
-			  . $tomcatDir
-			  . "/lib/" );
+		if ( $tomcatDir eq "" ) {
+			copyFile( $globalConfig->param("general.dbJDBCJar"),
+				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+		}
+		else {
+			copyFile( $globalConfig->param("general.dbJDBCJar"),
+				    $globalConfig->param("$lcApplication.installDir")
+				  . $tomcatDir
+				  . "/lib/" );
+		}
 
 		#Chown the files again
-		$log->info( "$subname: Chowning "
-			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
-			  . " to $osUser following MySQL JDBC install." );
-		chownRecursive( $osUser,
-			    $globalConfig->param("$lcApplication.installDir")
-			  . $tomcatDir
-			  . "/lib/" );
+		if ( $tomcatDir eq "" ) {
+			$log->info( "$subname: Chowning "
+				  . $globalConfig->param( $lcApplication . ".installDir" )
+				  . "/lib/"
+				  . " to $osUser following MySQL JDBC install." );
+			chownRecursive( $osUser,
+				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+		}
+		else {
+			$log->info( "$subname: Chowning "
+				  . $globalConfig->param( $lcApplication . ".installDir" )
+				  . $tomcatDir . "/lib/"
+				  . " to $osUser following MySQL JDBC install." );
+			chownRecursive( $osUser,
+				    $globalConfig->param("$lcApplication.installDir")
+				  . $tomcatDir
+				  . "/lib/" );
+		}
 	}
 
 #Force a re-chowning of the application data directory in case the service user has changed
