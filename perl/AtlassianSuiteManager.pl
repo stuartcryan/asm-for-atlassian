@@ -3585,7 +3585,7 @@ sub upgradeGenericAtlassianBinary {
 "Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
 	sleep(60);
 	if (
-		$processReturnCode = stopService(
+		my $processReturnCode = stopService(
 			$application,
 			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
 			$globalConfig->param( $lcApplication . "processSearchParameter2" )
@@ -4797,9 +4797,8 @@ sub postInstallGeneric {
 			$application,
 			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
 			$globalConfig->param( $lcApplication . "processSearchParameter2" )
-		  )
-		  if ( $processReturnCode eq "SUCCESS" )
-		{
+		);
+		if ( $processReturnCode eq "SUCCESS" ) {
 			print "\n"
 			  . "$application can now be accessed on http://localhost:"
 			  . $globalConfig->param("$lcApplication.connectorPort")
@@ -4833,6 +4832,7 @@ sub upgradeGeneric {
 	my $archiveLocation;
 	my $versionSupported;
 	my $osUser;
+	my $processReturnCode;
 	my $VERSIONLOOP = 1;
 	my @uidGid;
 	my $serverPortAvailCode;
@@ -5048,9 +5048,9 @@ sub upgradeGeneric {
 		$application,
 		$globalConfig->param( $lcApplication . "processSearchParameter1" ),
 		$globalConfig->param( $lcApplication . "processSearchParameter2" )
-	  )
+	);
 
-	  if ( $processReturnCode eq "FAIL" ) {
+	if ( $processReturnCode eq "FAIL" ) {
 		print
 "We were unable to stop the $application process therefore the upgrade cannot go ahead, please try stopping manually and trying again.\n\n";
 		$log->logdie(
@@ -5157,9 +5157,8 @@ sub postUpgradeGeneric {
 			$application,
 			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
 			$globalConfig->param( $lcApplication . "processSearchParameter2" )
-		  )
-		  if ( $processReturnCode eq "SUCCESS" )
-		{
+		);
+		if ( $processReturnCode eq "SUCCESS" ) {
 			print "\n"
 			  . "$application can now be accessed on http://localhost:"
 			  . $globalConfig->param("$lcApplication.connectorPort")
