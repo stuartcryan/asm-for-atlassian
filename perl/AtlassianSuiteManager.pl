@@ -228,7 +228,7 @@ sub getPIDList {
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
 
 	open( PIDLIST,
-"/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v \"ps -ef | grep\" |"
+"/bin/ps -ef | grep \"$grep1stParam\" | grep \"$grep2ndParam\" | grep -v \"ps -ef | grep\" |"
 	);
 	$i = 0;
 	while (<PIDLIST>) {
@@ -3763,7 +3763,9 @@ sub installConfluence {
 		"confluence.dataDir",       "confluence.installDir",
 		"confluence.runAsService",  "confluence.serverPort",
 		"confluence.connectorPort", "confluence.javaMinMemory",
-		"confluence.javaMaxMemory", "confluence.javaMaxPermSize"
+		"confluence.javaMaxMemory", "confluence.javaMaxPermSize",
+		"confluence.processSearchParameter1",
+		"confluence.processSearchParameter2"
 	);
 
 	#Run generic installer steps
@@ -3813,11 +3815,18 @@ sub upgradeConfluence {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"confluence.appContext",    "confluence.enable",
-		"confluence.dataDir",       "confluence.installDir",
-		"confluence.runAsService",  "confluence.serverPort",
-		"confluence.connectorPort", "confluence.javaMinMemory",
-		"confluence.javaMaxMemory", "confluence.javaMaxPermSize"
+		"confluence.appContext",
+		"confluence.enable",
+		"confluence.dataDir",
+		"confluence.installDir",
+		"confluence.runAsService",
+		"confluence.serverPort",
+		"confluence.connectorPort",
+		"confluence.javaMinMemory",
+		"confluence.javaMaxMemory",
+		"confluence.javaMaxPermSize",
+		"confluence.processSearchParameter1",
+		"confluence.processSearchParameter2"
 	);
 
 	upgradeGenericAtlassianBinary(
@@ -3876,11 +3885,12 @@ sub installJira {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"jira.appContext",    "jira.enable",
-		"jira.dataDir",       "jira.installDir",
-		"jira.runAsService",  "jira.serverPort",
-		"jira.connectorPort", "jira.javaMinMemory",
-		"jira.javaMaxMemory", "jira.javaMaxPermSize"
+		"jira.appContext",              "jira.enable",
+		"jira.dataDir",                 "jira.installDir",
+		"jira.runAsService",            "jira.serverPort",
+		"jira.connectorPort",           "jira.javaMinMemory",
+		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
+		"jira.processSearchParameter1", "jira.processSearchParameter2"
 	);
 
 	#Run generic installer steps
@@ -3946,11 +3956,12 @@ sub upgradeJira {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"jira.appContext",    "jira.enable",
-		"jira.dataDir",       "jira.installDir",
-		"jira.runAsService",  "jira.serverPort",
-		"jira.connectorPort", "jira.javaMinMemory",
-		"jira.javaMaxMemory", "jira.javaMaxPermSize"
+		"jira.appContext",              "jira.enable",
+		"jira.dataDir",                 "jira.installDir",
+		"jira.runAsService",            "jira.serverPort",
+		"jira.connectorPort",           "jira.javaMinMemory",
+		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
+		"jira.processSearchParameter1", "jira.processSearchParameter2"
 	);
 
 	upgradeGenericAtlassianBinary(
@@ -4029,13 +4040,14 @@ sub installCrowd {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"crowd.appContext",    "crowd.enable",
-		"crowd.dataDir",       "crowd.installDir",
-		"crowd.runAsService",  "crowd.serverPort",
-		"crowd.connectorPort", "crowd.osUser",
-		"crowd.tomcatDir",     "crowd.webappDir",
-		"crowd.javaMinMemory", "crowd.javaMaxMemory",
-		"crowd.javaMaxPermSize"
+		"crowd.appContext",      "crowd.enable",
+		"crowd.dataDir",         "crowd.installDir",
+		"crowd.runAsService",    "crowd.serverPort",
+		"crowd.connectorPort",   "crowd.osUser",
+		"crowd.tomcatDir",       "crowd.webappDir",
+		"crowd.javaMinMemory",   "crowd.javaMaxMemory",
+		"crowd.javaMaxPermSize", "crowd.processSearchParameter1",
+		"crowd.processSearchParameter2"
 	);
 
 	#Run generic installer steps
@@ -4157,12 +4169,13 @@ sub installStash {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"stash.appContext",    "stash.enable",
-		"stash.dataDir",       "stash.installDir",
-		"stash.runAsService",  "stash.serverPort",
-		"stash.connectorPort", "stash.osUser",
-		"stash.webappDir",     "stash.javaMinMemory",
-		"stash.javaMaxMemory", "stash.javaMaxPermSize"
+		"stash.appContext",              "stash.enable",
+		"stash.dataDir",                 "stash.installDir",
+		"stash.runAsService",            "stash.serverPort",
+		"stash.connectorPort",           "stash.osUser",
+		"stash.webappDir",               "stash.javaMinMemory",
+		"stash.javaMaxMemory",           "stash.javaMaxPermSize",
+		"stash.processSearchParameter1", "stash.processSearchParameter2"
 	);
 
 	#Run generic installer steps
@@ -4292,12 +4305,13 @@ sub installFisheye {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"fisheye.appContext",    "fisheye.enable",
-		"fisheye.dataDir",       "fisheye.installDir",
-		"fisheye.runAsService",  "fisheye.osUser",
-		"fisheye.serverPort",    "fisheye.connectorPort",
-		"fisheye.javaMinMemory", "fisheye.javaMaxMemory",
-		"fisheye.javaMaxPermSize"
+		"fisheye.appContext",      "fisheye.enable",
+		"fisheye.dataDir",         "fisheye.installDir",
+		"fisheye.runAsService",    "fisheye.osUser",
+		"fisheye.serverPort",      "fisheye.connectorPort",
+		"fisheye.javaMinMemory",   "fisheye.javaMaxMemory",
+		"fisheye.javaMaxPermSize", "fisheye.processSearchParameter1",
+		"fisheye.processSearchParameter2"
 	);
 
 	#Run generic installer steps
@@ -4428,11 +4442,12 @@ sub installBamboo {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"bamboo.appContext",    "bamboo.enable",
-		"bamboo.dataDir",       "bamboo.installDir",
-		"bamboo.runAsService",  "bamboo.osUser",
-		"bamboo.connectorPort", "bamboo.javaMinMemory",
-		"bamboo.javaMaxMemory", "bamboo.javaMaxPermSize"
+		"bamboo.appContext",              "bamboo.enable",
+		"bamboo.dataDir",                 "bamboo.installDir",
+		"bamboo.runAsService",            "bamboo.osUser",
+		"bamboo.connectorPort",           "bamboo.javaMinMemory",
+		"bamboo.javaMaxMemory",           "bamboo.javaMaxPermSize",
+		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2"
 	);
 
 	#Run generic installer steps
@@ -5292,13 +5307,14 @@ sub upgradeCrowd {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"crowd.appContext",      "crowd.enable",
-		"crowd.dataDir",         "crowd.installDir",
-		"crowd.runAsService",    "crowd.serverPort",
-		"crowd.connectorPort",   "crowd.osUser",
-		"crowd.tomcatDir",       "crowd.webappDir",
-		"crowd.javaMinMemory",   "crowd.javaMaxMemory",
-		"crowd.javaMaxPermSize", "crowd.installedVersion"
+		"crowd.appContext",              "crowd.enable",
+		"crowd.dataDir",                 "crowd.installDir",
+		"crowd.runAsService",            "crowd.serverPort",
+		"crowd.connectorPort",           "crowd.osUser",
+		"crowd.tomcatDir",               "crowd.webappDir",
+		"crowd.javaMinMemory",           "crowd.javaMaxMemory",
+		"crowd.javaMaxPermSize",         "crowd.installedVersion",
+		"crowd.processSearchParameter1", "crowd.processSearchParameter2"
 	);
 
 	#Run generic upgrader steps
@@ -5502,12 +5518,13 @@ sub upgradeFisheye {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"fisheye.appContext",    "fisheye.enable",
-		"fisheye.dataDir",       "fisheye.installDir",
-		"fisheye.runAsService",  "fisheye.osUser",
-		"fisheye.serverPort",    "fisheye.connectorPort",
-		"fisheye.javaMinMemory", "fisheye.javaMaxMemory",
-		"fisheye.javaMaxPermSize"
+		"fisheye.appContext",      "fisheye.enable",
+		"fisheye.dataDir",         "fisheye.installDir",
+		"fisheye.runAsService",    "fisheye.osUser",
+		"fisheye.serverPort",      "fisheye.connectorPort",
+		"fisheye.javaMinMemory",   "fisheye.javaMaxMemory",
+		"fisheye.javaMaxPermSize", "fisheye.processSearchParameter1",
+		"fisheye.processSearchParameter2"
 	);
 
 	#Run generic upgrader steps
