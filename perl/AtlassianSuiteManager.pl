@@ -4161,9 +4161,8 @@ sub installStash {
 		"stash.dataDir",       "stash.installDir",
 		"stash.runAsService",  "stash.serverPort",
 		"stash.connectorPort", "stash.osUser",
-		"stash.tomcatDir",     "stash.webappDir",
-		"stash.javaMinMemory", "stash.javaMaxMemory",
-		"stash.javaMaxPermSize"
+		"stash.webappDir",     "stash.javaMinMemory",
+		"stash.javaMaxMemory", "stash.javaMaxPermSize"
 	);
 
 	#Run generic installer steps
@@ -4175,9 +4174,7 @@ sub installStash {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$serverXMLFile =
-	    $globalConfig->param("$lcApplication.installDir")
-	  . $globalConfig->param("$lcApplication.tomcatDir")
-	  . "/conf/server.xml";
+	  $globalConfig->param("$lcApplication.installDir") . "/conf/server.xml";
 
 	$initPropertiesFile =
 	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
@@ -4546,6 +4543,10 @@ sub installGeneric {
 	my @uidGid;
 	my $serverPortAvailCode;
 	my $connectorPortAvailCode;
+	my @tomcatParameterNull;
+	my @webappParameterNull;
+	my $tomcatDir;
+	my $webappDir;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4585,6 +4586,26 @@ sub installGeneric {
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
+	}
+
+	#set up the tomcat and webapp parameters as sometimes they are null
+	@tomcatParameterNull = $globalConfig->param("$lcApplication.tomcatDir");
+	@webappParameterNull = $globalConfig->param("$lcApplication.webappDir");
+
+	if ( @tomcatParameterNull == -1 ) {
+		$tomcatDir = "";
+	}
+	else {
+		$tomcatDir = $globalConfig->param("$lcApplication.tomcatDir");
+
+	}
+
+	if ( @webappParameterNull == -1 ) {
+		$webappDir = "";
+	}
+	else {
+		$webappDir = $globalConfig->param("$lcApplication.webappDir");
+
 	}
 
 	#Get the user the application will run as
@@ -4728,14 +4749,14 @@ is currently in use. We will continue however there is a good chance $applicatio
 		);
 		createAndChownDirectory(
 			$globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir") . "/lib/",
+			  . $tomcatDir . "/lib/",
 			$osUser
 		);
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
 			    $globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . $tomcatDir
 			  . "/lib/" );
 
 		#Chown the files again
@@ -4744,7 +4765,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 			  . " to $osUser following MySQL JDBC install." );
 		chownRecursive( $osUser,
 			    $globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . $tomcatDir
 			  . "/lib/" );
 	}
 
@@ -4837,6 +4858,10 @@ sub upgradeGeneric {
 	my @uidGid;
 	my $serverPortAvailCode;
 	my $connectorPortAvailCode;
+	my @tomcatParameterNull;
+	my @webappParameterNull;
+	my $tomcatDir;
+	my $webappDir;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4895,6 +4920,26 @@ sub upgradeGeneric {
 		$log->info("Writing out config file to disk.");
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
+	}
+
+	#set up the tomcat and webapp parameters as sometimes these can be null
+	@tomcatParameterNull = $globalConfig->param("$lcApplication.tomcatDir");
+	@webappParameterNull = $globalConfig->param("$lcApplication.webappDir");
+
+	if ( @tomcatParameterNull == -1 ) {
+		$tomcatDir = "";
+	}
+	else {
+		$tomcatDir = $globalConfig->param("$lcApplication.tomcatDir");
+
+	}
+
+	if ( @webappParameterNull == -1 ) {
+		$webappDir = "";
+	}
+	else {
+		$webappDir = $globalConfig->param("$lcApplication.webappDir");
+
 	}
 
 	#Get the user the application will run as
@@ -5090,14 +5135,14 @@ sub upgradeGeneric {
 		);
 		createAndChownDirectory(
 			$globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir") . "/lib/",
+			  . $tomcatDir . "/lib/",
 			$osUser
 		);
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
 			    $globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . $tomcatDir
 			  . "/lib/" );
 
 		#Chown the files again
@@ -5106,7 +5151,7 @@ sub upgradeGeneric {
 			  . " to $osUser following MySQL JDBC install." );
 		chownRecursive( $osUser,
 			    $globalConfig->param("$lcApplication.installDir")
-			  . $globalConfig->param("$lcApplication.tomcatDir")
+			  . $tomcatDir
 			  . "/lib/" );
 	}
 
@@ -6113,6 +6158,10 @@ sub generateBambooConfig {
 		"Would you like to run Bamboo as a service? yes/no.", "yes" );
 
 	#Set up some defaults for Bamboo
+	$cfg->param( "bamboo.tomcatDir", "" )
+	  ;    #we leave these blank deliberately due to the way Fishey works
+	$cfg->param( "bamboo.webappDir", "" )
+	  ;    #we leave these blank deliberately due to the way Fishey works
 	$cfg->param( "bamboo.processSearchParameter1", "java" );
 	$cfg->param(
 		"bamboo.processSearchParameter2",
