@@ -3229,10 +3229,14 @@ Therefore script is terminating, please ensure port configuration is correct and
 	$log->info(
 "$subname: Stopping $application so that we can apply the additional configuration options."
 	);
-	system( "service "
-		  . $globalConfig->param( $lcApplication . ".osUser" )
-		  . " stop" );
-	if ( $? == -1 ) {
+	if (
+		stopService(
+			$application,
+			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
+			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+		) eq "FAIL"
+	  )
+	{
 		$log->warn(
 "$subname: Could not stop $application successfully. Please make sure you restart manually following the end of installation"
 		);
@@ -3342,7 +3346,12 @@ sub postInstallGenericAtlassianBinary {
 		system( "service "
 			  . $globalConfig->param( $lcApplication . ".osUser" )
 			  . " start" );
-		if ( $? == -1 ) {
+		my $processReturnCode = startService(
+			$application,
+			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
+			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+		);
+		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
 			warn
 "Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
 		}
@@ -3575,10 +3584,14 @@ sub upgradeGenericAtlassianBinary {
 	print
 "Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
 	sleep(60);
-	system( "service "
-		  . $globalConfig->param( $lcApplication . ".osUser" )
-		  . " stop" );
-	if ( $? == -1 ) {
+	if (
+		$processReturnCode = stopService(
+			$application,
+			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
+			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+		) eq "FAIL"
+	  )
+	{
 		$log->warn(
 "$subname: Could not stop $application successfully. Please make sure you restart manually following the end of installation"
 		);
@@ -4780,12 +4793,23 @@ sub postInstallGeneric {
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
-		system("service $lcApplication start");
-		print "\n"
-		  . "$application can now be accessed on http://localhost:"
-		  . $globalConfig->param("$lcApplication.connectorPort")
-		  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-		  . ".\n\n";
+		my $processReturnCode = startService(
+			$application,
+			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
+			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+		  )
+		  if ( $processReturnCode eq "SUCCESS" )
+		{
+			print "\n"
+			  . "$application can now be accessed on http://localhost:"
+			  . $globalConfig->param("$lcApplication.connectorPort")
+			  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+			  . ".\n\n";
+		}
+		else {
+			print
+"\n The service could not be started correctly please ensure you do this manually.\n\n";
+		}
 	}
 
 	print
@@ -5020,17 +5044,18 @@ sub upgradeGeneric {
 "We will now stop the existing $application service, please press enter to continue...";
 	$input = <STDIN>;
 	print "\n";
-	if ( -e "/etc/init.d/$lcApplication" ) {
-		system("service $lcApplication stop") == 0
-		  or $log->logdie(
-"Could not stop $application. Unable to upgrade while $application is running: $!"
-		  );
-	}
-	else {
-		$log->logdie(
-"Unable to find current $application init.d script to stop the service.\nPlease check the init.d folder and try again"
-		);
+	$processReturnCode = stopService(
+		$application,
+		$globalConfig->param( $lcApplication . "processSearchParameter1" ),
+		$globalConfig->param( $lcApplication . "processSearchParameter2" )
+	  )
 
+	  if ( $processReturnCode eq "FAIL" ) {
+		print
+"We were unable to stop the $application process therefore the upgrade cannot go ahead, please try stopping manually and trying again.\n\n";
+		$log->logdie(
+"$subname: We were unable to stop the process therefore the upgrade for $application cannot succeed."
+		);
 	}
 
 	#Extract the download and move into place
@@ -5128,12 +5153,23 @@ sub postUpgradeGeneric {
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
-		system("service $lcApplication start");
-		print "\n"
-		  . "$application can now be accessed on http://localhost:"
-		  . $globalConfig->param("$lcApplication.connectorPort")
-		  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-		  . ".\n\n";
+		my $processReturnCode = startService(
+			$application,
+			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
+			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+		  )
+		  if ( $processReturnCode eq "SUCCESS" )
+		{
+			print "\n"
+			  . "$application can now be accessed on http://localhost:"
+			  . $globalConfig->param("$lcApplication.connectorPort")
+			  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+			  . ".\n\n";
+		}
+		else {
+			print
+"\n The service could not be started correctly please ensure you do this manually.\n\n";
+		}
 	}
 
 	print
@@ -5557,9 +5593,8 @@ sub generateJiraConfig {
 
 	#Set up some defaults for JIRA
 	$cfg->param( "jira.processSearchParameter1", "java" );
-	$cfg->param(
-		"jira.processSearchParameter2",
-		"-classpath " . $cfg->param("jira.installDir"));
+	$cfg->param( "jira.processSearchParameter2",
+		"-classpath " . $cfg->param("jira.installDir") );
 
 }
 
@@ -5692,11 +5727,10 @@ sub generateCrowdConfig {
 	$cfg->param( "crowd.tomcatDir",               "/apache-tomcat" );
 	$cfg->param( "crowd.webappDir",               "/crowd-webapp" );
 	$cfg->param( "crowd.processSearchParameter1", "java" );
-	$cfg->param(
-		"crowd.processSearchParameter2",
-		"-Dcatalina.base="
+	$cfg->param( "crowd.processSearchParameter2",
+		    "-Dcatalina.base="
 		  . $cfg->param("crowd.installDir")
-		  . $cfg->param("crowd.tomcatDir"));
+		  . $cfg->param("crowd.tomcatDir") );
 
 }
 
@@ -5831,9 +5865,8 @@ sub generateFisheyeConfig {
 	$cfg->param( "fisheye.webappDir", "" )
 	  ;    #we leave these blank deliberately due to the way Fishey works
 	$cfg->param( "fisheye.processSearchParameter1", "java" );
-	$cfg->param(
-		"fisheye.processSearchParameter2",
-		"-Dfisheye.inst=" . $cfg->param("fisheye.installDir"));
+	$cfg->param( "fisheye.processSearchParameter2",
+		"-Dfisheye.inst=" . $cfg->param("fisheye.installDir") );
 
 }
 
@@ -5949,12 +5982,11 @@ sub generateConfluenceConfig {
 
 	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
 		"Would you like to run Confluence as a service? yes/no.", "yes" );
-		
+
 	#Set up some defaults for Confluence
 	$cfg->param( "confluence.processSearchParameter1", "java" );
-	$cfg->param(
-		"confluence.processSearchParameter2",
-		"-classpath " . $cfg->param("confluence.installDir"));
+	$cfg->param( "confluence.processSearchParameter2",
+		"-classpath " . $cfg->param("confluence.installDir") );
 
 }
 
@@ -6085,7 +6117,8 @@ sub generateBambooConfig {
 	$cfg->param( "bamboo.processSearchParameter1", "java" );
 	$cfg->param(
 		"bamboo.processSearchParameter2",
-		"com.atlassian.bamboo.server.Server");
+		"com.atlassian.bamboo.server.Server"
+	);
 
 }
 
@@ -6215,13 +6248,11 @@ sub generateStashConfig {
 		"Would you like to run Stash as a service? yes/no.", "yes" );
 
 	#Set up some defaults for Stash
-	$cfg->param( "stash.tomcatDir", "" );
-	$cfg->param( "stash.webappDir", "/atlassian-stash" );
+	$cfg->param( "stash.tomcatDir",               "" );
+	$cfg->param( "stash.webappDir",               "/atlassian-stash" );
 	$cfg->param( "stash.processSearchParameter1", "java" );
-	$cfg->param(
-		"stash.processSearchParameter2",
-		"-classpath "
-		  . $cfg->param("stash.installDir"));
+	$cfg->param( "stash.processSearchParameter2",
+		"-classpath " . $cfg->param("stash.installDir") );
 
 }
 
