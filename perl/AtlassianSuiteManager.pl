@@ -6219,7 +6219,7 @@ sub generateStashConfig {
 	$cfg->param( "stash.webappDir", "/atlassian-stash" );
 	$cfg->param( "stash.processSearchParameter1", "java" );
 	$cfg->param(
-		"crowd.processSearchParameter2",
+		"stash.processSearchParameter2",
 		"-classpath "
 		  . $cfg->param("stash.installDir"));
 
