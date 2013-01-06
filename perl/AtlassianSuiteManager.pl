@@ -228,7 +228,7 @@ sub getPIDList {
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
 
 	open( PIDLIST,
-"/bin/ps -ef | grep \"$grep1stParam\" | grep \"$grep2ndParam\" | grep -v \"ps -ef | grep\" |"
+"/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v 'ps -ef | grep' |"
 	);
 	$i = 0;
 	while (<PIDLIST>) {
@@ -1327,13 +1327,15 @@ sub checkRequiredConfigItems {
 ########################################
 sub manageService {
 	my $application;
+	my $lcApplication;
 	my $mode;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$application = $_[0];
-	$mode        = $_[1];
+	$application   = $_[0];
+	$mode          = $_[1];
+	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_application", $application );
@@ -1344,11 +1346,11 @@ sub manageService {
 		$log->info("Installing Service for $application.");
 		print "Installing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
-			system("chkconfig --add $application") == 0
+			system("chkconfig --add $lcApplication") == 0
 			  or $log->logdie("Adding $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
-			system("update-rc.d $application defaults") == 0
+			system("update-rc.d $lcApplication defaults") == 0
 			  or $log->logdie("Adding $application as a service failed: $?");
 		}
 		print "Service installed successfully...\n\n";
@@ -1359,11 +1361,11 @@ sub manageService {
 		$log->info("Removing Service for $application.");
 		print "Removing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
-			system("chkconfig --del $application") == 0
+			system("chkconfig --del $lcApplication") == 0
 			  or $log->logdie("Removing $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
-			system("update-rc.d -f $application remove") == 0
+			system("update-rc.d -f $lcApplication remove") == 0
 			  or $log->logdie("Removing $application as a service failed: $?");
 
 		}
@@ -3232,8 +3234,16 @@ Therefore script is terminating, please ensure port configuration is correct and
 	if (
 		stopService(
 			$application,
-			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
-			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
 		) eq "FAIL"
 	  )
 	{
@@ -3348,8 +3358,16 @@ sub postInstallGenericAtlassianBinary {
 			  . " start" );
 		my $processReturnCode = startService(
 			$application,
-			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
-			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
 		);
 		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
 			warn
@@ -3587,8 +3605,16 @@ sub upgradeGenericAtlassianBinary {
 	if (
 		my $processReturnCode = stopService(
 			$application,
-			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
-			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
 		) eq "FAIL"
 	  )
 	{
@@ -3759,11 +3785,16 @@ sub installConfluence {
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
 	@requiredConfigItems = (
-		"confluence.appContext",    "confluence.enable",
-		"confluence.dataDir",       "confluence.installDir",
-		"confluence.runAsService",  "confluence.serverPort",
-		"confluence.connectorPort", "confluence.javaMinMemory",
-		"confluence.javaMaxMemory", "confluence.javaMaxPermSize",
+		"confluence.appContext",
+		"confluence.enable",
+		"confluence.dataDir",
+		"confluence.installDir",
+		"confluence.runAsService",
+		"confluence.serverPort",
+		"confluence.connectorPort",
+		"confluence.javaMinMemory",
+		"confluence.javaMaxMemory",
+		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2"
 	);
@@ -4224,7 +4255,7 @@ sub installStash {
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
 		$initPropertiesFile,
-		"STASH_HOME",
+		"STASH_HOME=",
 		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") . "\"",
 		"#STASH_HOME="
 	);
@@ -4406,7 +4437,7 @@ sub installFisheye {
 		$log->info(
 			"$subname: Setting up $application as a service to run on startup."
 		);
-		manageService( "INSTALL", $lcApplication );
+		manageService( $application, "INSTALL" );
 	}
 	print "Services configured successfully.\n\n";
 
@@ -4844,7 +4875,7 @@ sub postInstallGeneric {
 		$log->info(
 			"$subname: Setting up $application as a service to run on startup."
 		);
-		manageService( "INSTALL", $lcApplication );
+		manageService( $application, "INSTALL" );
 	}
 	print "Services configured successfully.\n\n";
 
@@ -4857,8 +4888,16 @@ sub postInstallGeneric {
 		$log->info("$subname: User opted to start application service.");
 		my $processReturnCode = startService(
 			$application,
-			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
-			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
 		);
 		if ( $processReturnCode eq "SUCCESS" ) {
 			print "\n"
@@ -5132,8 +5171,12 @@ sub upgradeGeneric {
 	print "\n";
 	$processReturnCode = stopService(
 		$application,
-		$globalConfig->param( $lcApplication . "processSearchParameter1" ),
-		$globalConfig->param( $lcApplication . "processSearchParameter2" )
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter1" )
+		  . "\"",
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter2" )
+		  . "\""
 	);
 
 	if ( $processReturnCode eq "FAIL" ) {
@@ -5253,7 +5296,7 @@ sub postUpgradeGeneric {
 		$log->info(
 			"$subname: Setting up $application as a service to run on startup."
 		);
-		manageService( "INSTALL", $lcApplication );
+		manageService( $application, "INSTALL" );
 	}
 	print "Services configured successfully.\n\n";
 
@@ -5266,8 +5309,16 @@ sub postUpgradeGeneric {
 		$log->info("$subname: User opted to start application service.");
 		my $processReturnCode = startService(
 			$application,
-			$globalConfig->param( $lcApplication . "processSearchParameter1" ),
-			$globalConfig->param( $lcApplication . "processSearchParameter2" )
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
 		);
 		if ( $processReturnCode eq "SUCCESS" ) {
 			print "\n"
@@ -5440,7 +5491,7 @@ sub uninstallCrowd {
 		#Remove Service
 		print "Disabling service...\n\n";
 		$log->info("$subname: Disabling $application service");
-		manageService( "UNINSTALL", $application );
+		manageService( $application, "UNINSTALL" );
 
 		#remove init.d file
 		print "Removing init.d file\n\n";
@@ -5706,7 +5757,7 @@ sub generateJiraConfig {
 	#Set up some defaults for JIRA
 	$cfg->param( "jira.processSearchParameter1", "java" );
 	$cfg->param( "jira.processSearchParameter2",
-		"-classpath " . $cfg->param("jira.installDir") );
+		"classpath " . $cfg->param("jira.installDir") );
 
 }
 
@@ -5840,7 +5891,7 @@ sub generateCrowdConfig {
 	$cfg->param( "crowd.webappDir",               "/crowd-webapp" );
 	$cfg->param( "crowd.processSearchParameter1", "java" );
 	$cfg->param( "crowd.processSearchParameter2",
-		    "-Dcatalina.base="
+		    "Dcatalina.base="
 		  . $cfg->param("crowd.installDir")
 		  . $cfg->param("crowd.tomcatDir") );
 
@@ -5978,7 +6029,7 @@ sub generateFisheyeConfig {
 	  ;    #we leave these blank deliberately due to the way Fishey works
 	$cfg->param( "fisheye.processSearchParameter1", "java" );
 	$cfg->param( "fisheye.processSearchParameter2",
-		"-Dfisheye.inst=" . $cfg->param("fisheye.installDir") );
+		"Dfisheye.inst=" . $cfg->param("fisheye.installDir") );
 
 }
 
@@ -6098,7 +6149,7 @@ sub generateConfluenceConfig {
 	#Set up some defaults for Confluence
 	$cfg->param( "confluence.processSearchParameter1", "java" );
 	$cfg->param( "confluence.processSearchParameter2",
-		"-classpath " . $cfg->param("confluence.installDir") );
+		"classpath " . $cfg->param("confluence.installDir") );
 
 }
 
@@ -6368,7 +6419,7 @@ sub generateStashConfig {
 	$cfg->param( "stash.webappDir",               "/atlassian-stash" );
 	$cfg->param( "stash.processSearchParameter1", "java" );
 	$cfg->param( "stash.processSearchParameter2",
-		"-classpath " . $cfg->param("stash.installDir") );
+		"classpath " . $cfg->param("stash.installDir") );
 
 }
 
