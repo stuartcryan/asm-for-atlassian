@@ -4636,10 +4636,11 @@ sub installGeneric {
 	}
 
 	#set up the tomcat and webapp parameters as sometimes they are null
-	@tomcatParameterNull = $globalConfig->param("$lcApplication.tomcatDir");
+	@tomcatParameterNull =
+	  $globalConfig->param("$lcApplication.tomcatDir");
 	@webappParameterNull = $globalConfig->param("$lcApplication.webappDir");
 
-	if ( @tomcatParameterNull == -1 ) {
+	if ( $#tomcatParameterNull == -1 ) {
 		$tomcatDir = "";
 	}
 	else {
@@ -4647,7 +4648,7 @@ sub installGeneric {
 
 	}
 
-	if ( @webappParameterNull == -1 ) {
+	if ( $#webappParameterNull == -1 ) {
 		$webappDir = "";
 	}
 	else {
@@ -4794,6 +4795,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
+
 		if ( $tomcatDir eq "" ) {
 			createAndChownDirectory(
 				$globalConfig->param("$lcApplication.installDir") . "/lib/",
@@ -4809,6 +4811,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
+		dumpSingleVarToLog( "$subname" . "_tomcatDir", $version );
 		if ( $tomcatDir eq "" ) {
 			copyFile( $globalConfig->param("general.dbJDBCJar"),
 				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
@@ -5006,7 +5009,7 @@ sub upgradeGeneric {
 	@tomcatParameterNull = $globalConfig->param("$lcApplication.tomcatDir");
 	@webappParameterNull = $globalConfig->param("$lcApplication.webappDir");
 
-	if ( @tomcatParameterNull == -1 ) {
+	if ( $#tomcatParameterNull == -1 ) {
 		$tomcatDir = "";
 	}
 	else {
@@ -5014,7 +5017,7 @@ sub upgradeGeneric {
 
 	}
 
-	if ( @webappParameterNull == -1 ) {
+	if ( $#webappParameterNull == -1 ) {
 		$webappDir = "";
 	}
 	else {
