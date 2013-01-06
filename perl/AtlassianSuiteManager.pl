@@ -499,8 +499,7 @@ sub stopService {
 			while ( $LOOP3 == 1 ) {
 
 				print
-"The following duplicate processes are running for $application:\n\n "
-				  ;
+"The following duplicate processes are running for $application:\n\n ";
 				print "UID        PID  PPID  C STIME TTY          TIME CMD\n";
 
 				foreach (@pidList) {
@@ -1151,7 +1150,7 @@ sub generateApplicationConfig {
 		generateBambooConfig( $mode, $cfg );
 	}
 	elsif ( $lcApplication eq "stash" ) {
-		generateCrowdConfig( $mode, $cfg );
+		generateStashConfig( $mode, $cfg );
 	}
 	elsif ( $lcApplication eq "bamboo" ) {
 		generateBambooConfig( $mode, $cfg );
@@ -5556,6 +5555,12 @@ sub generateJiraConfig {
 	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
 		"Would you like to run Jira as a service? yes/no.", "yes" );
 
+	#Set up some defaults for JIRA
+	$cfg->param( "jira.processSearchParameter1", "java" );
+	$cfg->param(
+		"jira.processSearchParameter2",
+		"-classpath " . $cfg->param("jira.installDir"));
+
 }
 
 ########################################
@@ -5684,8 +5689,14 @@ sub generateCrowdConfig {
 		"Would you like to run Crowd as a service? yes/no.", "yes" );
 
 	#Set up some defaults for Crowd
-	$cfg->param( "crowd.tomcatDir", "/apache-tomcat" );
-	$cfg->param( "crowd.webappDir", "/crowd-webapp" );
+	$cfg->param( "crowd.tomcatDir",               "/apache-tomcat" );
+	$cfg->param( "crowd.webappDir",               "/crowd-webapp" );
+	$cfg->param( "crowd.processSearchParameter1", "java" );
+	$cfg->param(
+		"crowd.processSearchParameter2",
+		"-Dcatalina.base="
+		  . $cfg->param("crowd.installDir")
+		  . $cfg->param("crowd.tomcatDir"));
 
 }
 
@@ -5819,6 +5830,10 @@ sub generateFisheyeConfig {
 	  ;    #we leave these blank deliberately due to the way Fishey works
 	$cfg->param( "fisheye.webappDir", "" )
 	  ;    #we leave these blank deliberately due to the way Fishey works
+	$cfg->param( "fisheye.processSearchParameter1", "java" );
+	$cfg->param(
+		"fisheye.processSearchParameter2",
+		"-Dfisheye.inst=" . $cfg->param("fisheye.installDir"));
 
 }
 
@@ -5934,6 +5949,12 @@ sub generateConfluenceConfig {
 
 	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
 		"Would you like to run Confluence as a service? yes/no.", "yes" );
+		
+	#Set up some defaults for Confluence
+	$cfg->param( "confluence.processSearchParameter1", "java" );
+	$cfg->param(
+		"confluence.processSearchParameter2",
+		"-classpath " . $cfg->param("confluence.installDir"));
 
 }
 
@@ -6059,6 +6080,12 @@ sub generateBambooConfig {
 
 	genBooleanConfigItem( $mode, $cfg, "bamboo.runAsService",
 		"Would you like to run Bamboo as a service? yes/no.", "yes" );
+
+	#Set up some defaults for Bamboo
+	$cfg->param( "bamboo.processSearchParameter1", "java" );
+	$cfg->param(
+		"bamboo.processSearchParameter2",
+		"com.atlassian.bamboo.server.Server");
 
 }
 
@@ -6187,9 +6214,14 @@ sub generateStashConfig {
 	genBooleanConfigItem( $mode, $cfg, "stash.runAsService",
 		"Would you like to run Stash as a service? yes/no.", "yes" );
 
-	#Set up some defaults for Crowd
+	#Set up some defaults for Stash
 	$cfg->param( "stash.tomcatDir", "" );
 	$cfg->param( "stash.webappDir", "/atlassian-stash" );
+	$cfg->param( "stash.processSearchParameter1", "java" );
+	$cfg->param(
+		"crowd.processSearchParameter2",
+		"-classpath "
+		  . $cfg->param("stash.installDir"));
 
 }
 
@@ -6818,15 +6850,16 @@ sub displayMenu {
 
       Please select from the following options:
 
-      1) Install Jira
-      2) Install Confluence
-      3) Install Bamboo
-      4) Uninstall Jira
-      5) Uninstall Confluence
-      6) Install Crowd
-      7) Upgrade Crowd
-      8) Install Fisheye
-      9) Upgrade Fisheye
+       1) Install Jira
+       2) Install Confluence
+       3) Install Bamboo
+       4) Uninstall Jira
+       5) Uninstall Confluence
+       6) Install Crowd
+       7) Upgrade Crowd
+       8) Install Fisheye
+       9) Upgrade Fisheye
+      10) Install Stash
       D) Download Latest Atlassian Suite FULL (Testing & Debugging)
       G) Generate Suite Config
       T) Testing Function (varies)
@@ -6891,6 +6924,10 @@ END_TXT
 		elsif ( lc($choice) eq "9\n" ) {
 			system 'clear';
 			upgradeFisheye();
+		}
+		elsif ( lc($choice) eq "10\n" ) {
+			system 'clear';
+			installStash();
 		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
