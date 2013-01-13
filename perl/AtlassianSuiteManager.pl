@@ -1618,6 +1618,7 @@ sub getLatestDownloadURL {
 "Downloading and parsing the Atlassian feed for the latest version of $application please wait...\n\n";
 
 	#Try and download the feed
+	$ua->show_progress(0);
 	my $json = get($versionurl);
 	$log->logdie("JSON Download: Could not get $versionurl!")
 	  unless defined $json;
