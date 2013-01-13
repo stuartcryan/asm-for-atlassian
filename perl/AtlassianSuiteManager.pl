@@ -66,7 +66,7 @@ my $unsupported             = '';    #global flag for command line paramaters
 my $ignore_version_warnings = '';    #global flag for command line paramaters
 my $disable_config_checks   = '';    #global flag for command line paramaters
 my $verbose                 = '';    #global flag for command line paramaters
-my $autoMode				= '';    #global flag for command line paramaters
+my $autoMode                = '';    #global flag for command line paramaters
 my $globalArch;
 my $log = Log::Log4perl->get_logger("");
 
@@ -1538,17 +1538,18 @@ sub bootStrapper {
 	  $upgrade_stash;
 
 	if ( $options_count > 1 ) {
-		print "You can only specify one of the install or upgrade functions at a time. Please try again specifying only one such option.\n\n";
+		print
+"You can only specify one of the install or upgrade functions at a time. Please try again specifying only one such option.\n\n";
 		$log->info(
-				"You can only specify one of the install or upgrade functions at a time. Terminating script.");
-				exit 1;
+"You can only specify one of the install or upgrade functions at a time. Terminating script."
+		);
+		exit 1;
 	}
 	elsif (
 		$options_count == 1    #&&    checkAllOtherOptions
 	  )
-	  
-	  exit 0;
 	{
+		exit 0;
 
 #print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others
 	}
