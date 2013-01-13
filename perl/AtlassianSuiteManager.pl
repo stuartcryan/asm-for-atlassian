@@ -4496,6 +4496,14 @@ sub installBamboo {
 	$log->info("$subname: Backing up config files.");
 
 	backupFile( $serverConfigFile, $osUser );
+	backupFile(
+		$globalConfig->param("$lcApplication.installDir")
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+		$osUser
+	);
+	$javaMemParameterFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
@@ -4516,12 +4524,22 @@ sub installBamboo {
 		""
 	);
 
+	#Edit Bamboo config file to reference homedir
+	$log->info( "$subname: Applying homedir in "
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$globalConfig->param("$lcApplication.installDir")
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+		"bamboo.home",
+		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		"#bamboo.home=C:/bamboo/bamboo-home"
+	);
+
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
-	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
-	backupFile( $javaMemParameterFile, $osUser );
 
 	updateLineInBambooWrapperConf( $javaMemParameterFile,
 		"wrapper.java.additional.", "-Xms",
@@ -4636,8 +4654,7 @@ sub installGeneric {
 	}
 
 	#set up the tomcat and webapp parameters as sometimes they are null
-	@tomcatParameterNull =
-	  $globalConfig->param("$lcApplication.tomcatDir");
+	@tomcatParameterNull = $globalConfig->param("$lcApplication.tomcatDir");
 	@webappParameterNull = $globalConfig->param("$lcApplication.webappDir");
 
 	if ( $#tomcatParameterNull == -1 ) {
