@@ -4317,6 +4317,141 @@ sub installStash {
 }
 
 ########################################
+#Upgrade Stash                         #
+########################################
+sub upgradeStash {
+	my $application = "Stash";
+	my $osUser;
+	my $lcApplication;
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/it/software/stash/download-archives";
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $javaMemParameterFile;
+	my @requiredConfigItems;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up list of config items that are requred for this install to run
+	$lcApplication       = lc($application);
+	@requiredConfigItems = (
+		"stash.appContext",              "stash.enable",
+		"stash.dataDir",                 "stash.installDir",
+		"stash.runAsService",            "stash.serverPort",
+		"stash.connectorPort",           "stash.osUser",
+		"stash.webappDir",               "stash.javaMinMemory",
+		"stash.javaMaxMemory",           "stash.javaMaxPermSize",
+		"stash.processSearchParameter1", "stash.processSearchParameter2"
+	);
+
+	#Run generic installer steps
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/conf/server.xml";
+
+	$initPropertiesFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Edit Stash config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"STASH_HOME=",
+		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") . "\"",
+		"#STASH_HOME="
+	);
+
+	#Apply the JavaOpts configuration (if any)
+	$javaMemParameterFile = $initPropertiesFile;
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" )
+		  . "/bin/setenv.sh",
+		"JVM_REQUIRED_ARGS",
+		$globalConfig->param( $lcApplication . ".javaParams" )
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	#Run any additional steps
+
+	#Update Java Memory Parameters
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+	updateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MINIMUM_MEMORY",
+		"JVM_MINIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMinMemory"),
+		"#JVM_MINIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MAXIMUM_MEMORY",
+		"JVM_MAXIMUM_MEMORY="
+		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
+		"#JVM_MAXIMUM_MEMORY="
+	);
+
+	updateLineInFile(
+		$javaMemParameterFile,
+		"STASH_MAX_PERM_SIZE",
+		"STASH_MAX_PERM_SIZE="
+		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
+		"#STASH_MAX_PERM_SIZE="
+	);
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
+		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
+
+	#Finally run generic post install tasks
+	postUpgradeGeneric($application);
+}
+
+########################################
 #Install Fisheye                       #
 ########################################
 sub installFisheye {
