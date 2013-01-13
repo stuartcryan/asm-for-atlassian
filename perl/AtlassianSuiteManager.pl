@@ -4733,6 +4733,149 @@ sub installBamboo {
 }
 
 ########################################
+#Upgrade Bamboo                        #
+########################################
+sub upgradeBamboo {
+	my $input;
+	my $application = "Bamboo";
+	my $osUser;
+	my $serverConfigFile;
+	my $javaMemParameterFile;
+	my $lcApplication;
+	my $downloadArchivesUrl =
+	  "http://www.atlassian.com/software/bamboo/download-archives";
+	my $configFile;
+	my @requiredConfigItems;
+	my $WrapperDownloadFile;
+	my $WrapperDownloadUrlFor64Bit =
+"https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up list of config items that are requred for this install to run
+	$lcApplication       = lc($application);
+	@requiredConfigItems = (
+		"bamboo.appContext",              "bamboo.enable",
+		"bamboo.dataDir",                 "bamboo.installDir",
+		"bamboo.runAsService",            "bamboo.osUser",
+		"bamboo.connectorPort",           "bamboo.javaMinMemory",
+		"bamboo.javaMaxMemory",           "bamboo.javaMaxPermSize",
+		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2"
+	);
+
+	#Run generic installer steps
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverConfigFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverConfigFile, $osUser );
+	backupFile(
+		$globalConfig->param("$lcApplication.installDir")
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+		$osUser
+	);
+	$javaMemParameterFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	updateLineInFile(
+		$serverConfigFile,
+		"wrapper.app.parameter.2",
+		"wrapper.app.parameter.2="
+		  . $globalConfig->param("$lcApplication.connectorPort"),
+		""
+	);
+
+	#Apply application context
+	updateLineInFile(
+		$serverConfigFile,
+		"wrapper.app.parameter.4",
+		"wrapper.app.parameter.4="
+		  . $globalConfig->param("$lcApplication.appContext"),
+		""
+	);
+
+	#Edit Bamboo config file to reference homedir
+	$log->info( "$subname: Applying homedir in "
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$globalConfig->param("$lcApplication.installDir")
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+		"bamboo.home",
+		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		"#bamboo.home=C:/bamboo/bamboo-home"
+	);
+
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+
+	updateLineInBambooWrapperConf( $javaMemParameterFile,
+		"wrapper.java.additional.", "-Xms",
+		$globalConfig->param("$lcApplication.javaMinMemory") );
+
+	updateLineInBambooWrapperConf( $javaMemParameterFile,
+		"wrapper.java.additional.", "-Xmx",
+		$globalConfig->param("$lcApplication.javaMaxMemory") );
+
+	updateLineInBambooWrapperConf( $javaMemParameterFile,
+		"wrapper.java.additional.", "-XX:MaxPermSize=",
+		$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
+#Apply the JavaOpts configuration (if any) - I know this is not ideal to be editing the RUN_CMD parameter
+#however I expect this will be deprecated as soon as Bamboo moves away from Jetty.
+	print "Applying Java_Opts configuration to install...\n\n";
+	updateJavaOpts(
+		$globalConfig->param( $lcApplication . ".installDir" ) . "/bamboo.sh",
+		"RUN_CMD", $globalConfig->param( $lcApplication . ".javaParams" ) );
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	#Run any additional steps
+	if ( $globalArch eq "64" ) {
+		$WrapperDownloadFile = downloadFileAndChown(
+			$globalConfig->param("$lcApplication.installDir"),
+			$WrapperDownloadUrlFor64Bit, $osUser );
+
+		rmtree(
+			[ $globalConfig->param("$lcApplication.installDir") . "/wrapper" ]
+		);
+
+		extractAndMoveDownload( $WrapperDownloadFile,
+			$globalConfig->param("$lcApplication.installDir") . "/wrapper",
+			$osUser, "" );
+	}
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD(
+		$lcApplication, $osUser,
+		$globalConfig->param("$lcApplication.installDir"),
+		"bamboo.sh start",
+		"bamboo.sh stop"
+	);
+	#Finally run generic post install tasks
+	postUpgradeGeneric($application);
+}
+
+########################################
 #InstallGeneric                        #
 ########################################
 sub installGeneric {
