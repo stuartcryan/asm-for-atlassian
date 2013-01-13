@@ -4447,6 +4447,12 @@ sub installFisheye {
 	  . "Please remember to reboot the server before attempting to start Fisheye. Press enter to continue.";
 	$input = <STDIN>;
 
+	system 'clear';
+	print
+"No really... just confirming again... The service SHOULD NOT be started before rebooting the server to reload /etc/environment.\n"
+	  . "Please remember to reboot the server before attempting to start Fisheye. Press enter to continue.";
+	$input = <STDIN>;
+
 }
 
 ########################################
