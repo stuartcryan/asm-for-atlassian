@@ -4363,7 +4363,10 @@ sub installFisheye {
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile( $serverXMLFile, $osUser );
+	$javaMemParameterFile =
+	  $globalConfig->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
+	backupFile( $serverXMLFile,        $osUser );
+	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
 
@@ -4382,9 +4385,6 @@ sub installFisheye {
 	print "Applying application context to config...\n\n";
 	updateXMLAttribute( $serverXMLFile, "web-server", "context",
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
-
-	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
 
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
