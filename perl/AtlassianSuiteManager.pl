@@ -3354,9 +3354,6 @@ sub postInstallGenericAtlassianBinary {
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
-		system( "service "
-			  . $globalConfig->param( $lcApplication . ".osUser" )
-			  . " start" );
 		my $processReturnCode = startService(
 			$application,
 			"\""
@@ -7360,9 +7357,9 @@ sub generateSuiteConfig {
 }
 
 ########################################
-#Display Install Menu                  #
+#Display Main Menu                     #
 ########################################
-sub displayMenu {
+sub displayMainMenu {
 	my $choice;
 	my $main_menu;
 	my $subname = ( caller(0) )[3];
@@ -7393,21 +7390,16 @@ sub displayMenu {
       This is free software, and you are welcome to redistribute it
       under certain conditions; read the COPYING file included for details.
 
-
+      ******************
+      * ASM Main Menu  *
+      ******************
+      
       Please select from the following options:
 
-       1) Install Jira
-       2) Install Confluence
-       3) Install Bamboo
-       4) Uninstall Jira
-       5) Uninstall Confluence
-       6) Install Crowd
-       7) Upgrade Crowd
-       8) Install Fisheye
-       9) Upgrade Fisheye
-      10) Install Stash
-      11) Uninstall Crowd
-      D) Download Latest Atlassian Suite FULL (Testing & Debugging)
+      1) Install a new application
+      2) Upgrade an existing application
+      3) Uninstall an application
+      D) Download the full latest version of the Atlassian Suite (Testing & Debugging)
       G) Generate Suite Config
       T) Testing Function (varies)
       Q) Quit
@@ -7419,7 +7411,7 @@ END_TXT
 		print $main_menu;
 
 		# prompt for user's choice
-		printf( "%s", "enter selection: " );
+		printf( "%s", "Please enter your selection: " );
 
 		# capture the choice
 		$choice = <STDIN>;
@@ -7432,57 +7424,25 @@ END_TXT
 			$LOOP = 0;
 			exit 0;
 		}
-		elsif ( $choice eq "1\n" ) {
+		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
-			installJira();
+			displayInstallMenu();
 		}
-		elsif ( $choice eq "2\n" ) {
+		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
-			installConfluence();
-		}
-		elsif ( lc($choice) eq "d\n" ) {
-			system 'clear';
-			downloadLatestAtlassianSuite($globalArch);
+			displayUpgradeMenu();
 		}
 		elsif ( lc($choice) eq "3\n" ) {
 			system 'clear';
-			installBamboo();
-		}
-		elsif ( lc($choice) eq "4\n" ) {
-			system 'clear';
-			uninstallJira();
-		}
-		elsif ( lc($choice) eq "5\n" ) {
-			system 'clear';
-			uninstallConfluence();
-		}
-		elsif ( lc($choice) eq "6\n" ) {
-			system 'clear';
-			installCrowd();
-		}
-		elsif ( lc($choice) eq "7\n" ) {
-			system 'clear';
-			upgradeCrowd();
-		}
-		elsif ( lc($choice) eq "8\n" ) {
-			system 'clear';
-			installFisheye();
-		}
-		elsif ( lc($choice) eq "9\n" ) {
-			system 'clear';
-			upgradeFisheye();
-		}
-		elsif ( lc($choice) eq "10\n" ) {
-			system 'clear';
-			installStash();
-		}
-		elsif ( lc($choice) eq "11\n" ) {
-			system 'clear';
-			uninstallCrowd();
+			displayUninstallMenu();
 		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
 			generateSuiteConfig();
+		}
+		elsif ( lc($choice) eq "d\n" ) {
+			system 'clear';
+			downloadLatestAtlassianSuite($globalArch);
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
@@ -7491,6 +7451,289 @@ END_TXT
 		}
 	}
 }
+
+########################################
+#Display Install Menu                  #
+########################################
+sub displayInstallMenu {
+	my $choice;
+	my $menuText;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$menuText = <<'END_TXT';
+
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with significantly discounted hosting without which I would not have been
+      able to write, and continue hosting the Atlassian Suite for my open source projects and
+      this script.
+      ###########################################################################################
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      *********************
+      * ASM Install Menu  *
+      *********************
+      
+      Please select from the following options:
+
+      1) Install Bamboo
+      2) Install Confluence
+      3) Install Crowd
+      4) Install Fisheye
+      5) Install JIRA
+      6) Install Stash
+      Q) Return to Main Menu
+
+END_TXT
+
+		# print the main menu
+		system 'clear';
+		print $menuText;
+
+		# prompt for user's choice
+		printf( "%s", "Please enter your selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+		dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
+			$LOOP = 0;
+		}
+		elsif ( lc($choice) eq "1\n" ) {
+			system 'clear';
+			installBamboo();
+		}
+		elsif ( lc($choice) eq "2\n" ) {
+			system 'clear';
+			installConfluence();
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			installCrowd();
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			installFisheye();
+		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			installJira();
+		}
+		elsif ( lc($choice) eq "6\n" ) {
+			system 'clear';
+			installStash();
+		}
+	}
+}
+
+########################################
+#Display Upgrade Menu                  #
+########################################
+sub displayUpgradeMenu {
+	my $choice;
+	my $menuText;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$menuText = <<'END_TXT';
+
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with significantly discounted hosting without which I would not have been
+      able to write, and continue hosting the Atlassian Suite for my open source projects and
+      this script.
+      ###########################################################################################
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      *********************
+      * ASM Upgrade Menu  *
+      *********************
+      
+      Please select from the following options:
+
+      1) Upgrade Bamboo
+      2) Upgrade Confluence
+      3) Upgrade Crowd
+      4) Upgrade Fisheye
+      5) Upgrade JIRA
+      6) Upgrade Stash
+      Q) Return to Main Menu
+
+END_TXT
+
+		# print the main menu
+		system 'clear';
+		print $menuText;
+
+		# prompt for user's choice
+		printf( "%s", "Please enter you selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+		dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
+			$LOOP = 0;
+		}
+		elsif ( lc($choice) eq "1\n" ) {
+			system 'clear';
+			upgradeBamboo();
+		}
+		elsif ( lc($choice) eq "2\n" ) {
+			system 'clear';
+			upgradeConfluence();
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			upgradeCrowd();
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			upgradeFisheye();
+		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			upgradeJira();
+		}
+		elsif ( lc($choice) eq "6\n" ) {
+			system 'clear';
+			upgradeStash();
+		}
+	}
+}
+
+########################################
+#Display Uninstall Menu                #
+########################################
+sub displayUninstallMenu {
+	my $choice;
+	my $menuText;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$menuText = <<'END_TXT';
+
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with significantly discounted hosting without which I would not have been
+      able to write, and continue hosting the Atlassian Suite for my open source projects and
+      this script.
+      ###########################################################################################
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ***********************
+      * ASM Uninstall Menu  *
+      ***********************
+      
+      Please select from the following options:
+
+      1) Uninstall Bamboo
+      2) Uninstall Confluence
+      3) Uninstall Crowd
+      4) Uninstall Fisheye
+      5) Uninstall JIRA
+      6) Uninstall Stash
+      Q) Return to Main Menu
+
+END_TXT
+
+		# print the main menu
+		system 'clear';
+		print $menuText;
+
+		# prompt for user's choice
+		printf( "%s", "Please enter your selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+		dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
+			$LOOP = 0;
+		}
+		elsif ( lc($choice) eq "1\n" ) {
+			system 'clear';
+			uninstallBamboo();
+		}
+		elsif ( lc($choice) eq "2\n" ) {
+			system 'clear';
+			uninstallConfluence();
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			uninstallCrowd();
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			uninstallFisheye();
+		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			uninstallJira();
+		}
+		elsif ( lc($choice) eq "6\n" ) {
+			system 'clear';
+			uninstallStash();
+		}
+	}
+}
+
 bootStrapper();
 
 #generateSuiteConfig();
@@ -7548,4 +7791,4 @@ bootStrapper();
 #"https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2",
 #	"fisheye"
 #);
-displayMenu();
+displayMainMenu();
