@@ -1487,37 +1487,39 @@ sub bootStrapper {
 	my $update_sh_script    = '';    #commandOption
 	my $verify_config       = '';    #commandOption
 
-	GetOptions( 'help|h+'                    => \$help );
-	GetOptions( 'gen-config+'                => \$gen_config );
-	GetOptions( 'install-crowd+'             => \$install_crowd );
-	GetOptions( 'install-confluence+'        => \$install_confluence );
-	GetOptions( 'install-jira+'              => \$install_jira );
-	GetOptions( 'install-fisheye+'           => \$install_fisheye );
-	GetOptions( 'install-stash+'             => \$install_stash );
-	GetOptions( 'install-bamboo+'            => \$install_bamboo );
-	GetOptions( 'upgrade-crowd+'             => \$upgrade_crowd );
-	GetOptions( 'upgrade-confluence+'        => \$upgrade_confluence );
-	GetOptions( 'upgrade-jira+'              => \$upgrade_jira );
-	GetOptions( 'upgrade-fisheye+'           => \$upgrade_fisheye );
-	GetOptions( 'upgrade-bamboo+'            => \$upgrade_bamboo );
-	GetOptions( 'upgrade-stash+'             => \$upgrade_stash );
-	GetOptions( 'tar-crowd-logs+'            => \$tar_crowd_logs );
-	GetOptions( 'tar-confluence-logs+'       => \$tar_confluence_logs );
-	GetOptions( 'tar-jira-logs+'             => \$tar_jira_logs );
-	GetOptions( 'tar-fisheye-logs+'          => \$tar_fisheye_logs );
-	GetOptions( 'tar-bamboo-logs+'           => \$tar_bamboo_logs );
-	GetOptions( 'tar-stash-logs+'            => \$tar_stash_logs );
-	GetOptions( 'disable-service=s'          => \$disable_service );
-	GetOptions( 'enable-service=s'           => \$enable_service );
-	GetOptions( 'check-service=s'            => \$check_service );
-	GetOptions( 'update-sh-script+'          => \$update_sh_script );
-	GetOptions( 'verify-config+'             => \$verify_config );
-	GetOptions( 'silent|s+'                  => \$silent );
-	GetOptions( 'debug|d+'                   => \$debug );
-	GetOptions( 'unsupported|u+'             => \$unsupported );
-	GetOptions( 'ignore-version-warnings|i+' => \$ignore_version_warnings );
-	GetOptions( 'disable-config-checks|c+'   => \$disable_config_checks );
-	GetOptions( 'verbose|v+'                 => \$verbose );
+	GetOptions(
+		'help|h+'                    => \$help,
+		'gen-config+'                => \$gen_config,
+		'install-crowd+'             => \$install_crowd,
+		'install-confluence+'        => \$install_confluence,
+		'install-jira+'              => \$install_jira,
+		'install-fisheye+'           => \$install_fisheye,
+		'install-stash+'             => \$install_stash,
+		'install-bamboo+'            => \$install_bamboo,
+		'upgrade-crowd+'             => \$upgrade_crowd,
+		'upgrade-confluence+'        => \$upgrade_confluence,
+		'upgrade-jira+'              => \$upgrade_jira,
+		'upgrade-fisheye+'           => \$upgrade_fisheye,
+		'upgrade-bamboo+'            => \$upgrade_bamboo,
+		'upgrade-stash+'             => \$upgrade_stash,
+		'tar-crowd-logs+'            => \$tar_crowd_logs,
+		'tar-confluence-logs+'       => \$tar_confluence_logs,
+		'tar-jira-logs+'             => \$tar_jira_logs,
+		'tar-fisheye-logs+'          => \$tar_fisheye_logs,
+		'tar-bamboo-logs+'           => \$tar_bamboo_logs,
+		'tar-stash-logs+'            => \$tar_stash_logs,
+		'disable-service=s'          => \$disable_service,
+		'enable-service=s'           => \$enable_service,
+		'check-service=s'            => \$check_service,
+		'update-sh-script+'          => \$update_sh_script,
+		'verify-config+'             => \$verify_config,
+		'silent|s+'                  => \$silent,
+		'debug|d+'                   => \$debug,
+		'unsupported|u+'             => \$unsupported,
+		'ignore-version-warnings|i+' => \$ignore_version_warnings,
+		'disable-config-checks|c+'   => \$disable_config_checks,
+		'verbose|v+'                 => \$verbose
+	);
 
 	my $options_count = 0;
 
@@ -1537,6 +1539,9 @@ sub bootStrapper {
 	  $upgrade_bamboo +
 	  $upgrade_stash;
 
+	print "Bamboo = $install_bamboo\n";
+	print "Stash = $install_stash\n";
+
 	if ( $options_count > 1 ) {
 		print
 "You can only specify one of the install or upgrade functions at a time. Please try again specifying only one such option.\n\n";
@@ -1546,9 +1551,52 @@ sub bootStrapper {
 		exit 1;
 	}
 	elsif (
-		$options_count == 1    #&&    checkAllOtherOptions
+		$options_count == 1 & (
+			$help eq '' & $gen_config eq '' & $tar_confluence_logs eq '' &
+			  $tar_jira_logs    eq '' & $tar_fisheye_logs eq '' &
+			  $tar_bamboo_logs  eq '' & $tar_stash_logs   eq '' &
+			  $disable_service  eq '' & $check_service    eq '' &
+			  $update_sh_script eq '' & $verify_config    eq ''
+		)
 	  )
 	{
+		if ( $install_crowd == 1 ) {
+			installCrowd();
+		}
+		elsif ( $install_confluence == 1 ) {
+			installConfluence();
+		}
+		elsif ( $install_jira == 1 ) {
+			installJira();
+		}
+		elsif ( $install_fisheye == 1 ) {
+			installFisheye();
+		}
+		elsif ( $install_bamboo == 1 ) {
+			installBamboo();
+		}
+		elsif ( $install_stash == 1 ) {
+			installStash();
+		}
+		elsif ( $upgrade_crowd == 1 ) {
+			upgradeCrowd();
+		}
+		elsif ( $upgrade_confluence == 1 ) {
+			upgradeConfluence();
+		}
+		elsif ( $upgrade_jira == 1 ) {
+			upgradeJira();
+		}
+		elsif ( $upgrade_fisheye == 1 ) {
+			upgradeFisheye();
+		}
+		elsif ( $upgrade_bamboo == 1 ) {
+			upgradeBamboo();
+		}
+		elsif ( $upgrade_stash == 1 ) {
+			upgradeStash();
+		}
+
 		exit 0;
 
 #print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others
@@ -7792,4 +7840,4 @@ bootStrapper();
 #"https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2",
 #	"fisheye"
 #);
-displayMainMenu();
+#displayMainMenu();
