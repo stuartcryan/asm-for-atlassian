@@ -4703,18 +4703,20 @@ sub installBamboo {
 		"RUN_CMD", $globalConfig->param( $lcApplication . ".javaParams" ) );
 
 	print "Configuration settings have been applied successfully.\n\n";
-
 	#Run any additional steps
-	$WrapperDownloadFile =
-	  downloadFileAndChown( $globalConfig->param("$lcApplication.installDir"),
-		$WrapperDownloadUrlFor64Bit, $osUser );
+	if ( $globalArch eq "64" ) {
+		$WrapperDownloadFile = downloadFileAndChown(
+			$globalConfig->param("$lcApplication.installDir"),
+			$WrapperDownloadUrlFor64Bit, $osUser );
 
-	rmtree(
-		[ $globalConfig->param("$lcApplication.installDir") . "/wrapper" ] );
+		rmtree(
+			[ $globalConfig->param("$lcApplication.installDir") . "/wrapper" ]
+		);
 
-	extractAndMoveDownload( $WrapperDownloadFile,
-		$globalConfig->param("$lcApplication.installDir") . "/wrapper",
-		$osUser, "" );
+		extractAndMoveDownload( $WrapperDownloadFile,
+			$globalConfig->param("$lcApplication.installDir") . "/wrapper",
+			$osUser, "" );
+	}
 
 	#Generate the init.d file
 	print
@@ -4871,6 +4873,7 @@ sub upgradeBamboo {
 		"bamboo.sh start",
 		"bamboo.sh stop"
 	);
+
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
 }
