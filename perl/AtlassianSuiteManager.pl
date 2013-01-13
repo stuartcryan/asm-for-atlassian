@@ -4592,6 +4592,96 @@ sub installFisheye {
 }
 
 ########################################
+#Uninstall Generic                     #
+########################################
+sub uninstallGeneric {
+	my $application;
+	my $initdFile;
+	my $input;
+	my $subname = ( caller(0) )[3];
+	my $lcApplication;
+
+	$log->info("BEGIN: $subname");
+	
+	$application         = $_[0];
+	$lcApplication = lc($application);
+	$initdFile   = "/etc/init.d/$lcApplication";
+	
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+
+	print
+"This will uninstall $application. This will delete the installation directory AND provide the option to delete the data directory.\n";
+	print
+"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
+	print "Do you really want to continue? yes/no [no]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "yes" ) {
+		$log->info("$subname: User selected to uninstall $application");
+
+		#Remove Service
+		print "Disabling service...\n\n";
+		$log->info("$subname: Disabling $application service");
+		manageService( $application, "UNINSTALL" );
+
+		#remove init.d file
+		print "Removing init.d file\n\n";
+		$log->info( "$subname: Removing $application" . "'s init.d file" );
+		unlink $initdFile or warn "Could not unlink $initdFile: $!";
+
+		#Remove install dir
+		print "Removing installation directory...\n\n";
+		$log->info(
+			"$subname: Removing " . $globalConfig->param("$lcApplication.installDir") );
+		if ( -d $globalConfig->param("$lcApplication.installDir") ) {
+			rmtree( [ $globalConfig->param("$lcApplication.installDir") ] );
+		}
+		else {
+			$log->warn( "$subname: Unable to remove "
+				  . $globalConfig->param("$lcApplication.installDir")
+				  . ". Directory does not exist." );
+			print
+"Could not find configured install directory... possibly not installed?";
+		}
+
+		#Check if you REALLY want to remove data directory
+		print
+"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "yes" ) {
+			$log->info( "$subname: User selected to delete "
+				  . $globalConfig->param("$lcApplication.dataDir")
+				  . ". Deleting." );
+			rmtree( [ $globalConfig->param("$lcApplication.dataDir") ] );
+		}
+		else {
+			$log->info(
+"$subname: User opted to keep the $application data directory at "
+				  . $globalConfig->param("$lcApplication.dataDir")
+				  . "." );
+			print
+"The data directory has not been deleted and is still available at "
+			  . $globalConfig->param("$lcApplication.dataDir") . ".\n\n";
+		}
+
+		#Update config to null out the application config
+		$log->info(
+			"$subname: Nulling out the installed version of $application.");
+		$globalConfig->param( "$lcApplication.installedVersion", "" );
+		$globalConfig->param( "$lcApplication.enable",           "FALSE" );
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+
+		print
+"$application has been uninstalled successfully and the config file updated to reflect $application as disabled. Press enter to continue...\n\n";
+		$input = <STDIN>;
+	}
+}
+
+########################################
 #Install Bamboo                        #
 ########################################
 sub installBamboo {
