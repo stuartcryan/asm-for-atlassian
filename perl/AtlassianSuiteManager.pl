@@ -5874,6 +5874,30 @@ sub uninstallCrowd {
 }
 
 ########################################
+#Uninstall Fisheye                     #
+########################################
+sub uninstallFisheye {
+	my $application = "Fisheye";
+	uninstallGeneric($application);
+}
+
+########################################
+#Uninstall Bamboo                      #
+########################################
+sub uninstallBamboo {
+	my $application = "Bamboo";
+	uninstallGeneric($application);
+}
+
+########################################
+#Uninstall Stash                       #
+########################################
+sub uninstallStash {
+	my $application = "Stash";
+	uninstallGeneric($application);
+}
+
+########################################
 #Upgrade Fisheye                       #
 ########################################
 sub upgradeFisheye {
