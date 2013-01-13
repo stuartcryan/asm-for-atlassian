@@ -96,8 +96,6 @@ do
 ARGS="$ARGS $arg"
 done
 
-echo $ARGS
-
 checkForRootAccess
 checkRequiredBinaries
 checkPerlModules
