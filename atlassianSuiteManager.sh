@@ -91,10 +91,16 @@ if [[ $EUID -ne 0 ]]; then
 fi
 }
 
+for arg in "$@"
+do
+ARGS="$ARGS $arg"
+done
+
+echo $ARGS
 
 checkForRootAccess
 checkRequiredBinaries
 checkPerlModules
-perl perl/AtlassianSuiteManager.pl
+perl perl/AtlassianSuiteManager.pl $ARGS
 
 exit 0
