@@ -4602,11 +4602,11 @@ sub uninstallGeneric {
 	my $lcApplication;
 
 	$log->info("BEGIN: $subname");
-	
-	$application         = $_[0];
+
+	$application   = $_[0];
 	$lcApplication = lc($application);
-	$initdFile   = "/etc/init.d/$lcApplication";
-	
+	$initdFile     = "/etc/init.d/$lcApplication";
+
 	dumpSingleVarToLog( "$subname" . "_application", $application );
 
 	print
@@ -4632,8 +4632,8 @@ sub uninstallGeneric {
 
 		#Remove install dir
 		print "Removing installation directory...\n\n";
-		$log->info(
-			"$subname: Removing " . $globalConfig->param("$lcApplication.installDir") );
+		$log->info( "$subname: Removing "
+			  . $globalConfig->param("$lcApplication.installDir") );
 		if ( -d $globalConfig->param("$lcApplication.installDir") ) {
 			rmtree( [ $globalConfig->param("$lcApplication.installDir") ] );
 		}
@@ -4642,7 +4642,7 @@ sub uninstallGeneric {
 				  . $globalConfig->param("$lcApplication.installDir")
 				  . ". Directory does not exist." );
 			print
-"Could not find configured install directory... possibly not installed?";
+"Could not find configured install directory... possibly not installed?\n\n";
 		}
 
 		#Check if you REALLY want to remove data directory
@@ -4793,6 +4793,7 @@ sub installBamboo {
 		"RUN_CMD", $globalConfig->param( $lcApplication . ".javaParams" ) );
 
 	print "Configuration settings have been applied successfully.\n\n";
+
 	#Run any additional steps
 	if ( $globalArch eq "64" ) {
 		$WrapperDownloadFile = downloadFileAndChown(
@@ -5868,83 +5869,8 @@ sub upgradeCrowd {
 #Uninstall Crowd                       #
 ########################################
 sub uninstallCrowd {
-	my $application = "crowd";
-	my $initdFile   = "/etc/init.d/$application";
-	my $input;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	print
-"This will uninstall Crowd. This will delete the installation directory AND provide the option to delete the data directory.\n";
-	print
-"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	print "Do you really want to continue? yes/no [no]: ";
-
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "yes" ) {
-		$log->info("$subname: User selected to uninstall $application");
-
-		#Remove Service
-		print "Disabling service...\n\n";
-		$log->info("$subname: Disabling $application service");
-		manageService( $application, "UNINSTALL" );
-
-		#remove init.d file
-		print "Removing init.d file\n\n";
-		$log->info( "$subname: Removing $application" . "'s init.d file" );
-		unlink $initdFile or warn "Could not unlink $initdFile: $!";
-
-		#Remove install dir
-		print "Removing installation directory...\n\n";
-		$log->info(
-			"$subname: Removing " . $globalConfig->param("crowd.installDir") );
-		if ( -d $globalConfig->param("crowd.installDir") ) {
-			rmtree( [ $globalConfig->param("crowd.installDir") ] );
-		}
-		else {
-			$log->warn( "$subname: Unable to remove "
-				  . $globalConfig->param("crowd.installDir")
-				  . ". Directory does not exist." );
-			print
-"Could not find configured install directory... possibly not installed?";
-		}
-
-		#Check if you REALLY want to remove data directory
-		print
-"We will now remove the data directory (Crowd home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
-		$input = getBooleanInput();
-		print "\n";
-		if ( $input eq "yes" ) {
-			$log->info( "$subname: User selected to delete "
-				  . $globalConfig->param("crowd.dataDir")
-				  . ". Deleting." );
-			rmtree( [ $globalConfig->param("crowd.dataDir") ] );
-		}
-		else {
-			$log->info(
-"$subname: User opted to keep the $application data directory at "
-				  . $globalConfig->param("crowd.dataDir")
-				  . "." );
-			print
-"The data directory has not been deleted and is still available at "
-			  . $globalConfig->param("crowd.dataDir") . ".\n\n";
-		}
-
-		#Update config to null out the Crowd config
-		$log->info(
-			"$subname: Nulling out the installed version of $application.");
-		$globalConfig->param( "crowd.installedVersion", "" );
-		$globalConfig->param( "crowd.enable",           "FALSE" );
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-
-		print
-"Crowd has been uninstalled successfully and the config file updated to reflect Crowd as disabled. Press enter to continue...\n\n";
-		$input = <STDIN>;
-	}
+	my $application = "Crowd";
+	uninstallGeneric($application);
 }
 
 ########################################
@@ -7456,6 +7382,7 @@ sub displayMenu {
        8) Install Fisheye
        9) Upgrade Fisheye
       10) Install Stash
+      11) Uninstall Crowd
       D) Download Latest Atlassian Suite FULL (Testing & Debugging)
       G) Generate Suite Config
       T) Testing Function (varies)
@@ -7524,6 +7451,10 @@ END_TXT
 		elsif ( lc($choice) eq "10\n" ) {
 			system 'clear';
 			installStash();
+		}
+		elsif ( lc($choice) eq "11\n" ) {
+			system 'clear';
+			uninstallCrowd();
 		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
