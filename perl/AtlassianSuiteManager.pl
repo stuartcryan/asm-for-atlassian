@@ -1502,23 +1502,25 @@ sub bootStrapper {
 		'upgrade-fisheye+'           => \$upgrade_fisheye,
 		'upgrade-bamboo+'            => \$upgrade_bamboo,
 		'upgrade-stash+'             => \$upgrade_stash,
-		'tar-crowd-logs+'            => \$tar_crowd_logs,
-		'tar-confluence-logs+'       => \$tar_confluence_logs,
-		'tar-jira-logs+'             => \$tar_jira_logs,
-		'tar-fisheye-logs+'          => \$tar_fisheye_logs,
-		'tar-bamboo-logs+'           => \$tar_bamboo_logs,
-		'tar-stash-logs+'            => \$tar_stash_logs,
-		'disable-service=s'          => \$disable_service,
-		'enable-service=s'           => \$enable_service,
-		'check-service=s'            => \$check_service,
-		'update-sh-script+'          => \$update_sh_script,
-		'verify-config+'             => \$verify_config,
-		'silent|s+'                  => \$silent,
-		'debug|d+'                   => \$debug,
-		'unsupported|u+'             => \$unsupported,
-		'ignore-version-warnings|i+' => \$ignore_version_warnings,
-		'disable-config-checks|c+'   => \$disable_config_checks,
-		'verbose|v+'                 => \$verbose
+		
+#Below to be added in future versions
+#		'tar-crowd-logs+'            => \$tar_crowd_logs,
+#		'tar-confluence-logs+'       => \$tar_confluence_logs,
+#		'tar-jira-logs+'             => \$tar_jira_logs,
+#		'tar-fisheye-logs+'          => \$tar_fisheye_logs,
+#		'tar-bamboo-logs+'           => \$tar_bamboo_logs,
+#		'tar-stash-logs+'            => \$tar_stash_logs,
+#		'disable-service=s'          => \$disable_service,
+#		'enable-service=s'           => \$enable_service,
+#		'check-service=s'            => \$check_service,
+#		'update-sh-script+'          => \$update_sh_script,
+#		'verify-config+'             => \$verify_config,
+#		'silent|s+'                  => \$silent,
+#		'debug|d+'                   => \$debug,
+#		'unsupported|u+'             => \$unsupported,
+#		'ignore-version-warnings|i+' => \$ignore_version_warnings,
+#		'disable-config-checks|c+'   => \$disable_config_checks,
+#		'verbose|v+'                 => \$verbose
 	);
 
 	my $options_count = 0;
@@ -1602,8 +1604,7 @@ sub bootStrapper {
 #print out that you can only use one of the install or upgrade commands at a time without any other command line parameters, proceed but ignore the others
 	}
 	else {
-
-		#processTheRemainingCommandLineParams
+		displayMainMenu();
 	}
 
 }
