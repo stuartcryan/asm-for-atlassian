@@ -1433,48 +1433,6 @@ sub generateInitD {
 }
 
 ########################################
-#GetBooleanInput                       #
-########################################
-sub getBooleanInput {
-	my $LOOP = 1;
-	my $input;
-	my $subname = ( caller(0) )[3];
-
-	$log->trace("BEGIN: $subname")
-	  ;    #we only want this on trace or it makes the script unusable
-
-	while ( $LOOP == 1 ) {
-
-		$input = <STDIN>;
-		print "\n";
-		chomp $input;
-		dumpSingleVarToLog( "$subname" . "_inputEntered", $input );
-
-		if (   ( lc $input ) eq "yes"
-			|| ( lc $input ) eq "y" )
-		{
-			$LOOP = 0;
-			return "yes";
-		}
-		elsif ( ( lc $input ) eq "no" || ( lc $input ) eq "n" ) {
-			$LOOP = 0;
-			return "no";
-		}
-		elsif ( $input eq "" ) {
-			$LOOP = 0;
-			return "default";
-		}
-		else {
-			$log->info(
-				"$subname: Input not recognised, asking user for input again."
-			);
-			print "Your input '" . $input
-			  . "'was not recognised. Please try again and write yes or no.\n";
-		}
-	}
-}
-
-########################################
 #genBooleanConfigItem                  #
 ########################################
 sub genBooleanConfigItem {
@@ -1964,6 +1922,48 @@ sub generateSuiteConfig {
 	print
 "The suite configuration has been generated successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
+}
+
+########################################
+#GetBooleanInput                       #
+########################################
+sub getBooleanInput {
+	my $LOOP = 1;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	$log->trace("BEGIN: $subname")
+	  ;    #we only want this on trace or it makes the script unusable
+
+	while ( $LOOP == 1 ) {
+
+		$input = <STDIN>;
+		print "\n";
+		chomp $input;
+		dumpSingleVarToLog( "$subname" . "_inputEntered", $input );
+
+		if (   ( lc $input ) eq "yes"
+			|| ( lc $input ) eq "y" )
+		{
+			$LOOP = 0;
+			return "yes";
+		}
+		elsif ( ( lc $input ) eq "no" || ( lc $input ) eq "n" ) {
+			$LOOP = 0;
+			return "no";
+		}
+		elsif ( $input eq "" ) {
+			$LOOP = 0;
+			return "default";
+		}
+		else {
+			$log->info(
+				"$subname: Input not recognised, asking user for input again."
+			);
+			print "Your input '" . $input
+			  . "'was not recognised. Please try again and write yes or no.\n";
+		}
+	}
 }
 
 ########################################
