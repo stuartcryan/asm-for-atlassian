@@ -2351,6 +2351,7 @@ sub getLineFromBambooWrapperConf {
 			$returnValue = $result5;
 			$returnValue =~ tr/\015//d;    #trim unusual newlines
 			dumpSingleVarToLog( "$subname" . " _returnValue", $returnValue );
+			return $returnValue;
 		}
 	}
 }
@@ -5835,7 +5836,8 @@ sub getExistingBambooConfig {
 
 	#Get connector port from file
 	$returnValue =
-	  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.2", ".*=(.*)" );
+	  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.2",
+		".*=(.*)" );
 
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
@@ -6006,10 +6008,7 @@ sub getExistingBambooConfig {
 		"bamboo.processSearchParameter2",
 		"com.atlassian.bamboo.server.Server"
 	);
-	$cfg->param(
-		"$lcApplication.enable",
-		"TRUE"
-	);
+	$cfg->param( "$lcApplication.enable", "TRUE" );
 
 	$cfg->write($configFile);
 	loadSuiteConfig();
@@ -8235,7 +8234,7 @@ sub upgradeStash {
 #END STASH MANAGER FUNCTIONS                                          #
 #######################################################################
 
-bootStrapper();
+#bootStrapper();
 
 #	  print
 #	getXMLAttribute( "/opt/atlassian/crowd/apache-tomcat/conf/server.xml", "///Connector", "port" );
@@ -8248,5 +8247,5 @@ bootStrapper();
 
 #print getEnvironmentVars("/etc/environment","FISHEYE_INST");
 
-#loadSuiteConfig();
-#getExistingBambooConfig($globalConfig);
+loadSuiteConfig();
+getExistingBambooConfig($globalConfig);
