@@ -286,7 +286,7 @@ sub chownRecursive {
 		},
 		$directory
 	);
-	
+
 	print "Files chowned successfully.\n\n";
 }
 
@@ -1987,6 +1987,48 @@ sub getConfigItem {
 }
 
 ########################################
+#getExistingBambooConfig               #
+########################################
+sub getExistingBambooConfig {
+
+}
+
+########################################
+#getExistingConfluenceConfig           #
+########################################
+sub getExistingConfluenceConfig {
+
+}
+
+########################################
+#getExistingCrowdConfig                #
+########################################
+sub getExistingCrowdConfig {
+
+}
+
+########################################
+#getExistingFisheyeConfig              #
+########################################
+sub getExistingFisheyeConfig {
+
+}
+
+########################################
+#getExistingStashConfig                #
+########################################
+sub getExistingStashConfig {
+
+}
+
+########################################
+#getExistingSuiteConfig                #
+########################################
+sub getExistingSuiteConfig {
+
+}
+
+########################################
 #getGenericInput                       #
 ########################################
 sub getGenericInput {
@@ -2276,6 +2318,49 @@ sub getVersionDownloadURL {
 
 	#Return the absolute URL to the version specific download
 	@returnArray = ( $versionurl . "/" . $filename, $version );
+}
+
+########################################
+#getXMLAttribute                       #
+########################################
+sub getXMLAttribute {
+
+	my $xmlFile;    #Must Be Absolute Path
+	my $searchString;
+	my $referenceAttribute;
+	my $attributeReturnValue;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$xmlFile            = $_[0];
+	$searchString       = $_[1];
+	$referenceAttribute = $_[2];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_xmlFile",      $xmlFile );
+	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
+	dumpSingleVarToLog( "$subname" . "_referenceAttribute",
+		$referenceAttribute );
+
+	#Set up new XML object, with "pretty" spacing (i.e. standard spacing)
+	my $twig = new XML::Twig( pretty_print => 'indented' );
+
+	#Parse the XML file
+	$twig->parsefile($xmlFile);
+
+	#Find the node we are looking for based on the provided search string
+	for my $node ( $twig->findnodes($searchString) ) {
+		$log->info(
+"$subname: Found $searchString in $xmlFile. Getting the attribute value."
+		);
+
+		#Set the node to the new attribute value
+		$attributeReturnValue = $node->att($referenceAttribute);
+
+		return $attributeReturnValue;
+	}
+
 }
 
 ########################################
@@ -2865,7 +2950,6 @@ Therefore script is terminating, please ensure port configuration is correct and
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
-
 	backupFile(
 		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
 		$osUser
@@ -7738,4 +7822,7 @@ sub upgradeStash {
 #END STASH MANAGER FUNCTIONS                                          #
 #######################################################################
 
-bootStrapper();
+#bootStrapper();
+
+#	  print
+#	getXMLAttribute( "/opt/atlassian/crowd/apache-tomcat/conf/server.xml", "///Connector", "port" );
