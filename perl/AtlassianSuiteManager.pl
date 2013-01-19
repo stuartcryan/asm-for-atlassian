@@ -1987,38 +1987,57 @@ sub getConfigItem {
 }
 
 ########################################
-#getExistingBambooConfig               #
+#getEnvironmentVars                    #
 ########################################
-sub getExistingBambooConfig {
+sub getEnvironmentVars {
+	my $inputFile;    #Must Be Absolute Path
+	my $searchFor;
+	my @data;
+	my $referenceVar;
+	my $returnValue;
+	my $subname = ( caller(0) )[3];
 
-}
+	$log->info("BEGIN: $subname");
 
-########################################
-#getExistingConfluenceConfig           #
-########################################
-sub getExistingConfluenceConfig {
+	$inputFile    = $_[0];
+	$referenceVar = $_[1];
 
-}
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",    $inputFile );
+	dumpSingleVarToLog( "$subname" . "_referenceVar", $referenceVar );
 
-########################################
-#getExistingCrowdConfig                #
-########################################
-sub getExistingCrowdConfig {
+	#Try to open the provided file
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
 
-}
+	# read file into an array
+	@data = <FILE>;
 
-########################################
-#getExistingFisheyeConfig              #
-########################################
-sub getExistingFisheyeConfig {
+	close(FILE);
 
-}
+	#Search for the definition of the provided variable
+	$searchFor = "$referenceVar=";
+	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
 
-########################################
-#getExistingStashConfig                #
-########################################
-sub getExistingStashConfig {
+#If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
+	if ( !defined($index1) ) {
+		$log->info("$subname: $referenceVar= not found. Returning NOTFOUND.");
+		return "NOTFOUND";
+	}
 
+	#Else update the line to have the new parameters that have been specified
+	else {
+		$log->debug(
+			"$subname: $referenceVar= exists, parsing for and returning value."
+		);
+
+		#parseLineForValue
+		if ( $data[$index1] =~ /^$searchFor\"(.*)\"/ ) {
+			$returnValue = $1;
+			chomp $returnValue;    #removeNewline
+			return $returnValue;
+		}
+	}
 }
 
 ########################################
@@ -2049,6 +2068,80 @@ sub getGenericInput {
 	}
 	else {
 		return $input;
+	}
+}
+
+########################################
+#getJavaMemParameter                #
+########################################
+sub getJavaMemParameter {
+	my $inputFile;    #Must Be Absolute Path
+	my $referenceVariable;
+	my $referenceParameter;
+	my $returnValue;
+	my $searchFor;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile          = $_[0];
+	$referenceVariable  = $_[1];    #such as JAVA_OPTS
+	$referenceParameter = $_[2];    #such as Xmx, Xms, -XX:MaxPermSize and so on
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",         $inputFile );
+	dumpSingleVarToLog( "$subname" . "_referenceVariable", $referenceVariable );
+	dumpSingleVarToLog( "$subname" . "_referenceParameter",
+		$referenceParameter );
+
+	#Try to open the provided file
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	$searchFor = $referenceVariable;
+
+	#Search for the provided string in the file array
+	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+	my $count = grep( /.*$referenceParameter.*/, $data[$index1] );
+	dumpSingleVarToLog( "$subname" . "_count",          $count );
+	dumpSingleVarToLog( "$subname" . " ORIGINAL LINE=", $data[$index1] );
+
+	if ( $count == 1 ) {
+		$log->info("$subname: Splitting string to update the memory value.");
+		if (
+			$data[$index1] =~ /^(.*?)($referenceParameter)(.*?)([a-zA-Z])(.*)/ )
+		{
+			my $result1 =
+			  $1;    #should equal everything before $referenceParameter
+			my $result2 = $2;    #should equal $referenceParameter
+			my $result3 =
+			  $3;    #should equal the memory value we are trying to change
+			my $result4 = $4
+			  ; #should equal the letter i.e. 'm' of the reference memory attribute
+			my $result5 = $5;    #should equal the remainder of the line
+			dumpSingleVarToLog( "$subname" . " _result1", $result1 );
+			dumpSingleVarToLog( "$subname" . " _result2", $result2 );
+			dumpSingleVarToLog( "$subname" . " _result3", $result3 );
+			dumpSingleVarToLog( "$subname" . " _result4", $result4 );
+			dumpSingleVarToLog( "$subname" . " _result5", $result5 );
+
+			$returnValue = $result3 . $result4;
+			dumpSingleVarToLog( "$subname" . " _returnValue", $returnValue );
+			return $returnValue;
+		}
+	}
+	else {
+		$log->info(
+			"$subname: $referenceParameter does not exist, returning NOTFOUND."
+		);
+		return "NOTFOUND";
 	}
 }
 
@@ -2137,6 +2230,132 @@ sub getLatestDownloadURL {
 }
 
 ########################################
+#getLineFromFile                       #
+########################################
+sub getLineFromFile {
+	my $inputFile;    #Must Be Absolute Path
+	my $lineReference;
+	my $searchFor;
+	my @data;
+	my $returnValue;
+	my $valueRegex;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile     = $_[0];
+	$lineReference = $_[1];
+	$valueRegex    = $_[2];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",     $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
+	dumpSingleVarToLog( "$subname" . "_valueRegex",    $valueRegex );
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		$log->info("$subname: First search term $lineReference not found.");
+		return "NOTFOUND";
+	}
+	else {
+
+		#parseLineForValue
+		if ( $data[$index1] =~ /$valueRegex/ ) {
+			$returnValue = $1;
+			$returnValue =~ tr/\015//d;    #trim unusual newlines
+			return $returnValue;
+		}
+		else {
+			$log->info("$subname: Search regex not found in line.");
+			return "NOTFOUND2";
+		}
+	}
+}
+
+########################################
+#getLineFromBambooWrapperConf          #
+#This is the GET function which matches#
+#the update/set function               #
+#defined in [#ATLASMGR-143]            #
+########################################
+sub getLineFromBambooWrapperConf {
+	my $inputFile;    #Must Be Absolute Path
+	my $variableReference;
+	my $searchFor;
+	my $parameterReference;
+	my $newValue;
+	my @data;
+	my $index1;
+	my $line;
+	my $returnValue;
+	my $count   = 0;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile          = $_[0];
+	$variableReference  = $_[1];
+	$parameterReference = $_[2];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",         $inputFile );
+	dumpSingleVarToLog( "$subname" . "_variableReference", $variableReference );
+	dumpSingleVarToLog( "$subname" . "_parameterReference",
+		$parameterReference );
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	($index1) = grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
+	if ( !defined($index1) ) {
+		$log->info(
+"$subname: Line with $parameterReference not found. Returning NOTFOUND."
+		);
+
+		return "NOTFOUND";
+	}
+	else {
+
+		#$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
+
+		if ( $data[$index1] =~
+			/^($variableReference)(.*)(=)($parameterReference)(.*)/ )
+		{
+			my $result1 = $1;    #Should contain $variableReference
+			my $result2 = $2;    #Should contain the item ID number we need
+			my $result3 = $3;    #Should contain '='
+			my $result4 = $4;    #Should contain $parameterReference
+			my $result5 =
+			  $5;    #Should contain the existing value of the parameter
+			dumpSingleVarToLog( "$subname" . " _result1", $result1 );
+			dumpSingleVarToLog( "$subname" . " _result2", $result2 );
+			dumpSingleVarToLog( "$subname" . " _result3", $result3 );
+			dumpSingleVarToLog( "$subname" . " _result4", $result4 );
+			dumpSingleVarToLog( "$subname" . " _result5", $result5 );
+
+			$returnValue = $result5;
+			$returnValue =~ tr/\015//d;    #trim unusual newlines
+			dumpSingleVarToLog( "$subname" . " _returnValue", $returnValue );
+		}
+	}
+}
+
+########################################
 #getPIDList                            #
 ########################################
 sub getPIDList {
@@ -2177,7 +2396,8 @@ sub getPIDList {
 #chmod files correctly.                #
 ########################################
 sub getUserCreatedByInstaller {
-	my $parameterName;
+	my $configParameterName
+	  ;    #the name of the config parameter the install DIR is stored in
 	my $lineReference;
 	my $searchFor;
 	my @data;
@@ -2187,14 +2407,15 @@ sub getUserCreatedByInstaller {
 
 	$log->info("BEGIN: $subname");
 
-	$parameterName = $_[0];
-	$lineReference = $_[1];
+	$configParameterName = $_[0];
+	$lineReference       = $_[1];
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_parameterName", $parameterName );
+	dumpSingleVarToLog( "$subname" . "_configParameterName",
+		$configParameterName );
 	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
 
-	$fileName = $globalConfig->param($parameterName) . "/bin/user.sh";
+	$fileName = $globalConfig->param($configParameterName) . "/bin/user.sh";
 
 	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
 
@@ -2208,7 +2429,6 @@ sub getUserCreatedByInstaller {
 	#Search for reference line
 	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
 
-	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
 		$log->logdie("Unable to get username from $fileName.");
 	}
@@ -3860,104 +4080,6 @@ sub updateJavaMemParameter {
 }
 
 ########################################
-#updateJAVAOPTS                        #
-########################################
-sub updateJavaOpts {
-	my $inputFile;    #Must Be Absolute Path
-	my $javaOpts;
-	my $searchFor;
-	my $referenceVariable;
-	my @data;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$inputFile         = $_[0];
-	$referenceVariable = $_[1];
-	$javaOpts          = $_[2];
-
-#If no javaOpts parameters defined we get an undefined variable. This accounts for that.
-	if ( !defined $javaOpts ) {
-		$javaOpts = "";
-	}
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
-	dumpSingleVarToLog( "$subname" . "_javaOpts",  $javaOpts );
-
-	#Try to open the provided file
-	open( FILE, $inputFile )
-	  or $log->logdie("Unable to open file: $inputFile");
-
-	# read file into an array
-	@data = <FILE>;
-
-	close(FILE);
-
-	$searchFor = $referenceVariable;
-
-	#Search for the provided string in the file array
-	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
-
-#See how many times ATLASMGR_JAVA_OPTS occurs in file, this will be in the existing
-#JAVA_OPTS parameter as a variable.
-#If it doesn't exist this splits up the string so that we can insert it as a new variable
-	my $count = grep( /.*ATLASMGR_JAVA_OPTS.*/, $data[$index1] );
-	if ( $count == 0 ) {
-		$log->info(
-"$subname: ATLASMGR_JAVA_OPTS does not yet exist, splitting string to insert it."
-		);
-		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
-			my $result1 = $1;
-			my $result2 = $2;
-			my $result3 = $3;
-
-			if ( substr( $result2, -1, 1 ) eq " " ) {
-				$data[$index1] =
-				    $result1 . '"' 
-				  . $result2
-				  . '$ATLASMGR_JAVA_OPTS "'
-				  . $result3 . "\n";
-			}
-			else {
-				$data[$index1] =
-				    $result1 . '"' 
-				  . $result2
-				  . ' $ATLASMGR_JAVA_OPTS"'
-				  . $result3 . "\n";
-			}
-		}
-	}
-
-#Search for the definition of the variable ATLASMGR_JAVA_OPTS which can be used to add
-#additional parameters to the main JAVA_OPTS variable
-	$searchFor = "ATLASMGR_JAVA_OPTS=";
-	my ($index2) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
-
-#If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
-	if ( !defined($index2) ) {
-		$log->info("$subname: ATLASMGR_JAVA_OPTS= not found. Adding it in.");
-
-		splice( @data, $index1, 0,
-			"ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n" );
-	}
-
-	#Else update the line to have the new parameters that have been specified
-	else {
-		$log->info(
-"$subname: ATLASMGR_JAVA_OPTS= exists, adding new javaOpts parameters."
-		);
-		$data[$index2] = "ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n";
-	}
-
-	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
-	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
-}
-
-########################################
 #updateXMLAttribute                    #
 ########################################
 sub updateXMLAttribute {
@@ -4107,79 +4229,6 @@ sub updateLineInBambooWrapperConf {
 			dumpSingleVarToLog( "$subname" . " _newLine", $newLine );
 			$data[$index1] = $newLine;
 		}
-	}
-
-	#Write out the updated file
-	open FILE, ">$inputFile"
-	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
-}
-
-########################################
-#updateLineInFile                      #
-########################################
-sub updateLineInFile {
-	my $inputFile;    #Must Be Absolute Path
-	my $newLine;
-	my $lineReference;
-	my $searchFor;
-	my $lineReference2;
-	my @data;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$inputFile      = $_[0];
-	$lineReference  = $_[1];
-	$newLine        = $_[2];
-	$lineReference2 = $_[3];
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_inputFile",      $inputFile );
-	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
-	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
-	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
-	open( FILE, $inputFile )
-	  or $log->logdie("Unable to open file: $inputFile: $!");
-
-	# read file into an array
-	@data = <FILE>;
-
-	close(FILE);
-
-	#Search for reference line
-	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
-
-	#If you cant find the first reference try for the second reference
-	if ( !defined($index1) ) {
-		$log->info("$subname: First search term $lineReference not found.");
-		if ( defined($lineReference2) ) {
-			$log->info("$subname: Trying to search for $lineReference2.");
-			my ($index1) =
-			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
-			if ( !defined($index1) ) {
-				$log->logdie(
-"No line containing \"$lineReference\" found in file $inputFile\n\n"
-				);
-			}
-
-			#Otherwise replace the line with the new provided line
-			else {
-				$log->info(
-					"$subname: Replacing '$data[$index1]' with $newLine.");
-				$data[$index1] = $newLine . "\n";
-			}
-		}
-		else {
-			$log->logdie(
-"No line containing \"$lineReference\" found in file $inputFile\n\n"
-			);
-		}
-	}
-	else {
-		$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
-		$data[$index1] = $newLine . "\n";
 	}
 
 	#Write out the updated file
@@ -5642,6 +5691,336 @@ END_TXT
 #######################################################################
 
 ########################################
+#getExistingBambooConfig               #
+########################################
+sub getExistingBambooConfig {
+	my $cfg;
+	my $defaultValue;
+	my $application   = "Bamboo";
+	my $mode          = "CREATE";
+	my $lcApplication = lc($application);
+	my $subname       = ( caller(0) )[3];
+	my $serverConfigFile;
+	my $input;
+	my $LOOP = 0;
+	my $returnValue;
+
+	$log->info("BEGIN: $subname");
+
+	$cfg = $_[0];
+
+	while ( $LOOP == 0 ) {
+
+		#Ask for install dir
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.installDir",
+"Please enter the directory $application is currently installed into.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+
+		if ( -d $cfg->param("$lcApplication.installDir") ) {
+			$LOOP = 1;    #break loop as directory exists
+			$log->info( "$subname: Directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " exists. Proceeding..." );
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " exists. Proceeding...\n\n";
+		}
+	}
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.javaParams",
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	$serverConfigFile =
+	  $cfg->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.runAsService",
+"Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
+		"yes"
+	);
+
+	print
+"Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application data directory from config file $serverConfigFile."
+	);
+
+	#get data/home directory
+	$returnValue = getLineFromFile(
+		$cfg->param("$lcApplication.installDir")
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+		"bamboo.home=", ".*=(.*)"
+	);
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application data directory. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.dataDir",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory Bamboo's data will be stored in.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.dataDir", $returnValue );
+		print
+"$application data directory has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application data directory found and added to config.");
+	}
+
+	#getContextFromFile
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application context from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application context from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.4=",
+		".*=(.*)" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application context. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.appContext",
+"Unable to find the context in the expected location in the $application config. Please enter the context that $application should run under (i.e. /bamboo). Write NULL to blank out the context.",
+			"/bamboo",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.appContext", $returnValue );
+		print
+"$application context has been found successfully and added to the config file...\n\n";
+		$log->info("$subname: $application context found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application connectorPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue =
+	  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.2", ".*=(.*)" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application connectorPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.connectorPort",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application will run on (note this is the port you will access in the browser).",
+			"8085",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.connectorPort", $returnValue );
+		print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application connectorPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
+		"wrapper.java.additional.", "-Xms" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xms memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMinMemory",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory you would like to assign to $application.",
+			"256m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+		print
+"$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xms java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
+		"wrapper.java.additional.", "-Xmx" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxMemory",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory you would like to assign to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+		print
+"$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xmx java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
+		"wrapper.java.additional.", "-XX:MaxPermSize=" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxPermSize",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory you would like to assign to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+		print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	#getOSuser
+	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat(WORKING_DIR_HANDLE);
+	$returnValue = getpwuid($uid);
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+
+	}
+
+	#Set up some defaults for Bamboo
+	$cfg->param( "bamboo.tomcatDir", "" )
+	  ;    #we leave these blank deliberately due to the way Bamboo works
+	$cfg->param( "bamboo.webappDir", "" )
+	  ;    #we leave these blank deliberately due to the way Bamboo works
+	$cfg->param( "bamboo.processSearchParameter1", "java" );
+	$cfg->param(
+		"bamboo.processSearchParameter2",
+		"com.atlassian.bamboo.server.Server"
+	);
+	$cfg->param(
+		"$lcApplication.enable",
+		"TRUE"
+	);
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
+
+	print
+"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+	$input = <STDIN>;
+
+}
+
+########################################
 #GenerateBambooConfig                  #
 ########################################
 sub generateBambooConfig {
@@ -5678,7 +6057,6 @@ sub generateBambooConfig {
 		'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
 		  . "leading '/' and NO trailing '/'.\n\n"
-
 	);
 	genConfigItem(
 		$mode,
@@ -5766,9 +6144,9 @@ sub generateBambooConfig {
 
 	#Set up some defaults for Bamboo
 	$cfg->param( "bamboo.tomcatDir", "" )
-	  ;    #we leave these blank deliberately due to the way Fishey works
+	  ;    #we leave these blank deliberately due to the way Bamboo works
 	$cfg->param( "bamboo.webappDir", "" )
-	  ;    #we leave these blank deliberately due to the way Fishey works
+	  ;    #we leave these blank deliberately due to the way Bamboo works
 	$cfg->param( "bamboo.processSearchParameter1", "java" );
 	$cfg->param(
 		"bamboo.processSearchParameter2",
@@ -6081,6 +6459,13 @@ sub upgradeBamboo {
 #######################################################################
 
 ########################################
+#getExistingConfluenceConfig           #
+########################################
+sub getExistingConfluenceConfig {
+
+}
+
+########################################
 #GenerateConfluenceConfig              #
 ########################################
 sub generateConfluenceConfig {
@@ -6337,6 +6722,13 @@ sub upgradeConfluence {
 #######################################################################
 #BEGIN CROWD MANAGER FUNCTIONS                                        #
 #######################################################################
+
+########################################
+#getExistingCrowdConfig                #
+########################################
+sub getExistingCrowdConfig {
+
+}
 
 ########################################
 #GenerateCrowdConfig                   #
@@ -6747,6 +7139,13 @@ sub upgradeCrowd {
 #######################################################################
 
 ########################################
+#getExistingFisheyeConfig              #
+########################################
+sub getExistingFisheyeConfig {
+
+}
+
+########################################
 #GenerateFisheyeConfig                 #
 ########################################
 sub generateFisheyeConfig {
@@ -7126,6 +7525,13 @@ sub upgradeFisheye {
 #######################################################################
 
 ########################################
+#getExistingJIRAConfig                 #
+########################################
+sub getExistingJIRAConfig {
+
+}
+
+########################################
 #GenerateJiraConfig                    #
 ########################################
 sub generateJiraConfig {
@@ -7406,6 +7812,13 @@ sub upgradeJira {
 #######################################################################
 #BEGIN STASH MANAGER FUNCTIONS                                        #
 #######################################################################
+
+########################################
+#getExistingStashConfig                #
+########################################
+sub getExistingStashConfig {
+
+}
 
 ########################################
 #GenerateStashConfig                   #
@@ -7822,7 +8235,18 @@ sub upgradeStash {
 #END STASH MANAGER FUNCTIONS                                          #
 #######################################################################
 
-#bootStrapper();
+bootStrapper();
 
 #	  print
 #	getXMLAttribute( "/opt/atlassian/crowd/apache-tomcat/conf/server.xml", "///Connector", "port" );
+
+#	print getLineFromFile(
+#		"/opt/atlassian/bamboo20130113_183023/conf/wrapper.conf",
+#		"wrapper.app.parameter.2=",
+#		".*=(.*)"
+#	);
+
+#print getEnvironmentVars("/etc/environment","FISHEYE_INST");
+
+#loadSuiteConfig();
+#getExistingBambooConfig($globalConfig);
