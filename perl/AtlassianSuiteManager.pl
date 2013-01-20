@@ -2102,7 +2102,7 @@ sub getExistingSuiteConfig {
 		"Do you currently run Bamboo on this server? yes/no ", "yes" );
 
 	if ( $cfg->param("bamboo.enable") eq "TRUE" ) {
-		getExistingBambooConfig();
+		getExistingBambooConfig($cfg);
 	}
 
 	#Get Confluence configuration
@@ -2110,7 +2110,7 @@ sub getExistingSuiteConfig {
 		"Do you currently run Confluence on this server? yes/no ", "yes" );
 
 	if ( $cfg->param("confluence.enable") eq "TRUE" ) {
-		getExistingConfluenceConfig();
+		getExistingConfluenceConfig($cfg);
 	}
 
 	#Get Crowd configuration
@@ -2118,7 +2118,7 @@ sub getExistingSuiteConfig {
 		"Do you currently run Crowd on this server? yes/no ", "yes" );
 
 	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
-		getExistingCrowdConfig();
+		getExistingCrowdConfig($cfg);
 	}
 
 	#Get Fisheye configuration
@@ -2126,7 +2126,7 @@ sub getExistingSuiteConfig {
 		"Do you currently run Fisheye on this server? yes/no ", "yes" );
 
 	if ( $cfg->param("fisheye.enable") eq "TRUE" ) {
-		getExistingFisheyeConfig();
+		getExistingFisheyeConfig($cfg);
 	}
 
 	#Get JIRA configuration
@@ -2134,7 +2134,7 @@ sub getExistingSuiteConfig {
 		"Do you currently run JIRA on this server? yes/no ", "yes" );
 
 	if ( $cfg->param("jira.enable") eq "TRUE" ) {
-		getExistingJiraConfig();
+		getExistingJiraConfig($cfg);
 	}
 
 	#Get Stash configuration
@@ -2142,7 +2142,7 @@ sub getExistingSuiteConfig {
 		"Do you currently run Stash on this server? yes/no ", "yes" );
 
 	if ( $cfg->param("stash.enable") eq "TRUE" ) {
-		getExistingStashConfig();
+		getExistingStashConfig($cfg);
 	}
 
 	#Get suite database architecture configuration
