@@ -1692,34 +1692,19 @@ sub generateSuiteConfig {
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
-	#Get Crowd configuration
-	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
-		"Do you wish to install/manage Crowd? yes/no ", "yes" );
+	#Get Bamboo configuration
+	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
+		"Do you wish to install/manage Bamboo? yes/no ", "yes" );
 
-	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
+	if ( $cfg->param("bamboo.enable") eq "TRUE" ) {
 		print
-		  "Do you wish to set up/update the Crowd configuration now? [no]: ";
+		  "Do you wish to set up/update the Bamboo configuration now? [no]: ";
 
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
 			print "\n";
-			generateCrowdConfig( $mode, $cfg );
-		}
-	}
-
-	#Get Jira configuration
-	genBooleanConfigItem( $mode, $cfg, "jira.enable",
-		"Do you wish to install/manage Jira? yes/no ", "yes" );
-
-	if ( $cfg->param("jira.enable") eq "TRUE" ) {
-		print "Do you wish to set up/update the Jira configuration now? [no]: ";
-
-		$input = getBooleanInput();
-
-		if ( $input eq "yes" ) {
-			print "\n";
-			generateJiraConfig( $mode, $cfg );
+			generateBambooConfig( $mode, $cfg );
 		}
 	}
 
@@ -1739,6 +1724,22 @@ sub generateSuiteConfig {
 		}
 	}
 
+	#Get Crowd configuration
+	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
+		"Do you wish to install/manage Crowd? yes/no ", "yes" );
+
+	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
+		print
+		  "Do you wish to set up/update the Crowd configuration now? [no]: ";
+
+		$input = getBooleanInput();
+
+		if ( $input eq "yes" ) {
+			print "\n";
+			generateCrowdConfig( $mode, $cfg );
+		}
+	}
+
 	#Get Fisheye configuration
 	genBooleanConfigItem( $mode, $cfg, "fisheye.enable",
 		"Do you wish to install/manage Fisheye? yes/no ", "yes" );
@@ -1755,19 +1756,18 @@ sub generateSuiteConfig {
 		}
 	}
 
-	#Get Bamboo configuration
-	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
-		"Do you wish to install/manage Bamboo? yes/no ", "yes" );
+	#Get Jira configuration
+	genBooleanConfigItem( $mode, $cfg, "jira.enable",
+		"Do you wish to install/manage Jira? yes/no ", "yes" );
 
-	if ( $cfg->param("bamboo.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Bamboo configuration now? [no]: ";
+	if ( $cfg->param("jira.enable") eq "TRUE" ) {
+		print "Do you wish to set up/update the Jira configuration now? [no]: ";
 
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
 			print "\n";
-			generateBambooConfig( $mode, $cfg );
+			generateJiraConfig( $mode, $cfg );
 		}
 	}
 
@@ -1778,7 +1778,6 @@ sub generateSuiteConfig {
 	if ( $cfg->param("stash.enable") eq "TRUE" ) {
 		print
 		  "Do you wish to set up/update the Stash configuration now? [no]: ";
-
 		$input = getBooleanInput();
 
 		if ( $input eq "yes" ) {
@@ -2044,7 +2043,215 @@ sub getEnvironmentVars {
 #getExistingSuiteConfig                #
 ########################################
 sub getExistingSuiteConfig {
+	my $cfg;                       #We assume we are creating a new config
+	my $mode;
+	my $input;
+	my $defaultValue;
+	my @parameterNull;
+	my $oldConfig;
+	my $subname = ( caller(0) )[3];
 
+	$log->info("BEGIN: $subname");
+
+	$mode = "NEW";
+	$cfg = new Config::Simple( syntax => 'ini' );
+
+	#Generate Main Suite Configuration
+	print
+"This will guide you through the generation of the config required for the management of your existing Atlassian suite. Many of the options will gather automagically however some will require manual input. This wizard will guide you through the process.\n\n";
+
+	#Check for 64Bit Override
+	if ( testOSArchitecture() eq "64" ) {
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"general.force32Bit",
+			"Your operating system architecture has been detected as "
+			  . testOSArchitecture()
+			  . "bit. Do you currently use 32 bit installs (not recommended)? yes/no",
+			"no"
+		);
+	}
+
+	#Get root installation directory
+	genConfigItem(
+		$mode,
+		$cfg,
+		"general.rootInstallDir",
+"Please enter the root directory the suite currently installed into. If you don't have a single root directory just keep the default.",
+		"/opt/atlassian",
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
+	);
+
+	#Get root data directory
+	genConfigItem(
+		$mode,
+		$cfg,
+		"general.rootDataDir",
+"Please enter the root directory the suite data/home directories are currently stored. If you don't have a single root directory just keep the default.",
+		"/var/atlassian/application-data",
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
+	);
+
+	#Get Bamboo configuration
+	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
+		"Do you currently run Bamboo on this server? yes/no ", "yes" );
+
+	if ( $cfg->param("bamboo.enable") eq "TRUE" ) {
+		getExistingBambooConfig();
+	}
+
+	#Get Confluence configuration
+	genBooleanConfigItem( $mode, $cfg, "confluence.enable",
+		"Do you currently run Confluence on this server? yes/no ", "yes" );
+
+	if ( $cfg->param("confluence.enable") eq "TRUE" ) {
+		getExistingConfluenceConfig();
+	}
+
+	#Get Crowd configuration
+	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
+		"Do you currently run Crowd on this server? yes/no ", "yes" );
+
+	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
+		getExistingCrowdConfig();
+	}
+
+	#Get Fisheye configuration
+	genBooleanConfigItem( $mode, $cfg, "fisheye.enable",
+		"Do you currently run Fisheye on this server? yes/no ", "yes" );
+
+	if ( $cfg->param("fisheye.enable") eq "TRUE" ) {
+		getExistingFisheyeConfig();
+	}
+
+	#Get JIRA configuration
+	genBooleanConfigItem( $mode, $cfg, "jira.enable",
+		"Do you currently run JIRA on this server? yes/no ", "yes" );
+
+	if ( $cfg->param("jira.enable") eq "TRUE" ) {
+		getExistingJiraConfig();
+	}
+
+	#Get Stash configuration
+	genBooleanConfigItem( $mode, $cfg, "stash.enable",
+		"Do you currently run Stash on this server? yes/no ", "yes" );
+
+	if ( $cfg->param("stash.enable") eq "TRUE" ) {
+		getExistingStashConfig();
+	}
+
+	#Get suite database architecture configuration
+	@parameterNull = $cfg->param("general.targetDBType");
+
+	$defaultValue =
+	  ""; #this is the first time we are getting config hence no existing value.
+	print
+"What is the target database type that will be used (enter number to select)? 1/2/3/4/5 ["
+	  . $defaultValue . "] :";
+	print "\n1. MySQL";
+	print "\n2. PostgreSQL";
+	print "\n3. Oracle";
+	print "\n4. Microsoft SQL Server";
+	print "\n5. HSQLDB (NOT RECOMMENDED/Even for testing purposes!)";
+
+	if ( !( $#parameterNull == -1 ) ) {
+		print
+"\n\nPlease make a selection: (note hitting RETURN will keep existing value of ["
+		  . $defaultValue . "].";
+	}
+	else {
+		print "\n\nPlease make a selection: ";
+	}
+
+	my $LOOP = 1;
+
+	while ( $LOOP == 1 ) {
+
+		$input = <STDIN>;
+		chomp $input;
+		dumpSingleVarToLog( "$subname" . "_inputEntered", $input );
+		print "\n";
+
+		if (   ( lc $input ) eq "1"
+			|| ( lc $input ) eq "mysql" )
+		{
+			$log->info("$subname: Database arch selected is MySQL");
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "MySQL" );
+		}
+		elsif (( lc $input ) eq "2"
+			|| ( lc $input ) eq "postgresql"
+			|| ( lc $input ) eq "postgres"
+			|| ( lc $input ) eq "postgre" )
+		{
+			$log->info("$subname: Database arch selected is PostgreSQL");
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "PostgreSQL" );
+		}
+		elsif (( lc $input ) eq "3"
+			|| ( lc $input ) eq "oracle" )
+		{
+			$log->info("$subname: Database arch selected is Oracle");
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "Oracle" );
+		}
+		elsif (( lc $input ) eq "4"
+			|| ( lc $input ) eq "microsoft sql server"
+			|| ( lc $input ) eq "mssql" )
+		{
+			$log->info("$subname: Database arch selected is MSSQL");
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "MSSQL" );
+		}
+		elsif (( lc $input ) eq "5"
+			|| ( lc $input ) eq "hsqldb"
+			|| ( lc $input ) eq "hsql" )
+		{
+			$log->info("$subname: Database arch selected is HSQLDB");
+			$LOOP = 0;
+			$cfg->param( "general.targetDBType", "HSQLDB" );
+		}
+		elsif ( ( lc $input ) eq "" & ( $#parameterNull == -1 ) ) {
+			$log->warn(
+"$subname: User made NULL selection with no previous value entered."
+			);
+			print
+			  "You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
+		}
+		else {
+			$log->info(
+"$subname: User did not enter valid input for database selection. Asking for input again."
+			);
+			print "Your input '" . $input
+			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n\n";
+		}
+	}
+	@parameterNull = $cfg->param("general.dbJDBCJar");
+
+	if ( $cfg->param("general.targetDBType") eq "MySQL" &
+		( ( $#parameterNull == -1 ) || $cfg->param("general.dbJDBCJar") eq "" )
+	  )
+	{
+		$log->info(
+"$subname: MySQL has been selected and no valid JDBC entry defined in config. Download MySQL JDBC driver."
+		);
+		downloadJDBCConnector( "MySQL", $cfg );
+	}
+
+	#Write config and reload
+	$log->info("Writing out config file to disk.");
+	$cfg->write($configFile);
+	loadSuiteConfig();
+	$globalArch = whichApplicationArchitecture();
+
+	print
+"The suite configuration has been gathered successfully. Please press enter to return to the main menu.";
+	$input = <STDIN>;
 }
 
 ########################################
@@ -5222,7 +5429,8 @@ sub bootStrapper {
 	#If no config found, force generation
 	if ( !$globalConfig ) {
 		$log->info("No config file found, forcing global config generation.");
-		generateSuiteConfig();
+
+		displayInitialConfigMenu();
 	}
 
  #If config file exists check for required config items.
@@ -5404,6 +5612,81 @@ sub bootStrapper {
 	}
 	else {
 		displayMainMenu();
+	}
+}
+
+########################################
+#Display Inital Config Menu            #
+########################################
+sub displayInitialConfigMenu {
+	my $choice;
+	my $menuText;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$menuText = <<'END_TXT';
+
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with significantly discounted hosting without which I would not have been
+      able to write, and continue hosting the Atlassian Suite for my open source projects and
+      this script.
+      ###########################################################################################
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ************************
+      * Initial Config Menu  *
+      ************************
+      
+      No configuration file has been found. Please select from the following options:
+
+      1) Gather configuration - use if one or more Atlassian installations already exist on this server
+      2) Generate new configuration - No installation of any Atlassian products exist on this server
+      Q) Exit script
+
+END_TXT
+
+		# print the main menu
+		system 'clear';
+		print $menuText;
+
+		# prompt for user's choice
+		printf( "%s", "Please enter your selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+		dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
+			$LOOP = 0;
+			exit 0;
+		}
+		elsif ( lc($choice) eq "1\n" ) {
+			system 'clear';
+			getExistingSuiteConfig();
+		}
+		elsif ( lc($choice) eq "2\n" ) {
+			system 'clear';
+			generateSuiteConfig();
+		}
 	}
 }
 
@@ -9348,7 +9631,368 @@ sub upgradeJira {
 #getExistingStashConfig                #
 ########################################
 sub getExistingStashConfig {
+	my $cfg;
+	my $defaultValue;
+	my $application   = "Stash";
+	my $mode          = "CREATE";
+	my $lcApplication = lc($application);
+	my $subname       = ( caller(0) )[3];
+	my $serverConfigFile;
+	my $serverSetEnvFile;
+	my $input;
+	my $LOOP = 0;
+	my $returnValue;
 
+	$log->info("BEGIN: $subname");
+
+	$cfg = $_[0];
+
+	while ( $LOOP == 0 ) {
+
+		#Ask for install dir
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.installDir",
+"Please enter the directory $application is currently installed into.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+
+		if ( -d $cfg->param("$lcApplication.installDir") ) {
+			$LOOP = 1;    #break loop as directory exists
+			$log->info( "$subname: Directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " exists. Proceeding..." );
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " exists. Proceeding...\n\n";
+		}
+		else {
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " does not exist. Please try again.\n\n";
+			$log->info( "The directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " does not exist. Please try again." );
+		}
+	}
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.javaParams",
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	$serverSetEnvFile =
+	  $cfg->param("$lcApplication.installDir") . "/bin/setenv.sh";
+
+	$serverConfigFile =
+	  $cfg->param("$lcApplication.installDir") . "/conf/server.xml";
+
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.runAsService",
+"Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
+		"yes"
+	);
+
+	print
+"Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application data directory from config file $serverConfigFile."
+	);
+
+	#get data/home directory
+	$returnValue =
+	  getLineFromFile( $serverSetEnvFile, "STASH_HOME\\s?=", ".*=\\s?(.*)" );
+
+	#remove quotations
+	$returnValue =~ s/\"//g;
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application data directory. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.dataDir",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
+			  . "'s data is *currently* stored in.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.dataDir", $returnValue );
+		print
+"$application data directory has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application data directory found and added to config.");
+	}
+
+	#getContextFromFile
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application context from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application context from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getXMLAttribute( $serverConfigFile, "//////Context", "path" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application context. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.appContext",
+"Unable to find the context in the expected location in the $application config. Please enter the context that $application currently runs under (i.e. /stash). Write NULL to blank out the context.",
+			"/stash",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.appContext", $returnValue );
+		print
+"$application context has been found successfully and added to the config file...\n\n";
+		$log->info("$subname: $application context found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application connectorPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "///Connector", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application connectorPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.connectorPort",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you will access in the browser).",
+			"8095",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.connectorPort", $returnValue );
+		print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application connectorPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application serverPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application serverPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "/Server", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application serverPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.serverPort",
+"Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
+			"8000",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.serverPort", $returnValue );
+		print
+"$application serverPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application serverPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getLineFromFile( $serverSetEnvFile, "JVM_MINIMUM_MEMORY\\s?=",
+		".*=\\s?(.*)" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xms memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMinMemory",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory *currently* assigned to $application.",
+			"256m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+		print
+"$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xms java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getLineFromFile( $serverSetEnvFile, "JVM_MAXIMUM_MEMORY\\s?=",
+		".*=\\s?(.*)" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxMemory",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+		print
+"$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xmx java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
+	);
+
+	$returnValue =
+	  getLineFromFile( $serverSetEnvFile, "STASH_MAX_PERM_SIZE\\s?=",
+		".*=\\s?(.*)" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxPermSize",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+		print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	#getOSuser
+	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat(WORKING_DIR_HANDLE);
+	$returnValue = getpwuid($uid);
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
+
+	#Set up some defaults for Stash
+	$cfg->param( "$lcApplication.tomcatDir",               "" );
+	$cfg->param( "$lcApplication.webappDir",               "/atlassian-stash" );
+	$cfg->param( "$lcApplication.processSearchParameter1", "java" );
+	$cfg->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $cfg->param("$lcApplication.installDir") );
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
+
+	print
+"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+	$input = <STDIN>;
 }
 
 ########################################
@@ -9766,7 +10410,7 @@ sub upgradeStash {
 #END STASH MANAGER FUNCTIONS                                          #
 #######################################################################
 
-#bootStrapper();
+bootStrapper();
 
 #	  print
 #	getXMLAttribute( "/opt/atlassian/crowd/apache-tomcat/conf/server.xml", "///Connector", "port" );
@@ -9779,5 +10423,7 @@ sub upgradeStash {
 
 #print getEnvironmentVars("/etc/environment","FISHEYE_INST");
 
-loadSuiteConfig();
-getExistingFisheyeConfig($globalConfig);
+#loadSuiteConfig();
+
+#getExistingStashConfig($globalConfig);
+#print $globalConfig->param( "stash.processSearchParameter2");
