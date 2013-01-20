@@ -6357,7 +6357,7 @@ sub getExistingBambooConfig {
 	$returnValue = "";
 
 	#getOSuser
-	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -7781,7 +7781,7 @@ sub getExistingCrowdConfig {
 	$returnValue = "";
 
 	#getOSuser
-	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -8559,7 +8559,7 @@ sub getExistingFisheyeConfig {
 	$returnValue = "";
 
 	#getOSuser
-	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -9948,7 +9948,7 @@ sub getExistingStashConfig {
 	$returnValue = "";
 
 	#getOSuser
-	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
