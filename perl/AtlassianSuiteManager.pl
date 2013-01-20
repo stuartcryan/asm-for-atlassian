@@ -2578,10 +2578,13 @@ sub getXMLAttribute {
 
 		#Set the node to the new attribute value
 		$attributeReturnValue = $node->att($referenceAttribute);
-
-		return $attributeReturnValue;
+		if ( !defined $attributeReturnValue ) {
+			return "NOTFOUND";
+		}
+		else {
+			return $attributeReturnValue;
+		}
 	}
-
 }
 
 ########################################
@@ -4078,6 +4081,105 @@ sub updateJavaMemParameter {
 	  or $log->logdie("Unable to open file $inputFile $!");
 	print FILE @data;
 	close FILE;
+}
+
+########################################
+#updateJAVAOPTS                        #
+########################################
+sub updateJavaOpts {
+	my $inputFile;    #Must Be Absolute Path
+	my $javaOpts;
+	my $searchFor;
+	my $referenceVariable;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile         = $_[0];
+	$referenceVariable = $_[1];
+	$javaOpts          = $_[2];
+
+#If no javaOpts parameters defined we get an undefined variable. This accounts for that.
+	if ( !defined $javaOpts ) {
+		$javaOpts = "";
+	}
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile", $inputFile );
+	dumpSingleVarToLog( "$subname" . "_javaOpts",  $javaOpts );
+
+	#Try to open the provided file
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	$searchFor = $referenceVariable;
+
+	#Search for the provided string in the file array
+	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+#See how many times ATLASMGR_JAVA_OPTS occurs in file, this will be in the existing
+#JAVA_OPTS parameter as a variable.
+#If it doesn't exist this splits up the string so that we can insert it as a new variable
+	my $count = grep( /.*ATLASMGR_JAVA_OPTS.*/, $data[$index1] );
+	if ( $count == 0 ) {
+		$log->info(
+"$subname: ATLASMGR_JAVA_OPTS does not yet exist, splitting string to insert it."
+		);
+		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
+			my $result1 = $1;
+			my $result2 = $2;
+			my $result3 = $3;
+
+			if ( substr( $result2, -1, 1 ) eq " " ) {
+				$data[$index1] =
+				    $result1 . '"' 
+				  . $result2
+				  . '$ATLASMGR_JAVA_OPTS "'
+				  . $result3 . "\n";
+			}
+			else {
+				$data[$index1] =
+				    $result1 . '"' 
+				  . $result2
+				  . ' $ATLASMGR_JAVA_OPTS"'
+				  . $result3 . "\n";
+			}
+		}
+	}
+
+#Search for the definition of the variable ATLASMGR_JAVA_OPTS which can be used to add
+#additional parameters to the main JAVA_OPTS variable
+	$searchFor = "ATLASMGR_JAVA_OPTS=";
+	my ($index2) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+#If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
+	if ( !defined($index2) ) {
+		$log->info("$subname: ATLASMGR_JAVA_OPTS= not found. Adding it in.");
+
+		splice( @data, $index1, 0,
+			"ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n" );
+	}
+
+	#Else update the line to have the new parameters that have been specified
+	else {
+		$log->info(
+"$subname: ATLASMGR_JAVA_OPTS= exists, adding new javaOpts parameters."
+		);
+		$data[$index2] = "ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n";
+	}
+
+	#Try to open file, output the lines that are in memory and close
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file $inputFile $!");
+	print FILE @data;
+	close FILE;
+
 }
 
 ########################################
@@ -5733,6 +5835,14 @@ sub getExistingBambooConfig {
 			  . $cfg->param("$lcApplication.installDir")
 			  . " exists. Proceeding...\n\n";
 		}
+		else {
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " does not exist. Please try again.\n\n";
+			$log->info( "The directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " does not exist. Please try again." );
+		}
 	}
 
 	genConfigItem(
@@ -5777,7 +5887,8 @@ sub getExistingBambooConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.dataDir",
-"Unable to find the data directory in the expected location in the $application config. Please enter the directory Bamboo's data will be stored in.",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
+			  . "'s data is *currently* stored in.",
 			"",
 			'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
@@ -5811,8 +5922,8 @@ sub getExistingBambooConfig {
 		genConfigItem(
 			$mode,
 			$cfg,
-			"bamboo.appContext",
-"Unable to find the context in the expected location in the $application config. Please enter the context that $application should run under (i.e. /bamboo). Write NULL to blank out the context.",
+			"$lcApplication.appContext",
+"Unable to find the context in the expected location in the $application config. Please enter the context that $application *currently* runs under (i.e. /bamboo). Write NULL to blank out the context.",
 			"/bamboo",
 			'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
@@ -5847,7 +5958,7 @@ sub getExistingBambooConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.connectorPort",
-"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application will run on (note this is the port you will access in the browser).",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you access in the browser OR proxy to with another web server).",
 			"8085",
 			'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
@@ -5878,7 +5989,7 @@ sub getExistingBambooConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMinMemory",
-"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory you would like to assign to $application.",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory *currently* assigned to $application.",
 			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
@@ -5910,7 +6021,7 @@ sub getExistingBambooConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxMemory",
-"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory you would like to assign to $application.",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
 			"512m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
@@ -5942,7 +6053,7 @@ sub getExistingBambooConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory you would like to assign to $application.",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
 			"512m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
@@ -5989,7 +6100,7 @@ sub getExistingBambooConfig {
 		genConfigItem(
 			$mode,
 			$cfg,
-			"bamboo.osUser",
+			"$lcApplication.osUser",
 "In that case please enter the user that $application *currently* runs under.",
 			"",
 			'^([a-zA-Z0-9]*)$',
@@ -6461,7 +6572,356 @@ sub upgradeBamboo {
 #getExistingConfluenceConfig           #
 ########################################
 sub getExistingConfluenceConfig {
+	my $cfg;
+	my $defaultValue;
+	my $application   = "Confluence";
+	my $mode          = "CREATE";
+	my $lcApplication = lc($application);
+	my $subname       = ( caller(0) )[3];
+	my $serverConfigFile;
+	my $serverSetEnvFile;
+	my $input;
+	my $LOOP = 0;
+	my $returnValue;
 
+	$log->info("BEGIN: $subname");
+
+	$cfg = $_[0];
+
+	while ( $LOOP == 0 ) {
+
+		#Ask for install dir
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.installDir",
+"Please enter the directory $application is currently installed into.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+
+		if ( -d $cfg->param("$lcApplication.installDir") ) {
+			$LOOP = 1;    #break loop as directory exists
+			$log->info( "$subname: Directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " exists. Proceeding..." );
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " exists. Proceeding...\n\n";
+		}
+		else {
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " does not exist. Please try again.\n\n";
+			$log->info( "The directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " does not exist. Please try again." );
+		}
+	}
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.javaParams",
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	$serverSetEnvFile =
+	  $cfg->param("$lcApplication.installDir") . "/bin/setenv.sh";
+
+	$serverConfigFile =
+	  $cfg->param("$lcApplication.installDir") . "/conf/server.xml";
+
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.runAsService",
+"Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
+		"yes"
+	);
+
+	print
+"Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application data directory from config file $serverConfigFile."
+	);
+
+	#get data/home directory
+	$returnValue = getLineFromFile(
+		$cfg->param("$lcApplication.installDir")
+		  . "/confluence/WEB-INF/classes/confluence-init.properties",
+		"confluence.home\\s?=", ".*=\\s?(.*)"
+	);
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application data directory. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.dataDir",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
+			  . "'s data is *currently* stored in.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.dataDir", $returnValue );
+		print
+"$application data directory has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application data directory found and added to config.");
+	}
+
+	#getContextFromFile
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application context from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application context from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getXMLAttribute( $serverConfigFile, "//////Context", "path" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application context. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.appContext",
+"Unable to find the context in the expected location in the $application config. Please enter the context that $application currently runs under (i.e. /confluence or /wiki). Write NULL to blank out the context.",
+			"/confluence",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.appContext", $returnValue );
+		print
+"$application context has been found successfully and added to the config file...\n\n";
+		$log->info("$subname: $application context found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application connectorPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "///Connector", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application connectorPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.connectorPort",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you will access in the browser).",
+			"8090",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.connectorPort", $returnValue );
+		print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application connectorPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application serverPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application serverPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "/Server", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application serverPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.serverPort",
+"Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
+			"8000",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.serverPort", $returnValue );
+		print
+"$application serverPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application serverPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xms" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xms memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMinMemory",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory *currently* assigned to $application.",
+			"256m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+		print
+"$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xms java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xmx" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxMemory",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+		print
+"$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xmx java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-XX:MaxPermSize=" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxPermSize",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+		print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	#getOSuser
+	$returnValue =
+	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER" );
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+
+	}
+
+	#Set up some defaults for Confluence
+	$cfg->param( "confluence.processSearchParameter1", "java" );
+	$cfg->param( "confluence.processSearchParameter2",
+		"classpath " . $cfg->param("confluence.installDir") );
+	$cfg->param( "$lcApplication.enable", "TRUE" );
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
+
+	print
+"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+	$input = <STDIN>;
 }
 
 ########################################
@@ -6726,7 +7186,367 @@ sub upgradeConfluence {
 #getExistingCrowdConfig                #
 ########################################
 sub getExistingCrowdConfig {
+	my $cfg;
+	my $defaultValue;
+	my $application   = "Crowd";
+	my $mode          = "CREATE";
+	my $lcApplication = lc($application);
+	my $subname       = ( caller(0) )[3];
+	my $serverConfigFile;
+	my $serverSetEnvFile;
+	my $input;
+	my $LOOP = 0;
+	my $returnValue;
 
+	$log->info("BEGIN: $subname");
+
+	$cfg = $_[0];
+
+	while ( $LOOP == 0 ) {
+
+		#Ask for install dir
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.installDir",
+"Please enter the directory $application is currently installed into.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+
+		if ( -d $cfg->param("$lcApplication.installDir") ) {
+			$LOOP = 1;    #break loop as directory exists
+			$log->info( "$subname: Directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " exists. Proceeding..." );
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " exists. Proceeding...\n\n";
+		}
+		else {
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " does not exist. Please try again.\n\n";
+			$log->info( "The directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " does not exist. Please try again." );
+		}
+	}
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.javaParams",
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	$serverSetEnvFile =
+	  $cfg->param("$lcApplication.installDir") . "/apache-tomcat/bin/setenv.sh";
+
+	$serverConfigFile = $cfg->param("$lcApplication.installDir")
+	  . "/apache-tomcat/conf/server.xml";
+
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.runAsService",
+"Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
+		"yes"
+	);
+
+	print
+"Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application data directory from config file $serverConfigFile."
+	);
+
+	#get data/home directory
+	$returnValue = getLineFromFile(
+		$cfg->param("$lcApplication.installDir")
+		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
+		"crowd.home\\s?=", ".*=\\s?(.*)"
+	);
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application data directory. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.dataDir",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
+			  . "'s data is *currently* stored in.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.dataDir", $returnValue );
+		print
+"$application data directory has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application data directory found and added to config.");
+	}
+
+	#getContextFromFile
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application context from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application context from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getXMLAttribute( $serverConfigFile, "//////Context", "path" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application context. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.appContext",
+"Unable to find the context in the expected location in the $application config. Please enter the context that $application currently runs under (i.e. /confluence or /wiki). Write NULL to blank out the context.",
+			"/jira",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.appContext", $returnValue );
+		print
+"$application context has been found successfully and added to the config file...\n\n";
+		$log->info("$subname: $application context found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application connectorPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "///Connector", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application connectorPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.connectorPort",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you will access in the browser).",
+			"8095",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.connectorPort", $returnValue );
+		print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application connectorPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application serverPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application serverPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "/Server", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application serverPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.serverPort",
+"Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
+			"8000",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.serverPort", $returnValue );
+		print
+"$application serverPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application serverPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xms" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xms memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMinMemory",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory *currently* assigned to $application.",
+			"256m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+		print
+"$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xms java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xmx" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxMemory",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+		print
+"$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xmx java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-XX:MaxPermSize=" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxPermSize",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+		print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	#getOSuser
+	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat(WORKING_DIR_HANDLE);
+	$returnValue = getpwuid($uid);
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
+
+	#Set up some defaults for Crowd
+	$cfg->param( "$lcApplication.tomcatDir",               "/apache-tomcat" );
+	$cfg->param( "$lcApplication.webappDir",               "/crowd-webapp" );
+	$cfg->param( "$lcApplication.processSearchParameter1", "java" );
+	$cfg->param( "$lcApplication.processSearchParameter2",
+		    "Dcatalina.base="
+		  . $cfg->param("$lcApplication.installDir")
+		  . $cfg->param("$lcApplication.tomcatDir") );
+	$cfg->param( "$lcApplication.enable", "TRUE" );
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
+
+	print
+"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+	$input = <STDIN>;
 }
 
 ########################################
@@ -7141,7 +7961,370 @@ sub upgradeCrowd {
 #getExistingFisheyeConfig              #
 ########################################
 sub getExistingFisheyeConfig {
+	my $cfg;
+	my $defaultValue;
+	my $application   = "Fisheye";
+	my $mode          = "CREATE";
+	my $lcApplication = lc($application);
+	my $subname       = ( caller(0) )[3];
+	my $serverConfigFile;
+	my $serverSetEnvFile;
+	my $input;
+	my $LOOP = 0;
+	my $returnValue;
 
+	$log->info("BEGIN: $subname");
+
+	$cfg = $_[0];
+
+	while ( $LOOP == 0 ) {
+
+		#Ask for install dir
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.installDir",
+"Please enter the directory $application is currently installed into.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+
+		if ( -d $cfg->param("$lcApplication.installDir") ) {
+			$LOOP = 1;    #break loop as directory exists
+			$log->info( "$subname: Directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " exists. Proceeding..." );
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " exists. Proceeding...\n\n";
+		}
+		else {
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " does not exist. Please try again.\n\n";
+			$log->info( "The directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " does not exist. Please try again." );
+		}
+	}
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.javaParams",
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	$serverSetEnvFile =
+	  $cfg->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
+
+	$serverConfigFile =
+	  $cfg->param("$lcApplication.installDir") . "/config.xml";
+
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.runAsService",
+"Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
+		"yes"
+	);
+
+	print
+"Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application data directory from config file $serverConfigFile."
+	);
+
+	#get data/home directory
+	$returnValue = getEnvironmentVars( "/etc/environment", "FISHEYE_INST" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application data directory. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.dataDir",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
+			  . "'s data is *currently* stored in.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.dataDir", $returnValue );
+		print
+"$application data directory has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application data directory found and added to config.");
+	}
+
+	#getContextFromFile
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application context from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application context from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getXMLAttribute( $serverConfigFile, "web-server", "context" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application context. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.appContext",
+"Unable to find the context in the expected location in the $application config. $application does not contain this information in it's config by default therefore we will need to get it from you. Please enter the context that $application currently runs under (i.e. /fisheye). Write NULL to blank out the context.",
+			"/fisheye",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.appContext", $returnValue );
+		print
+"$application context has been found successfully and added to the config file...\n\n";
+		$log->info("$subname: $application context found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application connectorPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "//http", "bind" );
+
+	#strip leading : off the return value if it exists
+	$returnValue =~ s/://g;
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application connectorPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.connectorPort",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you will access in the browser).",
+			"8060",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.connectorPort", $returnValue );
+		print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application connectorPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application serverPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application serverPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue =
+	  getXMLAttribute( $serverConfigFile, "/config", "control-bind" );
+
+	#strip leading 127.0.0.1: off the return value if it exists
+	$returnValue =~ s/127.0.0.1://g;
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application serverPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.serverPort",
+"Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
+			"8000",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.serverPort", $returnValue );
+		print
+"$application serverPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application serverPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "FISHEYE_OPTS", "-Xms" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xms memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMinMemory",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. $application does not always have this by default hence we will need you to input this. Please enter the minimum amount of memory *currently* assigned to $application.",
+			"256m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+		print
+"$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xms java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "FISHEYE_OPTS", "-Xmx" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxMemory",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. $application does not always have this by default hence we will need you to input this. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+		print
+"$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xmx java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue = getJavaMemParameter( $serverSetEnvFile, "FISHEYE_OPTS",
+		"-XX:MaxPermSize=" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxPermSize",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. $application does not always have this by default hence we will need you to input this. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+		print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	#getOSuser
+	opendir( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat(WORKING_DIR_HANDLE);
+	$returnValue = getpwuid($uid);
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
+
+	#Set up some defaults for Fisheye
+	$cfg->param( "fisheye.tomcatDir", "" )
+	  ;    #we leave these blank deliberately due to the way Fishey works
+	$cfg->param( "fisheye.webappDir", "" )
+	  ;    #we leave these blank deliberately due to the way Fishey works
+	$cfg->param( "fisheye.processSearchParameter1", "java" );
+	$cfg->param( "fisheye.processSearchParameter2",
+		"Dfisheye.inst=" . $cfg->param("fisheye.installDir") );
+	$cfg->param( "$lcApplication.enable", "TRUE" );
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
+
+	print
+"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+	$input = <STDIN>;
 }
 
 ########################################
@@ -7527,7 +8710,356 @@ sub upgradeFisheye {
 #getExistingJIRAConfig                 #
 ########################################
 sub getExistingJIRAConfig {
+	my $cfg;
+	my $defaultValue;
+	my $application   = "JIRA";
+	my $mode          = "CREATE";
+	my $lcApplication = lc($application);
+	my $subname       = ( caller(0) )[3];
+	my $serverConfigFile;
+	my $serverSetEnvFile;
+	my $input;
+	my $LOOP = 0;
+	my $returnValue;
 
+	$log->info("BEGIN: $subname");
+
+	$cfg = $_[0];
+
+	while ( $LOOP == 0 ) {
+
+		#Ask for install dir
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.installDir",
+"Please enter the directory $application is currently installed into.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+
+		if ( -d $cfg->param("$lcApplication.installDir") ) {
+			$LOOP = 1;    #break loop as directory exists
+			$log->info( "$subname: Directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " exists. Proceeding..." );
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " exists. Proceeding...\n\n";
+		}
+		else {
+			print "The directory "
+			  . $cfg->param("$lcApplication.installDir")
+			  . " does not exist. Please try again.\n\n";
+			$log->info( "The directory "
+				  . $cfg->param("$lcApplication.installDir")
+				  . " does not exist. Please try again." );
+		}
+	}
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.javaParams",
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	$serverSetEnvFile =
+	  $cfg->param("$lcApplication.installDir") . "/bin/setenv.sh";
+
+	$serverConfigFile =
+	  $cfg->param("$lcApplication.installDir") . "/conf/server.xml";
+
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.runAsService",
+"Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
+		"yes"
+	);
+
+	print
+"Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application data directory from config file $serverConfigFile."
+	);
+
+	#get data/home directory
+	$returnValue = getLineFromFile(
+		$cfg->param("$lcApplication.installDir")
+		  . "/atlassian-jira/WEB-INF/classes/jira-application.properties",
+		"jira.home\\s?=", ".*=\\s?(.*)"
+	);
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application data directory. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.dataDir",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
+			  . "'s data is *currently* stored in.",
+			"",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.dataDir", $returnValue );
+		print
+"$application data directory has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application data directory found and added to config.");
+	}
+
+	#getContextFromFile
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application context from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application context from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getXMLAttribute( $serverConfigFile, "//////Context", "path" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application context. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.appContext",
+"Unable to find the context in the expected location in the $application config. Please enter the context that $application currently runs under (i.e. /confluence or /wiki). Write NULL to blank out the context.",
+			"/confluence",
+			'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+			  . "leading '/' and NO trailing '/'.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.appContext", $returnValue );
+		print
+"$application context has been found successfully and added to the config file...\n\n";
+		$log->info("$subname: $application context found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application connectorPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "///Connector", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application connectorPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.connectorPort",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you will access in the browser).",
+			"8080",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.connectorPort", $returnValue );
+		print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application connectorPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application serverPort from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application serverPort from config file $serverConfigFile."
+	);
+
+	#Get connector port from file
+	$returnValue = getXMLAttribute( $serverConfigFile, "/Server", "port" );
+
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application serverPort. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.serverPort",
+"Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
+			"8000",
+			'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.serverPort", $returnValue );
+		print
+"$application serverPort has been found successfully and added to the config file...\n\n";
+		$log->info(
+			"$subname: $application serverPort found and added to config.");
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xms" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xms memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMinMemory",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory *currently* assigned to $application.",
+			"256m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+		print
+"$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xms java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xmx" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxMemory",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+		print
+"$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application Xmx java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	print
+"Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
+	$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
+	);
+	$returnValue =
+	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-XX:MaxPermSize=" );
+	if ( $returnValue eq "NOTFOUND" ) {
+		$log->info(
+"$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
+		);
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.javaMaxPermSize",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+			"512m",
+			'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+		);
+	}
+	else {
+		$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+		print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+		$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+		);
+	}
+
+	$returnValue = "";
+
+	#getOSuser
+	$returnValue =
+	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER" );
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+	$input = getBooleanInput();
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+
+	}
+
+	#Set up some defaults for JIRA
+	$cfg->param( "$lcApplication.processSearchParameter1", "java" );
+	$cfg->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $cfg->param("$lcApplication.installDir") );
+	$cfg->param( "$lcApplication.enable", "TRUE" );
+
+	$cfg->write($configFile);
+	loadSuiteConfig();
+
+	print
+"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+	$input = <STDIN>;
 }
 
 ########################################
@@ -8248,4 +9780,4 @@ sub upgradeStash {
 #print getEnvironmentVars("/etc/environment","FISHEYE_INST");
 
 loadSuiteConfig();
-getExistingBambooConfig($globalConfig);
+getExistingFisheyeConfig($globalConfig);
