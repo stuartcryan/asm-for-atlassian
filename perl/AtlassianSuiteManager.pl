@@ -8996,7 +8996,7 @@ sub upgradeFisheye {
 ########################################
 #getExistingJIRAConfig                 #
 ########################################
-sub getExistingJIRAConfig {
+sub getExistingJiraConfig {
 	my $cfg;
 	my $defaultValue;
 	my $application   = "JIRA";
