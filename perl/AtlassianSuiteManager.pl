@@ -10411,19 +10411,3 @@ sub upgradeStash {
 #######################################################################
 
 bootStrapper();
-
-#	  print
-#	getXMLAttribute( "/opt/atlassian/crowd/apache-tomcat/conf/server.xml", "///Connector", "port" );
-
-#	print getLineFromFile(
-#		"/opt/atlassian/bamboo20130113_183023/conf/wrapper.conf",
-#		"wrapper.app.parameter.2=",
-#		".*=(.*)"
-#	);
-
-#print getEnvironmentVars("/etc/environment","FISHEYE_INST");
-
-#loadSuiteConfig();
-
-#getExistingStashConfig($globalConfig);
-#print $globalConfig->param( "stash.processSearchParameter2");
