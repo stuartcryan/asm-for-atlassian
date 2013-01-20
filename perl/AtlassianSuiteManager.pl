@@ -2611,19 +2611,21 @@ sub getUserCreatedByInstaller {
 	my @data;
 	my $fileName;
 	my $userName;
+	my $cfg;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	$configParameterName = $_[0];
 	$lineReference       = $_[1];
+	$cfg                 = $_[2];
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_configParameterName",
 		$configParameterName );
 	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
 
-	$fileName = $globalConfig->param($configParameterName) . "/bin/user.sh";
+	$fileName = $cfg->param($configParameterName) . "/bin/user.sh";
 
 	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
 
@@ -3337,8 +3339,8 @@ Therefore script is terminating, please ensure port configuration is correct and
 	);
 
 	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser =
-	  getUserCreatedByInstaller( $lcApplication . ".installDir", $configUser );
+	$osUser = getUserCreatedByInstaller( $lcApplication . ".installDir",
+		$configUser, $globalConfig );
 	$log->info("$subname: OS User created by installer is: $osUser");
 	$globalConfig->param( $lcApplication . ".osUser", $osUser );
 	$log->info("Writing out config file to disk.");
@@ -5307,7 +5309,8 @@ sub upgradeGenericAtlassianBinary {
 
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser );
+	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser,
+		$globalConfig );
 	$globalConfig->param( "$lcApplication.osUser", $osUser );
 	$log->info("$subname: OS User created by installer is: $osUser");
 	$log->info("Writing out config file to disk.");
@@ -7164,7 +7167,8 @@ sub getExistingConfluenceConfig {
 
 	#getOSuser
 	$returnValue =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER" );
+	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER",
+		$cfg );
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	print
@@ -9302,7 +9306,8 @@ sub getExistingJIRAConfig {
 
 	#getOSuser
 	$returnValue =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER" );
+	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER",
+		$cfg );
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	print
