@@ -2485,6 +2485,7 @@ sub getLineFromFile {
 		if ( $data[$index1] =~ /$valueRegex/ ) {
 			$returnValue = $1;
 			$returnValue =~ tr/\015//d;    #trim unusual newlines
+			$returnValue =~ tr/\"//d;    #trim unusual newlines
 			return $returnValue;
 		}
 		else {
@@ -9295,7 +9296,8 @@ sub getExistingJiraConfig {
 "$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
 	);
 	$returnValue =
-	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xms" );
+	  getLineFromFile( $serverConfigFile, "JVM_MINIMUM_MEMORY",
+		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application Xms memory parameter. Asking user for input."
@@ -9327,7 +9329,8 @@ sub getExistingJiraConfig {
 "$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
 	);
 	$returnValue =
-	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-Xmx" );
+	  getLineFromFile( $serverConfigFile, "JVM_MAXIMUM_MEMORY",
+		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
@@ -9359,7 +9362,8 @@ sub getExistingJiraConfig {
 "$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
 	);
 	$returnValue =
-	  getJavaMemParameter( $serverSetEnvFile, "JAVA_OPTS", "-XX:MaxPermSize=" );
+	  getLineFromFile( $serverConfigFile, "JIRA_MAX_PERM_SIZE",
+		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
