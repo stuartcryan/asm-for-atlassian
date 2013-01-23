@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #
-#    Copyright 2012 Stuart Ryan
+#    Copyright 2013 Stuart Ryan
 #
 #    Application Name: AtlassianSuiteManager
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Scripts+Home
@@ -14,6 +14,11 @@
 #    CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
 #    Without them keeping track of, and distributing my scripts and knowledge would not be as
 #    easy as it has been. So THANK YOU ATLASSIAN, I am very grateful.
+#
+#    I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+#    for sponsoring me with significantly discounted hosting without which I would not have been
+#    able to write, and continue hosting the Atlassian Suite for my open source projects and
+#    this script.
 #    ###########################################################################################
 #
 #    This program is free software: you can redistribute it and/or modify
@@ -4548,6 +4553,80 @@ sub updateLineInBambooWrapperConf {
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 	print FILE @data;
 	close FILE;
+}
+
+########################################
+#updateLineInFile                      #
+########################################
+sub updateLineInFile {
+	my $inputFile;    #Must Be Absolute Path
+	my $newLine;
+	my $lineReference;
+	my $searchFor;
+	my $lineReference2;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile      = $_[0];
+	$lineReference  = $_[1];
+	$newLine        = $_[2];
+	$lineReference2 = $_[3];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",      $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
+	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
+	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		$log->info("$subname: First search term $lineReference not found.");
+		if ( defined($lineReference2) ) {
+			$log->info("$subname: Trying to search for $lineReference2.");
+			my ($index1) =
+			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
+			if ( !defined($index1) ) {
+				$log->logdie(
+"No line containing \"$lineReference\" found in file $inputFile\n\n"
+				);
+			}
+
+			#Otherwise replace the line with the new provided line
+			else {
+				$log->info(
+					"$subname: Replacing '$data[$index1]' with $newLine.");
+				$data[$index1] = $newLine . "\n";
+			}
+		}
+		else {
+			$log->logdie(
+"No line containing \"$lineReference\" found in file $inputFile\n\n"
+			);
+		}
+	}
+	else {
+		$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
+		$data[$index1] = $newLine . "\n";
+	}
+
+	#Write out the updated file
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+	print FILE @data;
+	close FILE;
+
 }
 
 ########################################
