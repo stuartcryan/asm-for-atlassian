@@ -5764,10 +5764,12 @@ END_TXT
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
 			getExistingSuiteConfig();
+			$LOOP = 0;
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
 			generateSuiteConfig();
+			$LOOP = 0;
 		}
 	}
 }
