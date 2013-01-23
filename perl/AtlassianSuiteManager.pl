@@ -9387,7 +9387,7 @@ sub getExistingJiraConfig {
 
 	#getOSuser
 	$returnValue =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER",
+	  getUserCreatedByInstaller( "$lcApplication.installDir", "JIRA_USER",
 		$cfg );
 
 	#confirmWithUserThatIsTheCorrectOSUser
