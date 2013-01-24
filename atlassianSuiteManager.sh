@@ -36,7 +36,7 @@ clear
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget rpm zip unzip tar perl"
+BINARIES="wget zip unzip tar perl"
 BINARIESCHECK=""
 
 for i in $BINARIES
