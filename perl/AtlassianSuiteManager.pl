@@ -2485,7 +2485,7 @@ sub getLineFromFile {
 		if ( $data[$index1] =~ /$valueRegex/ ) {
 			$returnValue = $1;
 			$returnValue =~ tr/\015//d;    #trim unusual newlines
-			$returnValue =~ tr/\"//d;    #trim unusual newlines
+			$returnValue =~ tr/\"//d;      #trim unusual newlines
 			return $returnValue;
 		}
 		else {
@@ -4516,7 +4516,6 @@ sub updateLineInBambooWrapperConf {
 		my $newLine =
 		    $variableReference 
 		  . $count . "="
-		  . $parameterReference
 		  . $newValue . "\n";
 		dumpSingleVarToLog( "$subname" . "_newLine", $newLine );
 		splice( @data, $index1, 0, $newLine );
@@ -6646,6 +6645,8 @@ sub installBamboo {
 	  "http://www.atlassian.com/software/bamboo/download-archives";
 	my $configFile;
 	my @requiredConfigItems;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $WrapperDownloadFile;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
@@ -6736,12 +6737,26 @@ sub installBamboo {
 		"wrapper.java.additional.", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-#Apply the JavaOpts configuration (if any) - I know this is not ideal to be editing the RUN_CMD parameter
-#however I expect this will be deprecated as soon as Bamboo moves away from Jetty.
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq "" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
-	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" ) . "/bamboo.sh",
-		"RUN_CMD", $globalConfig->param( $lcApplication . ".javaParams" ) );
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateLineInBambooWrapperConf(
+			$javaMemParameterFile,
+			"wrapper.java.additional.",
+			$globalConfig->param("$lcApplication.javaParams"),
+			$globalConfig->param("$lcApplication.javaParams")
+		);
+	}
 
 	print "Configuration settings have been applied successfully.\n\n";
 
@@ -6799,6 +6814,8 @@ sub upgradeBamboo {
 	my $configFile;
 	my @requiredConfigItems;
 	my $WrapperDownloadFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
@@ -6888,12 +6905,26 @@ sub upgradeBamboo {
 		"wrapper.java.additional.", "-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-#Apply the JavaOpts configuration (if any) - I know this is not ideal to be editing the RUN_CMD parameter
-#however I expect this will be deprecated as soon as Bamboo moves away from Jetty.
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq "" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
-	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" ) . "/bamboo.sh",
-		"RUN_CMD", $globalConfig->param( $lcApplication . ".javaParams" ) );
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateLineInBambooWrapperConf(
+			$javaMemParameterFile,
+			"wrapper.java.additional.",
+			$globalConfig->param("$lcApplication.java"),
+			$globalConfig->param("$lcApplication.javaParams")
+		);
+	}
 
 	print "Configuration settings have been applied successfully.\n\n";
 
@@ -9295,8 +9326,7 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
 	);
-	$returnValue =
-	  getLineFromFile( $serverConfigFile, "JVM_MINIMUM_MEMORY",
+	$returnValue = getLineFromFile( $serverConfigFile, "JVM_MINIMUM_MEMORY",
 		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
@@ -9328,8 +9358,7 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
 	);
-	$returnValue =
-	  getLineFromFile( $serverConfigFile, "JVM_MAXIMUM_MEMORY",
+	$returnValue = getLineFromFile( $serverConfigFile, "JVM_MAXIMUM_MEMORY",
 		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
@@ -9361,8 +9390,7 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
 	);
-	$returnValue =
-	  getLineFromFile( $serverConfigFile, "JIRA_MAX_PERM_SIZE",
+	$returnValue = getLineFromFile( $serverConfigFile, "JIRA_MAX_PERM_SIZE",
 		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
