@@ -2646,7 +2646,7 @@ sub getUserCreatedByInstaller {
 	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
 
 	if ( !defined($index1) ) {
-		$log->logdie("Unable to get username from $fileName.");
+		return "NOTFOUND";
 	}
 	else {
 		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
@@ -4513,10 +4513,7 @@ sub updateLineInBambooWrapperConf {
 		  ;   # add 1 to the count as that is the next value that should be used
 
 		#Splicing the array and inserting a new line
-		my $newLine =
-		    $variableReference 
-		  . $count . "="
-		  . $newValue . "\n";
+		my $newLine = $variableReference . $count . "=" . $newValue . "\n";
 		dumpSingleVarToLog( "$subname" . "_newLine", $newLine );
 		splice( @data, $index1, 0, $newLine );
 
@@ -6921,7 +6918,7 @@ sub upgradeBamboo {
 		updateLineInBambooWrapperConf(
 			$javaMemParameterFile,
 			"wrapper.java.additional.",
-			$globalConfig->param("$lcApplication.java"),
+			$globalConfig->param("$lcApplication.javaParams"),
 			$globalConfig->param("$lcApplication.javaParams")
 		);
 	}
@@ -6980,7 +6977,8 @@ sub getExistingConfluenceConfig {
 	my $serverConfigFile;
 	my $serverSetEnvFile;
 	my $input;
-	my $LOOP = 0;
+	my $LOOP  = 0;
+	my $LOOP2 = 0;
 	my $returnValue;
 
 	$log->info("BEGIN: $subname");
@@ -7283,31 +7281,46 @@ sub getExistingConfluenceConfig {
 	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER",
 		$cfg );
 
-	#confirmWithUserThatIsTheCorrectOSUser
-	print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+	if ( $returnValue eq "NOTFOUND" ) {
 
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$cfg->param( "$lcApplication.osUser", $returnValue );
-		print
-		  "The osUser $returnValue has been added to the config file...\n\n";
-		$log->info(
-"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
-		);
-	}
-	else {
+		#AskUserToInput
 		genConfigItem(
 			$mode,
 			$cfg,
 			"$lcApplication.osUser",
-"In that case please enter the user that $application *currently* runs under.",
+"Unable to detect what user that $application was installed under. Please enter the OS user that $application runs as.",
 			"",
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
+	}
+	else {
 
+		#confirmWithUserThatIsTheCorrectOSUser
+		print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			$cfg->param( "$lcApplication.osUser", $returnValue );
+			print
+"The osUser $returnValue has been added to the config file...\n\n";
+			$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+			);
+		}
+		else {
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+				"",
+				'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+			);
+		}
 	}
 
 	#Set up some defaults for Confluence
@@ -9422,31 +9435,46 @@ sub getExistingJiraConfig {
 	  getUserCreatedByInstaller( "$lcApplication.installDir", "JIRA_USER",
 		$cfg );
 
-	#confirmWithUserThatIsTheCorrectOSUser
-	print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+	if ( $returnValue eq "NOTFOUND" ) {
 
-	$input = getBooleanInput();
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$cfg->param( "$lcApplication.osUser", $returnValue );
-		print
-		  "The osUser $returnValue has been added to the config file...\n\n";
-		$log->info(
-"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
-		);
-	}
-	else {
+		#AskUserToInput
 		genConfigItem(
 			$mode,
 			$cfg,
 			"$lcApplication.osUser",
-"In that case please enter the user that $application *currently* runs under.",
+"Unable to detect what user that $application was installed under. Please enter the OS user that $application runs as.",
 			"",
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
+	}
+	else {
 
+		#confirmWithUserThatIsTheCorrectOSUser
+		print
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
+
+		$input = getBooleanInput();
+		print "\n";
+		if ( $input eq "default" || $input eq "yes" ) {
+			$cfg->param( "$lcApplication.osUser", $returnValue );
+			print
+"The osUser $returnValue has been added to the config file...\n\n";
+			$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+			);
+		}
+		else {
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+				"",
+				'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+			);
+		}
 	}
 
 	#Set up some defaults for JIRA
