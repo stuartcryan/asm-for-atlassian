@@ -3347,8 +3347,23 @@ Therefore script is terminating, please ensure port configuration is correct and
 	#getTheUserItWasInstalledAs - Write to config and reload
 	$osUser = getUserCreatedByInstaller( $lcApplication . ".installDir",
 		$configUser, $globalConfig );
-	$log->info("$subname: OS User created by installer is: $osUser");
-	$globalConfig->param( $lcApplication . ".osUser", $osUser );
+	if ( $osUser eq "NOTFOUND" ) {
+
+		#AskUserToInput
+		genConfigItem(
+			$mode,
+			$globalConfig,
+			"$lcApplication.osUser",
+"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
+	else {
+		$log->info("$subname: OS User created by installer is: $osUser");
+		$globalConfig->param( $lcApplication . ".osUser", $osUser );
+	}
 	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
@@ -5387,8 +5402,23 @@ sub upgradeGenericAtlassianBinary {
 	$osUser =
 	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser,
 		$globalConfig );
-	$globalConfig->param( "$lcApplication.osUser", $osUser );
-	$log->info("$subname: OS User created by installer is: $osUser");
+	if ( $osUser eq "NOTFOUND" ) {
+
+		#AskUserToInput
+		genConfigItem(
+			$mode,
+			$globalConfig,
+			"$lcApplication.osUser",
+"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
+	else {
+		$log->info("$subname: OS User created by installer is: $osUser");
+		$globalConfig->param( $lcApplication . ".osUser", $osUser );
+	}
 	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
@@ -7288,7 +7318,7 @@ sub getExistingConfluenceConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.osUser",
-"Unable to detect what user that $application was installed under. Please enter the OS user that $application runs as.",
+"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
 			"",
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
@@ -9442,7 +9472,8 @@ sub getExistingJiraConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.osUser",
-"Unable to detect what user that $application was installed under. Please enter the OS user that $application runs as.",
+"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as."
+			,
 			"",
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
