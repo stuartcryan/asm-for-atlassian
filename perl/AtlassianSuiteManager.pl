@@ -199,10 +199,10 @@ sub checkConfiguredPort {
 			else {
 				$log->debug("Port is in use.");
 
-				print
+				$input = getBooleanInput(
 "The port you have configured ($configValue) for $configItem is currently in use, this may be expected if you are already running the application."
-				  . "\nOtherwise you may need to configure another port.\n\nWould you like to configure a different port? yes/no [yes]: ";
-				$input = getBooleanInput();
+					  . "\nOtherwise you may need to configure another port.\n\nWould you like to configure a different port? yes/no [yes]: "
+				);
 				print "\n";
 				if (   $input eq "yes"
 					|| $input eq "default" )
@@ -679,10 +679,10 @@ sub downloadAtlassianInstaller {
 		$log->warn(
 "$subname: Version $version of $product is has not been fully tested with this script."
 		);
-		print
-"This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]"
+		);
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
 		if ( $input eq "no" ) {
@@ -716,11 +716,12 @@ sub downloadAtlassianInstaller {
 	if ( -e $absoluteFilePath ) {
 		$log->debug(
 			"$subname: The install file $absoluteFilePath already exists.");
-		print "The local install file "
-		  . $absoluteFilePath
-		  . " already exists. Would you like to skip re-downloading the file: [yes]";
 
-		$input = getBooleanInput();
+		$input =
+		  getBooleanInput( "The local install file "
+			  . $absoluteFilePath
+			  . " already exists. Would you like to skip re-downloading the file: [yes]"
+		  );
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
 		if ( $input eq "yes" || $input eq "default" ) {
@@ -805,11 +806,12 @@ sub downloadFileAndChown {
 	if ( -e $absoluteFilePath ) {
 		$log->debug(
 			"$subname: The download file $absoluteFilePath already exists.");
-		print "The local download file "
-		  . $absoluteFilePath
-		  . " already exists. Would you like to skip re-downloading the file: [yes]";
 
-		$input = getBooleanInput();
+		$input =
+		  getBooleanInput( "The local download file "
+			  . $absoluteFilePath
+			  . " already exists. Would you like to skip re-downloading the file: [yes]"
+		  );
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
 		if ( $input eq "yes" || $input eq "default" ) {
@@ -1500,9 +1502,8 @@ sub genBooleanConfigItem {
 		);
 		$defaultValue = $defaultInputValue;
 	}
-	print $messageText . " [" . $defaultValue . "]: ";
 
-	$input = getBooleanInput();
+	$input = getBooleanInput( $messageText . " [" . $defaultValue . "]: " );
 	print "\n";
 
 #If default option is selected (i.e. just a return), use default value, set to boolean value based on return
@@ -1702,10 +1703,10 @@ sub generateSuiteConfig {
 		"Do you wish to install/manage Bamboo? yes/no ", "yes" );
 
 	if ( $cfg->param("bamboo.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Bamboo configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+			"Do you wish to set up/update the Bamboo configuration now? [no]: "
+		);
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -1718,10 +1719,10 @@ sub generateSuiteConfig {
 		"Do you wish to install/manage Confluence? yes/no ", "yes" );
 
 	if ( $cfg->param("confluence.enable") eq "TRUE" ) {
-		print
-"Do you wish to set up/update the Confluence configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"Do you wish to set up/update the Confluence configuration now? [no]: "
+		);
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -1734,10 +1735,9 @@ sub generateSuiteConfig {
 		"Do you wish to install/manage Crowd? yes/no ", "yes" );
 
 	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Crowd configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+			"Do you wish to set up/update the Crowd configuration now? [no]: ");
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -1750,10 +1750,10 @@ sub generateSuiteConfig {
 		"Do you wish to install/manage Fisheye? yes/no ", "yes" );
 
 	if ( $cfg->param("fisheye.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Fisheye configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+			"Do you wish to set up/update the Fisheye configuration now? [no]: "
+		);
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -1766,9 +1766,9 @@ sub generateSuiteConfig {
 		"Do you wish to install/manage Jira? yes/no ", "yes" );
 
 	if ( $cfg->param("jira.enable") eq "TRUE" ) {
-		print "Do you wish to set up/update the Jira configuration now? [no]: ";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+			"Do you wish to set up/update the JIRA configuration now? [no]: ");
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -1781,9 +1781,8 @@ sub generateSuiteConfig {
 		"Do you wish to install/manage Stash? yes/no ", "yes" );
 
 	if ( $cfg->param("stash.enable") eq "TRUE" ) {
-		print
-		  "Do you wish to set up/update the Stash configuration now? [no]: ";
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+			"Do you wish to set up/update the Stash configuration now? [no]: ");
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -1935,12 +1934,16 @@ sub getBooleanInput {
 	my $LOOP = 1;
 	my $input;
 	my $subname = ( caller(0) )[3];
+	my $displayLine;
 
 	$log->trace("BEGIN: $subname")
 	  ;    #we only want this on trace or it makes the script unusable
 
+	$displayLine = $_[0];
+
 	while ( $LOOP == 1 ) {
 
+		print $displayLine;
 		$input = <STDIN>;
 		print "\n";
 		chomp $input;
@@ -1965,7 +1968,7 @@ sub getBooleanInput {
 				"$subname: Input not recognised, asking user for input again."
 			);
 			print "Your input '" . $input
-			  . "'was not recognised. Please try again and write yes or no.\n";
+			  . "' was not recognised. Please try again and write yes or no.\n\n";
 		}
 	}
 }
@@ -2849,10 +2852,9 @@ sub installGeneric {
 
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
-		print
-"Would you like to review the $application config before installing? Yes/No [yes]: ";
-
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"Would you like to review the $application config before installing? Yes/No [yes]: "
+		);
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
@@ -2905,10 +2907,10 @@ is currently in use. We will continue however there is a good chance $applicatio
 		print
 "One or more of the ports configured for $application are currently in use. We can proceed however there is a very good chance"
 		  . " that $application will not start correctly.\n\n";
-		print
-"Would you like to continue even though the ports are in use? yes/no [yes]: ";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"Would you like to continue even though the ports are in use? yes/no [yes]: "
+		);
 		print "\n";
 		if ( $input eq "no" ) {
 			$log->logdie(
@@ -2922,9 +2924,8 @@ is currently in use. We will continue however there is a good chance $applicatio
 		}
 	}
 
-	print "Would you like to install the latest version? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+		"Would you like to install the latest version? yes/no [yes]: ");
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info(
@@ -2999,10 +3000,10 @@ is currently in use. We will continue however there is a good chance $applicatio
 		$osUser, "" );
 
 	#Check if user wants to remove the downloaded archive
-	print "Do you wish to delete the downloaded archive "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
+	$input =
+	  getBooleanInput( "Do you wish to delete the downloaded archive "
+		  . $downloadDetails[2]
+		  . "? [yes]: " );
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
@@ -3140,10 +3141,9 @@ sub installGenericAtlassianBinary {
 
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
-		print
-"Would you like to review the $application config before installing? Yes/No [yes]: ";
-
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"Would you like to review the $application config before installing? Yes/No [yes]: "
+		);
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
@@ -3171,9 +3171,8 @@ Therefore script is terminating, please ensure port configuration is correct and
 		);
 	}
 
-	print "Would you like to install the latest version? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+		"Would you like to install the latest version? yes/no [yes]: ");
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info(
@@ -3251,10 +3250,11 @@ Therefore script is terminating, please ensure port configuration is correct and
 	generateGenericKickstart( $varfile, "INSTALL", $lcApplication );
 
 	if ( -d $globalConfig->param( $lcApplication . ".installDir" ) ) {
-		print "The current installation directory ("
-		  . $globalConfig->param( $lcApplication . ".installDir" )
-		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
-		$input = getBooleanInput();
+		$input =
+		  getBooleanInput( "The current installation directory ("
+			  . $globalConfig->param( $lcApplication . ".installDir" )
+			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
+		  );
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
@@ -3273,10 +3273,11 @@ Therefore script is terminating, please ensure port configuration is correct and
 	}
 
 	if ( -d $globalConfig->param( $lcApplication . ".dataDir" ) ) {
-		print "The current installation directory ("
-		  . $globalConfig->param( $lcApplication . ".dataDir" )
-		  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: ";
-		$input = getBooleanInput();
+		$input =
+		  getBooleanInput( "The current installation directory ("
+			  . $globalConfig->param( $lcApplication . ".dataDir" )
+			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
+		  );
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
@@ -3369,10 +3370,10 @@ Therefore script is terminating, please ensure port configuration is correct and
 	loadSuiteConfig();
 
 	#Check if user wants to remove the downloaded installer
-	print "Do you wish to delete the downloaded installer "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
+	$input =
+	  getBooleanInput( "Do you wish to delete the downloaded installer "
+		  . $downloadDetails[2]
+		  . "? [yes]: " );
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
@@ -3643,9 +3644,9 @@ sub postInstallGeneric {
 	print "Services configured successfully.\n\n";
 
 	#Check if we should start the service
-	print
-"Installation has completed successfully. Would you like to start the $application service now? Yes/No [yes]: ";
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+"Installation has completed successfully. Would you like to start the $application service now? Yes/No [yes]: "
+	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
@@ -3694,8 +3695,8 @@ sub postInstallGenericAtlassianBinary {
 
 	print "Configuration settings have been applied successfully.\n\n";
 
-	print "Do you wish to start the $application service? yes/no [yes]: ";
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+		"Do you wish to start the $application service? yes/no [yes]: ");
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
@@ -3751,9 +3752,9 @@ sub postUpgradeGeneric {
 	print "Services configured successfully.\n\n";
 
 	#Check if we should start the service
-	print
-"The upgrade has completed successfully. Would you like to start the $application service now? Yes/No [yes]: ";
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+"The upgrade has completed successfully. Would you like to start the $application service now? Yes/No [yes]: "
+	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to start application service.");
@@ -4663,9 +4664,8 @@ sub uninstallGeneric {
 "This will uninstall $application. This will delete the installation directory AND provide the option to delete the data directory.\n";
 	print
 "You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	print "Do you really want to continue? yes/no [no]: ";
 
-	$input = getBooleanInput();
+	$input = getBooleanInput("Do you really want to continue? yes/no [no]: ");
 	print "\n";
 	if ( $input eq "yes" ) {
 		$log->info("$subname: User selected to uninstall $application");
@@ -4696,9 +4696,9 @@ sub uninstallGeneric {
 		}
 
 		#Check if you REALLY want to remove data directory
-		print
-"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n";
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY REALLY sure you want to do this? (not recommended) yes/no [no]: \n"
+		);
 		print "\n";
 		if ( $input eq "yes" ) {
 			$log->info( "$subname: User selected to delete "
@@ -4752,10 +4752,9 @@ sub uninstallGenericAtlassianBinary {
 	print
 "This will uninstall $application using the Atlassian provided uninstall script.\n";
 	print
-"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	print "Do you really want to continue? yes/no [no]: ";
-
-	$input = getBooleanInput();
+"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n"
+	  ;
+	$input = getBooleanInput( "Do you really want to continue? yes/no [no]: " );
 	print "\n";
 	if ( $input eq "yes" ) {
 
@@ -4768,9 +4767,9 @@ sub uninstallGenericAtlassianBinary {
 		}
 
 		#Check if you REALLY want to remove data directory
-		print
-"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY (REALLY) sure you want to do this? (not recommended) yes/no [no]: \n";
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY (REALLY) sure you want to do this? (not recommended) yes/no [no]: \n"
+		);
 		print "\n";
 		if ( $input eq "yes" ) {
 			rmtree( [ $globalConfig->param("$lcApplication.dataDir") ] );
@@ -4844,10 +4843,10 @@ sub upgradeGeneric {
 
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
-		print
-"Would you like to review the $application config before upgrading? Yes/No [yes]: ";
 
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"Would you like to review the $application config before upgrading? Yes/No [yes]: "
+		);
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
@@ -4938,9 +4937,8 @@ sub upgradeGeneric {
 #
 #	}
 
-	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+		"Would you like to upgrade to the latest version? yes/no [yes]: ");
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info(
@@ -5069,10 +5067,10 @@ sub upgradeGeneric {
 		$osUser, "" );
 
 	#Check if user wants to remove the downloaded archive
-	print "Do you wish to delete the downloaded archive "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
+	$input =
+	  getBooleanInput( "Do you wish to delete the downloaded archive "
+		  . $downloadDetails[2]
+		  . "? [yes]: " );
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
@@ -5206,10 +5204,9 @@ sub upgradeGenericAtlassianBinary {
 
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
-		print
-"Would you like to review the $application config before upgrading? Yes/No [yes]: ";
-
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"Would you like to review the $application config before upgrading? Yes/No [yes]: "
+		);
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
@@ -5242,9 +5239,8 @@ sub upgradeGenericAtlassianBinary {
 	}
 
 	#We are upgrading, get the latest version
-	print "Would you like to upgrade to the latest version? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+		"Would you like to upgrade to the latest version? yes/no [yes]: ");
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info(
@@ -5424,10 +5420,10 @@ sub upgradeGenericAtlassianBinary {
 	loadSuiteConfig();
 
 	#Check if user wants to remove the downloaded installer
-	print "Do you wish to delete the downloaded installer "
-	  . $downloadDetails[2]
-	  . "? [yes]: ";
-	$input = getBooleanInput();
+	$input =
+	  getBooleanInput( "Do you wish to delete the downloaded installer "
+		  . $downloadDetails[2]
+		  . "? [yes]: " );
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
@@ -6479,10 +6475,9 @@ sub getExistingBambooConfig {
 	$returnValue = getpwuid($uid);
 
 	#confirmWithUserThatIsTheCorrectOSUser
-	print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$cfg->param( "$lcApplication.osUser", $returnValue );
@@ -6521,8 +6516,7 @@ sub getExistingBambooConfig {
 	loadSuiteConfig();
 
 	print
-"We now have the $application config and it has been written to the config file. Please press enter to continue.\n"
-	  ;
+"We now have the $application config and it has been written to the config file. Please press enter to continue.\n";
 	$input = <STDIN>;
 
 }
@@ -7342,10 +7336,9 @@ sub getExistingConfluenceConfig {
 	else {
 
 		#confirmWithUserThatIsTheCorrectOSUser
-		print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
-
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+		);
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$cfg->param( "$lcApplication.osUser", $returnValue );
@@ -7976,10 +7969,9 @@ sub getExistingCrowdConfig {
 	$returnValue = getpwuid($uid);
 
 	#confirmWithUserThatIsTheCorrectOSUser
-	print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$cfg->param( "$lcApplication.osUser", $returnValue );
@@ -8766,10 +8758,9 @@ sub getExistingFisheyeConfig {
 	$returnValue = getpwuid($uid);
 
 	#confirmWithUserThatIsTheCorrectOSUser
-	print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$cfg->param( "$lcApplication.osUser", $returnValue );
@@ -9532,10 +9523,9 @@ sub getExistingJiraConfig {
 	else {
 
 		#confirmWithUserThatIsTheCorrectOSUser
-		print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
-
-		$input = getBooleanInput();
+		$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+		);
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$cfg->param( "$lcApplication.osUser", $returnValue );
@@ -10194,10 +10184,9 @@ sub getExistingStashConfig {
 	$returnValue = getpwuid($uid);
 
 	#confirmWithUserThatIsTheCorrectOSUser
-	print
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: ";
-
-	$input = getBooleanInput();
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
 		$cfg->param( "$lcApplication.osUser", $returnValue );
