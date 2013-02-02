@@ -6449,8 +6449,7 @@ sub getExistingBambooConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application."
-			,
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
 			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
@@ -6522,7 +6521,8 @@ sub getExistingBambooConfig {
 	loadSuiteConfig();
 
 	print
-"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+"We now have the $application config and it has been written to the config file. Please press enter to continue.\n"
+	  ;
 	$input = <STDIN>;
 
 }
@@ -7378,7 +7378,7 @@ sub getExistingConfluenceConfig {
 	loadSuiteConfig();
 
 	print
-"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+"We now have the $application config and it has been written to the config file. Please press enter to continue.\n";
 	$input = <STDIN>;
 }
 
@@ -8015,7 +8015,7 @@ sub getExistingCrowdConfig {
 	loadSuiteConfig();
 
 	print
-"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+"We now have the $application config and it has been written to the config file. Please press enter to continue.\n";
 	$input = <STDIN>;
 }
 
@@ -8805,7 +8805,7 @@ sub getExistingFisheyeConfig {
 	loadSuiteConfig();
 
 	print
-"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+"We now have the $application config and it has been written to the config file. Please press enter to continue.\n";
 	$input = <STDIN>;
 }
 
@@ -9568,7 +9568,7 @@ sub getExistingJiraConfig {
 	loadSuiteConfig();
 
 	print
-"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+"We now have the $application config and it has been written to the config file. Please press enter to continue.\n";
 	$input = <STDIN>;
 }
 
@@ -10230,7 +10230,7 @@ sub getExistingStashConfig {
 	loadSuiteConfig();
 
 	print
-"We now have the $application config and it has been written to the config file. Please press enter to continue.";
+"We now have the $application config and it has been written to the config file. Please press enter to continue.\n";
 	$input = <STDIN>;
 }
 
