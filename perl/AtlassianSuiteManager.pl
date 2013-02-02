@@ -6245,8 +6245,7 @@ sub getExistingBambooConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none."
-		,
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -6450,8 +6449,9 @@ sub getExistingBambooConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
-			"512m",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application."
+			,
+			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 		);
@@ -7304,8 +7304,8 @@ sub getExistingConfluenceConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
-			"512m",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
+			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 		);
@@ -7946,8 +7946,8 @@ sub getExistingCrowdConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
-			"512m",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
+			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 		);
@@ -8736,8 +8736,8 @@ sub getExistingFisheyeConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. $application does not always have this by default hence we will need you to input this. Please enter the maximum amount of memory *currently* assigned to $application.",
-			"512m",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. $application does not always have this by default hence we will need you to input this. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
+			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 		);
@@ -9494,8 +9494,8 @@ sub getExistingJiraConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
-			"512m",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
+			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 		);
@@ -10164,8 +10164,8 @@ sub getExistingStashConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.javaMaxPermSize",
-"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
-			"512m",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
+			"256m",
 			'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 		);
