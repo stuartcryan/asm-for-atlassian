@@ -4752,9 +4752,8 @@ sub uninstallGenericAtlassianBinary {
 	print
 "This will uninstall $application using the Atlassian provided uninstall script.\n";
 	print
-"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n"
-	  ;
-	$input = getBooleanInput( "Do you really want to continue? yes/no [no]: " );
+"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
+	$input = getBooleanInput("Do you really want to continue? yes/no [no]: ");
 	print "\n";
 	if ( $input eq "yes" ) {
 
@@ -9411,7 +9410,7 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
 	);
-	$returnValue = getLineFromFile( $serverConfigFile, "JVM_MINIMUM_MEMORY",
+	$returnValue = getLineFromFile( $serverSetEnvFile, "JVM_MINIMUM_MEMORY",
 		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
@@ -9443,7 +9442,7 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
 	);
-	$returnValue = getLineFromFile( $serverConfigFile, "JVM_MAXIMUM_MEMORY",
+	$returnValue = getLineFromFile( $serverSetEnvFile, "JVM_MAXIMUM_MEMORY",
 		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
@@ -9475,8 +9474,10 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
 	);
-	$returnValue = getLineFromFile( $serverConfigFile, "JIRA_MAX_PERM_SIZE",
-		".*\\s?=\\s?(.*)" );
+	$returnValue = getLineFromFile(
+		$serverSetEnvFile, "JIRA_MAX_PERM_SIZE",
+		".*\\s?=\\s?(.*)"
+	);
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
