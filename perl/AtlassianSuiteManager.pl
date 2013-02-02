@@ -6228,7 +6228,7 @@ sub getExistingBambooConfig {
 	genConfigItem(
 		$mode,
 		$cfg,
-		"$lcApplication.insalledVersion",
+		"$lcApplication.installedVersion",
 		"Please enter the version of $application that is currently installed.",
 		"",
 		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
@@ -7048,7 +7048,7 @@ sub getExistingConfluenceConfig {
 	genConfigItem(
 		$mode,
 		$cfg,
-		"$lcApplication.insalledVersion",
+		"$lcApplication.installedVersion",
 		"Please enter the version of $application that is currently installed.",
 		"",
 		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
@@ -7689,7 +7689,7 @@ sub getExistingCrowdConfig {
 	genConfigItem(
 		$mode,
 		$cfg,
-		"$lcApplication.insalledVersion",
+		"$lcApplication.installedVersion",
 		"Please enter the version of $application that is currently installed.",
 		"",
 		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
@@ -8475,7 +8475,7 @@ sub getExistingFisheyeConfig {
 	genConfigItem(
 		$mode,
 		$cfg,
-		"$lcApplication.insalledVersion",
+		"$lcApplication.installedVersion",
 		"Please enter the version of $application that is currently installed.",
 		"",
 		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
@@ -9235,7 +9235,7 @@ sub getExistingJiraConfig {
 	genConfigItem(
 		$mode,
 		$cfg,
-		"$lcApplication.insalledVersion",
+		"$lcApplication.installedVersion",
 		"Please enter the version of $application that is currently installed.",
 		"",
 		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
@@ -9902,7 +9902,7 @@ sub getExistingStashConfig {
 	genConfigItem(
 		$mode,
 		$cfg,
-		"$lcApplication.insalledVersion",
+		"$lcApplication.installedVersion",
 		"Please enter the version of $application that is currently installed.",
 		"",
 		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
