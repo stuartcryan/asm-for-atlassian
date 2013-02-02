@@ -6239,11 +6239,24 @@ sub getExistingBambooConfig {
 		}
 	}
 
+	#Ask for current installed version
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.insalledVersion",
+		"Please enter the version of $application that is currently installed.",
+		"",
+		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
+"The input you entered was not in the valid format of 'x.x.x or x.x' (where x is a version number). Please ensure you enter the version number correctly "
+		  . "\n\n"
+	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none."
+		,
 		"",
 		"",
 		""
@@ -7048,6 +7061,18 @@ sub getExistingConfluenceConfig {
 		}
 	}
 
+	#Ask for current installed version
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.insalledVersion",
+		"Please enter the version of $application that is currently installed.",
+		"",
+		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
+"The input you entered was not in the valid format of 'x.x.x or x.x' (where x is a version number). Please ensure you enter the version number correctly "
+		  . "\n\n"
+	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -7677,6 +7702,18 @@ sub getExistingCrowdConfig {
 				  . " does not exist. Please try again." );
 		}
 	}
+
+	#Ask for current installed version
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.insalledVersion",
+		"Please enter the version of $application that is currently installed.",
+		"",
+		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
+"The input you entered was not in the valid format of 'x.x.x or x.x' (where x is a version number). Please ensure you enter the version number correctly "
+		  . "\n\n"
+	);
 
 	genConfigItem(
 		$mode,
@@ -8453,6 +8490,18 @@ sub getExistingFisheyeConfig {
 		}
 	}
 
+	#Ask for current installed version
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.insalledVersion",
+		"Please enter the version of $application that is currently installed.",
+		"",
+		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
+"The input you entered was not in the valid format of 'x.x.x or x.x' (where x is a version number). Please ensure you enter the version number correctly "
+		  . "\n\n"
+	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -9202,6 +9251,18 @@ sub getExistingJiraConfig {
 		}
 	}
 
+	#Ask for current installed version
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.insalledVersion",
+		"Please enter the version of $application that is currently installed.",
+		"",
+		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
+"The input you entered was not in the valid format of 'x.x.x or x.x' (where x is a version number). Please ensure you enter the version number correctly "
+		  . "\n\n"
+	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -9472,8 +9533,7 @@ sub getExistingJiraConfig {
 			$mode,
 			$cfg,
 			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as."
-			,
+"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
 			"",
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
@@ -9856,6 +9916,18 @@ sub getExistingStashConfig {
 				  . " does not exist. Please try again." );
 		}
 	}
+
+	#Ask for current installed version
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.insalledVersion",
+		"Please enter the version of $application that is currently installed.",
+		"",
+		'^[0-9]+\.([0-9]+|[0-9]+\.[0-9]+)$',
+"The input you entered was not in the valid format of 'x.x.x or x.x' (where x is a version number). Please ensure you enter the version number correctly "
+		  . "\n\n"
+	);
 
 	genConfigItem(
 		$mode,
