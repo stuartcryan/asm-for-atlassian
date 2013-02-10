@@ -9124,7 +9124,12 @@ sub installFisheye {
 	  "Inserting the FISHEYE_INST variable into '$javaMemParameterFile'.\n\n";
 	updateEnvironmentVars( $javaMemParameterFile, "FISHEYE_INST",
 		$globalConfig->param("$lcApplication.dataDir") );
-		createOrUpdateLineInFile($javaMemParameterFile, "export FISHEYE_INST=", "export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"), "#!/bin/sh");
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"export FISHEYE_INST=",
+		"export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"),
+		"#!/bin/sh"
+	);
 
 	#Generate the init.d file
 	print
@@ -9135,29 +9140,7 @@ sub installFisheye {
 		$globalConfig->param("$lcApplication.installDir") . "/bin/",
 		"start.sh", "stop.sh" );
 
-#Finally run generic post install tasks
-#postInstallGeneric($application);
-#For the time being we do not run using post installer generic as a reboot is required before service can start
-#If set to run as a service, set to run on startup
-	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
-		$log->info(
-			"$subname: Setting up $application as a service to run on startup."
-		);
-		manageService( $application, "INSTALL" );
-	}
-	print "Services configured successfully.\n\n";
-
-	#Check if we should start the service
-	print
-"Installation has completed successfully. The service SHOULD NOT be started before rebooting the server to reload /etc/environment.\n"
-	  . "Please remember to reboot the server before attempting to start Fisheye. Press enter to continue.";
-	$input = <STDIN>;
-
-	system 'clear';
-	print
-"No really... just confirming again... The service SHOULD NOT be started before rebooting the server to reload /etc/environment.\n"
-	  . "Please remember to reboot the server before attempting to start Fisheye. Press enter to continue.";
-	$input = <STDIN>;
+	postInstallGeneric($application);
 }
 
 ########################################
@@ -9244,7 +9227,7 @@ sub upgradeFisheye {
 	  "Updating the FISHEYE_INST variable in '$environmentProfileFile'.\n\n";
 	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
 		$globalConfig->param("$lcApplication.dataDir") );
-		
+
    #Also add to fisheyectl.sh as sometimes /etc/environment doesnt work reliably
 	$log->info(
 "$subname: Inserting the FISHEYE_INST variable into '$javaMemParameterFile'"
@@ -9253,7 +9236,12 @@ sub upgradeFisheye {
 	  "Inserting the FISHEYE_INST variable into '$javaMemParameterFile'.\n\n";
 	updateEnvironmentVars( $javaMemParameterFile, "FISHEYE_INST",
 		$globalConfig->param("$lcApplication.dataDir") );
-		createOrUpdateLineInFile($javaMemParameterFile, "export FISHEYE_INST=", "export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"), "#!/bin/sh");
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"export FISHEYE_INST=",
+		"export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"),
+		"#!/bin/sh"
+	);
 
 	#Re-Generate the init.d file in case any config parameters changed.
 	print
