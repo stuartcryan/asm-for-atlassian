@@ -9248,8 +9248,8 @@ sub upgradeFisheye {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
-		"start_crowd.sh", "stop_crowd.sh" );
+		$globalConfig->param("$lcApplication.installDir") . "/bin/",
+		"start.sh", "stop.sh" );
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
