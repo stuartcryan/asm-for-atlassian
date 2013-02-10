@@ -601,6 +601,83 @@ sub createDirectory {
 }
 
 ########################################
+#createOrUpdateLineInFile              #
+#This function will add a line to the  #
+#beginning of a file directly after the#
+#'#!' line                             #
+########################################
+sub createOrUpdateLineInFile {
+	my $inputFile;    #Must Be Absolute Path
+	my $newLine;
+	my $lineReference;
+	my $searchFor;
+	my $lineReference2;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile      = $_[0];
+	$lineReference  = $_[1];    #the line we are looking for
+	$newLine        = $_[2];    #the line we want to add
+	$lineReference2 = $_[3];    #the #! line we expect
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",      $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
+	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
+	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		$log->info("$subname: First search term $lineReference not found.");
+		if ( defined($lineReference2) ) {
+			$log->info("$subname: Trying to search for $lineReference2.");
+			my ($index1) =
+			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
+			if ( !defined($index1) ) {
+				$log->logdie(
+"No line containing \"$lineReference2\" found in file $inputFile\n\n"
+				);
+			}
+
+			#Otherwise add the new line after the found line
+			else {
+				$log->info(
+					"$subname: Replacing '$data[$index1]' with $newLine.");
+				splice( @data, $index1 + 1, 0, $newLine );
+			}
+		}
+		else {
+			$log->logdie(
+"No line containing \"$lineReference\" found in file $inputFile\n\n"
+			);
+		}
+	}
+	else {
+		$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
+		$data[$index1] = $newLine . "\n";
+	}
+
+	#Write out the updated file
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+	print FILE @data;
+	close FILE;
+
+}
+
+########################################
 #CreateOSUser                           #
 ########################################
 sub createOSUser {
@@ -9039,6 +9116,16 @@ sub installFisheye {
 	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
 		$globalConfig->param("$lcApplication.dataDir") );
 
+   #Also add to fisheyectl.sh as sometimes /etc/environment doesnt work reliably
+	$log->info(
+"$subname: Inserting the FISHEYE_INST variable into '$javaMemParameterFile'"
+		  . $javaMemParameterFile );
+	print
+	  "Inserting the FISHEYE_INST variable into '$javaMemParameterFile'.\n\n";
+	updateEnvironmentVars( $javaMemParameterFile, "FISHEYE_INST",
+		$globalConfig->param("$lcApplication.dataDir") );
+		createOrUpdateLineInFile($javaMemParameterFile, "export FISHEYE_INST=", "export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"), "#!/bin/sh");
+
 	#Generate the init.d file
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
@@ -9157,6 +9244,16 @@ sub upgradeFisheye {
 	  "Updating the FISHEYE_INST variable in '$environmentProfileFile'.\n\n";
 	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
 		$globalConfig->param("$lcApplication.dataDir") );
+		
+   #Also add to fisheyectl.sh as sometimes /etc/environment doesnt work reliably
+	$log->info(
+"$subname: Inserting the FISHEYE_INST variable into '$javaMemParameterFile'"
+		  . $javaMemParameterFile );
+	print
+	  "Inserting the FISHEYE_INST variable into '$javaMemParameterFile'.\n\n";
+	updateEnvironmentVars( $javaMemParameterFile, "FISHEYE_INST",
+		$globalConfig->param("$lcApplication.dataDir") );
+		createOrUpdateLineInFile($javaMemParameterFile, "export FISHEYE_INST=", "export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"), "#!/bin/sh");
 
 	#Re-Generate the init.d file in case any config parameters changed.
 	print
@@ -9474,10 +9571,8 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
 	);
-	$returnValue = getLineFromFile(
-		$serverSetEnvFile, "JIRA_MAX_PERM_SIZE",
-		".*\\s?=\\s?(.*)"
-	);
+	$returnValue = getLineFromFile( $serverSetEnvFile, "JIRA_MAX_PERM_SIZE",
+		".*\\s?=\\s?(.*)" );
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
