@@ -4059,8 +4059,7 @@ sub stopService {
 			print
 "Stop command completed successfully. Sleeping for 60 seconds before testing to ensure process has died.\n\n";
 			$log->info(
-				"$subname: Stop command completed. Sleeing for 60 seconds.")
-			  ;
+				"$subname: Stop command completed. Sleeing for 60 seconds.");
 			sleep 60;
 
 			#Testing to see if the process stop has succeeded
@@ -5081,6 +5080,8 @@ sub upgradeGeneric {
 
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
+		print
+"Checking to ensure the latest version is greater than the installed version. Please wait...\n\n";
 		@downloadVersionCheck =
 		  getLatestDownloadURL( $lcApplication, $globalArch );
 		my $versionSupported = compareTwoVersions(
@@ -5093,6 +5094,10 @@ sub upgradeGeneric {
 				  . $globalConfig->param("$lcApplication.installedVersion")
 				  . "). Downgrading is not supported and this script will now exit.\n\n"
 			);
+		}
+		else {
+			print
+"Latest version is newer than installed version. Continuing...\n\n";
 		}
 
 	}
