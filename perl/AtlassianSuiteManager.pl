@@ -5081,7 +5081,7 @@ sub upgradeGeneric {
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		print
-"Checking to ensure the latest version is greater than the installed version. Please wait...\n\n";
+"Checking to ensure the latest version is newer than the installed version. Please wait...\n\n";
 		@downloadVersionCheck =
 		  getLatestDownloadURL( $lcApplication, $globalArch );
 		my $versionSupported = compareTwoVersions(
