@@ -6947,7 +6947,7 @@ sub upgradeBamboo {
 	);
 
 	#Run generic installer steps
-	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
