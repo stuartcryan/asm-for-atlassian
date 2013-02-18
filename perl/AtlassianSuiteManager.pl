@@ -3931,6 +3931,7 @@ sub startService {
 	my @pidList;
 	my $grep1stParam;
 	my $grep2ndParam;
+	my $serviceName;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3945,6 +3946,13 @@ sub startService {
 	#first make sure service is not already started
 	@pidList = getPIDList( $grep1stParam, $grep2ndParam );
 
+	if ( $lcApplication eq 'jira' or $lcapplication eq 'confluence' ) {
+		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
+	}
+	else {
+		$serviceName = $lcApplication;
+	}
+
 	if ( @pidList > 0 ) {
 
 		#Service is started we need to stop it
@@ -3954,9 +3962,7 @@ sub startService {
 	}
 
 	#then start the service
-	system( "service "
-		  . $globalConfig->param( $lcApplication . ".osUser" )
-		  . " start" );
+	system( "service " . $serviceName . " start" );
 
 	@pidList = getPIDList( $grep1stParam, $grep2ndParam );
 	if ( @pidList == 1 ) {
@@ -4009,6 +4015,7 @@ sub stopService {
 	my $LOOP2 = 1;
 	my $LOOP3 = 1;
 	my $input;
+	my $serviceName;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4019,6 +4026,13 @@ sub stopService {
 	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
+
+	if ( $lcApplication eq 'jira' or $lcapplication eq 'confluence' ) {
+		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
+	}
+	else {
+		$serviceName = $lcApplication;
+	}
 
 	while ( $LOOP == 1 ) {
 
@@ -4041,13 +4055,12 @@ sub stopService {
 			print "Attempting to stop the $application service.\n\n";
 			$log->info(
 				"$subname: Attempting to stop the $application service.");
-			system( "service "
-				  . $globalConfig->param( $lcApplication . ".osUser" )
-				  . " stop" );
+			system( "service " . $serviceName . " stop" );
 			print
 "Stop command completed successfully. Sleeping for 60 seconds before testing to ensure process has died.\n\n";
 			$log->info(
-				"$subname: Stop command completed. Sleeing for 60 seconds.");
+				"$subname: Stop command completed. Sleeing for 60 seconds.")
+			  ;
 			sleep 60;
 
 			#Testing to see if the process stop has succeeded
