@@ -3384,6 +3384,30 @@ Therefore script is terminating, please ensure port configuration is correct and
 		);
 	}
 
+	#getTheUserItWasInstalledAs - Write to config and reload
+	$osUser = getUserCreatedByInstaller( $lcApplication . ".installDir",
+		$configUser, $globalConfig );
+	if ( $osUser eq "NOTFOUND" ) {
+
+		#AskUserToInput
+		genConfigItem(
+			$mode,
+			$globalConfig,
+			"$lcApplication.osUser",
+"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
+	else {
+		$log->info("$subname: OS User created by installer is: $osUser");
+		$globalConfig->param( $lcApplication . ".osUser", $osUser );
+	}
+	$log->info("Writing out config file to disk.");
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Stop the application so we can apply additional configuration
 	print
 "Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
@@ -3421,30 +3445,6 @@ Therefore script is terminating, please ensure port configuration is correct and
 		"JAVA_OPTS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
 	);
-
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser = getUserCreatedByInstaller( $lcApplication . ".installDir",
-		$configUser, $globalConfig );
-	if ( $osUser eq "NOTFOUND" ) {
-
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
-			"",
-			'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
-	}
-	else {
-		$log->info("$subname: OS User created by installer is: $osUser");
-		$globalConfig->param( $lcApplication . ".osUser", $osUser );
-	}
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
 
 	#Check if user wants to remove the downloaded installer
 	$input =
@@ -5451,6 +5451,31 @@ sub upgradeGenericAtlassianBinary {
 		);
 	}
 
+	#getTheUserItWasInstalledAs - Write to config and reload
+	$osUser =
+	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser,
+		$globalConfig );
+	if ( $osUser eq "NOTFOUND" ) {
+
+		#AskUserToInput
+		genConfigItem(
+			$mode,
+			$globalConfig,
+			"$lcApplication.osUser",
+"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
+	else {
+		$log->info("$subname: OS User created by installer is: $osUser");
+		$globalConfig->param( $lcApplication . ".osUser", $osUser );
+	}
+	$log->info("Writing out config file to disk.");
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Stop the application so we can apply additional configuration
 	$log->info(
 "$subname: Stopping $application so that we can apply the additional configuration options."
@@ -5484,31 +5509,6 @@ sub upgradeGenericAtlassianBinary {
 	#Update config to reflect new version that is installed
 	$log->info("$subname: Writing new installed version to the config file.");
 	$globalConfig->param( "$lcApplication.installedVersion", $version );
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser,
-		$globalConfig );
-	if ( $osUser eq "NOTFOUND" ) {
-
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
-			"",
-			'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
-	}
-	else {
-		$log->info("$subname: OS User created by installer is: $osUser");
-		$globalConfig->param( $lcApplication . ".osUser", $osUser );
-	}
 	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
