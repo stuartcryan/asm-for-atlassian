@@ -9026,7 +9026,7 @@ sub generateFisheyeConfig {
 	  ;    #we leave these blank deliberately due to the way Fishey works
 	$cfg->param( "fisheye.processSearchParameter1", "java" );
 	$cfg->param( "fisheye.processSearchParameter2",
-		"Dfisheye.inst=" . $cfg->param("fisheye.installDir") );
+		"Dfisheye.inst=" . $cfg->param("fisheye.dataDir") );
 }
 
 ########################################
