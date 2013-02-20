@@ -9240,7 +9240,7 @@ sub upgradeFisheye {
 	my $environmentProfileFile = "/etc/environment";
 	$log->info(
 "$subname: Updating the FISHEYE_INST variable in '$environmentProfileFile'"
-		  . $serverXMLFile );
+	);
 	print
 	  "Updating the FISHEYE_INST variable in '$environmentProfileFile'.\n\n";
 	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
