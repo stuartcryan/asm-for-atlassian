@@ -3557,12 +3557,12 @@ sub isSupportedVersion {
 	dumpSingleVarToLog( "$subname" . "_version", $version );
 
 	#Set up maximum supported versions
-	my $jiraSupportedVerHigh       = "5.2";
-	my $confluenceSupportedVerHigh = "4.3.3";
-	my $crowdSupportedVerHigh      = "2.5.2";
-	my $fisheyeSupportedVerHigh    = "2.9.0";
-	my $bambooSupportedVerHigh     = "4.3.1";
-	my $stashSupportedVerHigh      = "1.3.1";
+	my $jiraSupportedVerHigh       = "5.2.6";
+	my $confluenceSupportedVerHigh = "4.3.7";
+	my $crowdSupportedVerHigh      = "2.6.0";
+	my $fisheyeSupportedVerHigh    = "2.10.1";
+	my $bambooSupportedVerHigh     = "4.4.3";
+	my $stashSupportedVerHigh      = "2.1.2";
 
 	#Set up supported version for each product
 	if ( $product eq "confluence" ) {
