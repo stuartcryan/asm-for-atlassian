@@ -4057,10 +4057,10 @@ sub stopService {
 				"$subname: Attempting to stop the $application service.");
 			system( "service " . $serviceName . " stop" );
 			print
-"Stop command completed successfully. Sleeping for 60 seconds before testing to ensure process has died.\n\n";
+"Stop command completed successfully. Sleeping for 20 seconds before testing to ensure process has died.\n\n";
 			$log->info(
-				"$subname: Stop command completed. Sleeing for 60 seconds.");
-			sleep 60;
+				"$subname: Stop command completed. Sleeing for 20 seconds.");
+			sleep 20;
 
 			#Testing to see if the process stop has succeeded
 			@pidList = getPIDList( $grep1stParam, $grep2ndParam );
@@ -4075,13 +4075,13 @@ sub stopService {
 			}
 			elsif ( @pidList == 1 ) {
 
-				#Process is still running sleep for another 60 seconds
+				#Process is still running sleep for another 30 seconds
 				print
-"The process still appears to be running... Sleeping for another 60 seconds after which you can opt to kill the process.\n\n";
+"The process still appears to be running... Sleeping for another 30 seconds after which you can opt to kill the process.\n\n";
 				$log->info(
-"$subname: $application Process still running. Sleeing for another 60 seconds."
+"$subname: $application Process still running. Sleeing for another 30 seconds."
 				);
-				sleep 60;
+				sleep 30;
 
 			   #Testing again and if still running see what the user wants to do
 				@pidList = getPIDList( $grep1stParam, $grep2ndParam );
