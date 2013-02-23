@@ -43,6 +43,7 @@ use POSIX qw(strftime);
 use Data::Dumper;              # Perl core module
 use Config::Simple;            # From CPAN
 use File::Copy;
+use File::Copy::Recursive qw(fcopy rcopy dircopy fmove rmove dirmove);
 use File::Path qw(make_path remove_tree);
 use File::Path;
 use File::Find;
@@ -53,8 +54,9 @@ use Socket qw( PF_INET SOCK_STREAM INADDR_ANY sockaddr_in );
 use Errno qw( EADDRINUSE );
 use Getopt::Long;
 use Log::Log4perl;
-use strict;                    # Good practice
-use warnings;                  # Good practice
+use Filesys::DfPortable;
+use strict;      # Good practice
+use warnings;    # Good practice
 
 Getopt::Long::Configure("bundling");
 Log::Log4perl->init("log4j.conf");
@@ -88,23 +90,32 @@ sub backupApplication {
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 	my $originalDir;
 	my $osUser;
-	my $applicationDirbackupDirName;
-	my $dataDirbackupDirName;
+	my $applicationDirBackupDirName;
+	my $dataDirBackupDirName;
 	my $application;
 	my $lcApplication;
+	my $size           = 0;
+	my $installDirSize = 0;
+	my $dataDirSize    = 0;
+	my $installDirRef;
+	my $dataDirRef;
+	my $installDriveFreeSpace;
+	my $dataDriveFreeSpace;
+	my ($fd);
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$application = $_[0];
+	$application   = $_[0];
 	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_application", $application );
 
-    print "Please wait, backing up your existing application (this may take a few moments)...\n\n";
-    
-    #Checking that the service is stopped for good measure
+	print
+"Please wait, backing up your existing application (this may take a few moments)...\n\n";
+
+	#Checking that the service is stopped for good measure
 	if (
 		stopService(
 			$application,
@@ -127,44 +138,80 @@ sub backupApplication {
 		warn
 "Could not stop $application successfully. PLEASE NOTE!!! There is no way to verify the integrity of the backup if the application is running at the time of backup: $!\n\n";
 	}
-	
+
 	#Check that we have enough disk space
+	$installDirSize = dirSize($globalConfig->param("$lcApplication.installDir"));
+	$dataDirSize = dirSize($globalConfig->param("$lcApplication.dataDir"));
+
+	$installDirRef =
+	  dfportable( $globalConfig->param("$lcApplication.installDir") );
+	  $dataDirRef =
+	  dfportable( $globalConfig->param("$lcApplication.dataDir") );
 	
+	$installDriveFreeSpace = $installDirRef->{bfree};
+	$dataDriveFreeSpace = $dataDirRef->{bfree};
+	#check if the free space, minus install dir size minus a 500MB buffer is less than zero
+	if ($installDriveFreeSpace - $installDirSize - 524288000 < 0 ){
+		$log->logdie("There is not enough space on the drive containing " . $globalConfig->param("$lcApplication.installDir") . " to create a backup of the install directory for $application. Please free up space and then try again.");
+	}
 	
-    
-	$applicationDirDackupDirName = $globalConfig->param("$lcapplication.installDir") . "_backup_" . $date;
-	$dataDirBackupDirName = $globalConfig->param("$lcapplication.dataDir") . "_backup_" . $date;
-	$log->info("$subname: Backing up the $application application directory to $backupDirName");
-    
-    print "Backing up $application installation directory...\n\n";
-	copyDirectory( $globalConfig->param("$lcapplication.installDir"), $applicationDirDackupDirName );
-	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation", $applicationDirDackupDirName);
-	
-	print "$application installation successfully backed up to $applicationDirDackupDirName. \n\n";
-	
+	#we deliberately leave the installDirSize param in here as it is the smaller of the two and may reside on the same drive.
+	#we also add a 500MB buffer for safety.
+	if ($dataDriveFreeSpace - $installDirSize - $dataDirSize- 524288000 < 0 ){
+		$log->logdie("There is not enough space on the drive containing " . $globalConfig->param("$lcApplication.dataDir") . " to create a backup of the data directory for $application. Please free up space and then try again.");
+	}
+
+	$applicationDirBackupDirName =
+	  $globalConfig->param("$lcApplication.installDir") . "_backup_" . $date;
+	$dataDirBackupDirName =
+	  $globalConfig->param("$lcApplication.dataDir") . "_backup_" . $date;
+	$log->info(
+"$subname: Backing up the $application application directory to $applicationDirBackupDirName"
+	);
+
+	print "Backing up $application installation directory...\n\n";
+	copyDirectory( $globalConfig->param("$lcApplication.installDir"),
+		$applicationDirBackupDirName );
+	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation",
+		$applicationDirBackupDirName );
+
+	print
+"$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
+
 	print "Backing up $application data directory...\n\n";
-	copyDirectory( $globalConfig->param("$lcapplication.dataDir"), $dataDirDackupDirName );
-	$globalConfig->param( "$lcApplication.latestDataDirBackupLocation", $dataDirDackupDirName);
-	
-	print "$application data directory successfully backed up to $dataDirDackupDirName. \n\n";
-	
+	copyDirectory( $globalConfig->param("$lcApplication.dataDir"),
+		$dataDirBackupDirName );
+	$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
+		$dataDirBackupDirName );
+
+	print
+"$application data directory successfully backed up to $dataDirBackupDirName. \n\n";
+
 	print "Tidying up... please wait... \n\n";
-	
-	$log->info("Writing out config file to disk following new application backup being taken.");
-	$cfg->write($globalConfig);
+
+	$log->info(
+"Writing out config file to disk following new application backup being taken."
+	);
+	$globalConfig->write($configFile);
 	loadSuiteConfig();
-	
-	$log->debug("$subname: Doing recursive chown of $applicationDirDackupDirName and $dataDirDackupDirName to $osUser");
-	chownRecursive( $globalConfig->param("$lcapplication.osUser"), $applicationDirDackupDirName );
-	chownRecursive( $globalConfig->param("$lcapplication.osUser"), $dataDirDackupDirName );
-	
-	print "A backup of $application has been taken. Please note, this script can only backup your application and data directories.\n" . 
-	"It is imperative that you take a backup of your database. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n " . 
-	"restore your database. This script DOES NOT RESTORE YOUR DATABASE!!!\n\n";
-	
-	print "Please press enter to confirm you have read and thorougly understand the above warning regarding database restores.\n\n";
+
+	$log->debug(
+"$subname: Doing recursive chown of $applicationDirBackupDirName and $dataDirBackupDirName to " . $globalConfig->param("$lcApplication.osUser") . "."
+	);
+	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
+		$applicationDirBackupDirName );
+	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
+		$dataDirBackupDirName );
+
+	print
+"A backup of $application has been taken. Please note, this script can only backup your application and data directories.\n"
+	  . "It is imperative that you take a backup of your database. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n"
+	  . "restore your database. This script DOES NOT RESTORE YOUR DATABASE!!!\n\n";
+
+	print
+"Please press enter to confirm you have read and thorougly understand the above warning regarding database restores.";
 	my $input = <STDIN>;
-	
+	print "\n\n";
 }
 
 ########################################
@@ -582,9 +629,9 @@ sub copyDirectory {
 
 	$log->info("$subname: Copying $origDirectory to $newDirectory.");
 
-	if ( copy( $origDirectory, $newDirectory ) == 0 ) {
+	if ( dircopy( $origDirectory, $newDirectory ) == 0 ) {
 		$log->logdie(
-"Unable to copy folder $origDirectory to $newDirectory. Unknown error occured.\n\n"
+"Unable to copy folder $origDirectory to $newDirectory. Unknown error occured: $!.\n\n"
 		);
 	}
 }
@@ -792,6 +839,35 @@ sub createOSUser {
 		$log->info("System user $osUser already exists.");
 	}
 }
+
+########################################
+#dirSize - Calculate Directory Size    #
+########################################
+sub dirSize {
+	#code written by docsnider on http://bytes.com/topic/perl/answers/603354-calculate-size-all-files-directory
+  my($dir)  = $_[0];
+  my($size) = 0;
+  my($fd);
+  my $subname = ( caller(0) )[3];
+  $log->info("BEGIN: $subname");
+ 
+  opendir($fd, $dir) or $log-->logdie("Unable to open directory to calculate the directory size. Unable to continue: $!");
+ 
+  for my $item ( readdir($fd) ) {
+    next if ( $item =~ /^\.\.?$/ );
+ 
+    my($path) = "$dir/$item";
+ 
+    $size += ((-d $path) ? dirSize($path) : (-f $path ? (stat($path))[7] : 0));
+  }
+ 
+  closedir($fd);
+  
+  $log->info("Total directory size for $dir is $size bytes.");
+ 
+  return($size);
+}
+
 
 ########################################
 #Download Atlassian Installer          #
@@ -5242,7 +5318,7 @@ sub upgradeGeneric {
 		);
 	}
 
-    #Backup the existing install <workingHere>
+	#Backup the existing install <workingHere>
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
@@ -6155,7 +6231,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			startService( "Crowd", "java", "/opt/atlassian/crowd" );
+			backupApplication("JIRA");
 			my $test = <STDIN>;
 		}
 	}
