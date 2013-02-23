@@ -75,6 +75,8 @@ my $disable_config_checks   = '';    #global flag for command line paramaters
 my $verbose                 = '';    #global flag for command line paramaters
 my $autoMode                = '';    #global flag for command line paramaters
 my $globalArch;
+my @suiteApplications =
+  ( "Bamboo", "Confluence", "Crowd", "Fisheye", "JIRA", "Stash" );
 my $log = Log::Log4perl->get_logger("");
 
 #######################################################################
@@ -6107,9 +6109,90 @@ END_TXT
 sub displayInstallMenu {
 	my $choice;
 	my $menuText;
+	my $isBambooInstalled;
+	my $bambooAdditionalText = "";
+	my $isCrowdInstalled;
+	my $crowdAdditionalText = "";
+	my $isConfluenceInstalled;
+	my $confluenceAdditionalText = "";
+	my $isFisheyeInstalled;
+	my $fisheyeAdditionalText = "";
+	my $isJiraInstalled;
+	my $jiraAdditionalText = "";
+	my $isStashInstalled;
+	my $stashAdditionalText = "";
+	my @parameterNull;
+	my $input;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
+
+	#Set up suite current install status
+	@parameterNull = $globalConfig->param("bamboo.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("bamboo.installedVersion") eq "" )
+	{
+		$isBambooInstalled = "FALSE";
+	}
+	else {
+		$isBambooInstalled    = "TRUE";
+		$bambooAdditionalText = " (Disabled - Already Installed)";
+	}
+
+	@parameterNull = $globalConfig->param("confluence.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("confluence.installedVersion") eq "" )
+	{
+		$isConfluenceInstalled = "FALSE";
+	}
+	else {
+		$isConfluenceInstalled    = "TRUE";
+		$confluenceAdditionalText = " (Disabled - Already Installed)";
+	}
+
+	@parameterNull = $globalConfig->param("crowd.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("crowd.installedVersion") eq "" )
+	{
+		$isCrowdInstalled = "FALSE";
+	}
+	else {
+		$isCrowdInstalled    = "TRUE";
+		$crowdAdditionalText = " (Disabled - Already Installed)";
+	}
+
+	@parameterNull = $globalConfig->param("fisheye.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("fisheye.installedVersion") eq "" )
+	{
+		$isFisheyeInstalled = "FALSE";
+	}
+	else {
+		$isFisheyeInstalled    = "TRUE";
+		$fisheyeAdditionalText = " (Disabled - Already Installed)";
+	}
+
+	@parameterNull = $globalConfig->param("jira.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("jira.installedVersion") eq "" )
+	{
+		$isJiraInstalled = "FALSE";
+	}
+	else {
+		$isJiraInstalled    = "TRUE";
+		$jiraAdditionalText = " (Disabled - Already Installed)";
+	}
+
+	@parameterNull = $globalConfig->param("stash.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("stash.installedVersion") eq "" )
+	{
+		$isStashInstalled = "FALSE";
+	}
+	else {
+		$isStashInstalled    = "TRUE";
+		$stashAdditionalText = " (Disabled - Already Installed)";
+	}
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
@@ -6141,15 +6224,19 @@ sub displayInstallMenu {
       
       Please select from the following options:
 
-      1) Install Bamboo
-      2) Install Confluence
-      3) Install Crowd
-      4) Install Fisheye
-      5) Install JIRA
-      6) Install Stash
-      Q) Return to Main Menu
-
 END_TXT
+
+		$menuText =
+		  $menuText . "      1) Install Bamboo $bambooAdditionalText\n";
+		$menuText =
+		  $menuText . "      2) Install Confluence$confluenceAdditionalText\n";
+		$menuText = $menuText . "      3) Install Crowd$crowdAdditionalText\n";
+		$menuText =
+		  $menuText . "      4) Install Fisheye$fisheyeAdditionalText\n";
+		$menuText = $menuText . "      5) Install JIRA$jiraAdditionalText\n";
+		$menuText = $menuText . "      6) Install Stash$stashAdditionalText\n";
+		$menuText = $menuText . "      Q) Return to Main Menu\n";
+		$menuText = $menuText . "\n";
 
 		# print the main menu
 		system 'clear';
@@ -6170,27 +6257,88 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
-			installBamboo();
+			if ( $isBambooInstalled eq "TRUE" ) {
+				print
+"Bamboo is already installed and therefore cannot be installed again. \nIf you believe you have received this in error, "
+				  . "please edit the settings.cfg file and remove the bamboo.installedVersion setting.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				installBamboo();
+			}
+
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
-			installConfluence();
+			if ( $isConfluenceInstalled eq "TRUE" ) {
+				print
+"Confluence is already installed and therefore cannot be installed again. \nIf you believe you have received this in error, "
+				  . "please edit the settings.cfg file and remove the confluence.installedVersion setting.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				installConfluence();
+			}
 		}
 		elsif ( lc($choice) eq "3\n" ) {
 			system 'clear';
-			installCrowd();
+			if ( $isCrowdInstalled eq "TRUE" ) {
+				print
+"Crowd is already installed and therefore cannot be installed again. \nIf you believe you have received this in error, "
+				  . "please edit the settings.cfg file and remove the crowd.installedVersion setting.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				installCrowd();
+			}
 		}
 		elsif ( lc($choice) eq "4\n" ) {
 			system 'clear';
-			installFisheye();
+			if ( $isFisheyeInstalled eq "TRUE" ) {
+				print
+"Fisheye is already installed and therefore cannot be installed again. \nIf you believe you have received this in error, "
+				  . "please edit the settings.cfg file and remove the fisheye.installedVersion setting.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				installFisheye();
+			}
 		}
 		elsif ( lc($choice) eq "5\n" ) {
 			system 'clear';
-			installJira();
+			if ( $isJiraInstalled eq "TRUE" ) {
+				print
+"Jira is already installed and therefore cannot be installed again. \nIf you believe you have received this in error, "
+				  . "please edit the settings.cfg file and remove the jira.installedVersion setting.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				installJira();
+			}
 		}
 		elsif ( lc($choice) eq "6\n" ) {
 			system 'clear';
-			installStash();
+			if ( $isStashInstalled eq "TRUE" ) {
+				print
+"Stash is already installed and therefore cannot be installed again. \nIf you believe you have received this in error, "
+				  . "please edit the settings.cfg file and remove the stash.installedVersion setting.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				installStash();
+			}
 		}
 	}
 }
