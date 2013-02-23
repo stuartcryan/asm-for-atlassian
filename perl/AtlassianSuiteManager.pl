@@ -80,6 +80,94 @@ my $log = Log::Log4perl->get_logger("");
 #######################################################################
 
 ########################################
+#BackupApplication                     #
+#Backs up both an application and its  #
+#data directories prior to an upgrade  #
+########################################
+sub backupApplication {
+	my $date = strftime "%Y%m%d_%H%M%S", localtime;
+	my $originalDir;
+	my $osUser;
+	my $applicationDirbackupDirName;
+	my $dataDirbackupDirName;
+	my $application;
+	my $lcApplication;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application = $_[0];
+	$lcApplication = lc($application);
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+
+    print "Please wait, backing up your existing application (this may take a few moments)...\n\n";
+    
+    #Checking that the service is stopped for good measure
+	if (
+		stopService(
+			$application,
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
+		) eq "FAIL"
+	  )
+	{
+		$log->warn(
+"$subname: Could not stop $application successfully. This may cause issues if you attempt to restore."
+		);
+		warn
+"Could not stop $application successfully. PLEASE NOTE!!! There is no way to verify the integrity of the backup if the application is running at the time of backup: $!\n\n";
+	}
+	
+	#Check that we have enough disk space
+	
+	
+    
+	$applicationDirDackupDirName = $globalConfig->param("$lcapplication.installDir") . "_backup_" . $date;
+	$dataDirBackupDirName = $globalConfig->param("$lcapplication.dataDir") . "_backup_" . $date;
+	$log->info("$subname: Backing up the $application application directory to $backupDirName");
+    
+    print "Backing up $application installation directory...\n\n";
+	copyDirectory( $globalConfig->param("$lcapplication.installDir"), $applicationDirDackupDirName );
+	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation", $applicationDirDackupDirName);
+	
+	print "$application installation successfully backed up to $applicationDirDackupDirName. \n\n";
+	
+	print "Backing up $application data directory...\n\n";
+	copyDirectory( $globalConfig->param("$lcapplication.dataDir"), $dataDirDackupDirName );
+	$globalConfig->param( "$lcApplication.latestDataDirBackupLocation", $dataDirDackupDirName);
+	
+	print "$application data directory successfully backed up to $dataDirDackupDirName. \n\n";
+	
+	print "Tidying up... please wait... \n\n";
+	
+	$log->info("Writing out config file to disk following new application backup being taken.");
+	$cfg->write($globalConfig);
+	loadSuiteConfig();
+	
+	$log->debug("$subname: Doing recursive chown of $applicationDirDackupDirName and $dataDirDackupDirName to $osUser");
+	chownRecursive( $globalConfig->param("$lcapplication.osUser"), $applicationDirDackupDirName );
+	chownRecursive( $globalConfig->param("$lcapplication.osUser"), $dataDirDackupDirName );
+	
+	print "A backup of $application has been taken. Please note, this script can only backup your application and data directories.\n" . 
+	"It is imperative that you take a backup of your database. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n " . 
+	"restore your database. This script DOES NOT RESTORE YOUR DATABASE!!!\n\n";
+	
+	print "Please press enter to confirm you have read and thorougly understand the above warning regarding database restores.\n\n";
+	my $input = <STDIN>;
+	
+}
+
+########################################
 #BackupDirectoryAndChown               #
 #NOTE This will MOVE to a backup, not  #
 #copy...                               #
@@ -5153,6 +5241,8 @@ sub upgradeGeneric {
 "$subname: We were unable to stop the process therefore the upgrade for $application cannot succeed."
 		);
 	}
+
+    #Backup the existing install <workingHere>
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
