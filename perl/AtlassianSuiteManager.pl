@@ -890,7 +890,8 @@ sub dirSize {
 ########################################
 sub downloadAtlassianInstaller {
 	my $type;
-	my $product;
+	my $application;
+	my $lcApplication;
 	my $version;
 	my $downloadURL;
 	my $architecture;
@@ -903,28 +904,30 @@ sub downloadAtlassianInstaller {
 
 	$log->info("BEGIN: $subname");
 
-	$type         = $_[0];
-	$product      = $_[1];
-	$version      = $_[2];
-	$architecture = $_[3];
+	$type          = $_[0];
+	$application   = $_[1];
+	$version       = $_[2];
+	$architecture  = $_[3];
+	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_type",         $type );
-	dumpSingleVarToLog( "$subname" . "_product",      $product );
+	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_version",      $version );
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
-	print "Beginning download of $product, please wait...\n\n";
+	print "Beginning download of $lcApplication, please wait...\n\n";
 
 	#Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
-		$log->debug("$subname: Downloading latest version of $product");
-		@downloadDetails = getLatestDownloadURL( $product, $architecture );
+		$log->debug("$subname: Downloading latest version of $application");
+		@downloadDetails =
+		  getLatestDownloadURL( $lcApplication, $architecture );
 	}
 	else {
-		$log->debug("$subname: Downloading version $version of $product");
+		$log->debug("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  getVersionDownloadURL( $product, $architecture, $version );
+		  getVersionDownloadURL( $lcApplication, $architecture, $version );
 	}
 	dumpSingleVarToLog( "$subname" . "_downloadDetails[0]",
 		$downloadDetails[0] );
@@ -932,13 +935,13 @@ sub downloadAtlassianInstaller {
 		$downloadDetails[1] );
 
 	#Check if we are trying to download a supported version
-	if ( isSupportedVersion( $product, $downloadDetails[1] ) eq "no" ) {
+	if ( isSupportedVersion( $lcApplication, $downloadDetails[1] ) eq "no" ) {
 		$log->warn(
-"$subname: Version $version of $product is has not been fully tested with this script."
+"$subname: Version $version of $application is has not been fully tested with this script."
 		);
 
 		$input = getBooleanInput(
-"This version of $product ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]"
+"This version of $application ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]"
 		);
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
@@ -949,7 +952,7 @@ sub downloadAtlassianInstaller {
 		}
 		else {
 			$log->info(
-"$subname: User has opted to download $version of $product even though it has not been tested with this script."
+"$subname: User has opted to download $version of $application even though it has not been tested with this script."
 			);
 		}
 	}
@@ -983,7 +986,7 @@ sub downloadAtlassianInstaller {
 		print "\n";
 		if ( $input eq "yes" || $input eq "default" ) {
 			$log->debug(
-"$subname: User opted to skip redownloading the installer file for $product."
+"$subname: User opted to skip redownloading the installer file for $application."
 			);
 			$downloadDetails[2] =
 			    $globalConfig->param("general.rootInstallDir") . "/"
@@ -1017,7 +1020,7 @@ sub downloadAtlassianInstaller {
 	}
 	else {
 		$log->logdie(
-"Could not download $product version $version. HTTP Response received was: '$downloadResponseCode'"
+"Could not download $application version $version. HTTP Response received was: '$downloadResponseCode'"
 		);
 	}
 }
@@ -1133,7 +1136,7 @@ sub downloadJDBCConnector {
 	dumpSingleVarToLog( "$subname" . "_dbType", $dbType );
 
 	print
-"Not all the Atlassian products come with the $dbType connector so we need to download it.\n\n";
+"Not all the Atlassian applications come with the $dbType connector so we need to download it.\n\n";
 	if ( $dbType eq "MySQL" ) {
 		print
 "In a web browser please visit http://dev.mysql.com/downloads/connector/j/ and note down the version number (such as 5.2.22).\n";
@@ -1257,7 +1260,7 @@ sub downloadLatestAtlassianSuite {
 
 	#Configure all products in the suite
 	@suiteProducts =
-	  ( 'crowd', 'confluence', 'jira', 'fisheye', 'bamboo', 'stash' );
+	  ( 'Crowd', 'Confluence', 'JIRA', 'Fisheye', 'Bamboo', 'Stash' );
 
 	#Iterate through each of the products, get the URL and download
 	foreach (@suiteProducts) {
@@ -2642,13 +2645,13 @@ sub getLatestDownloadURL {
 	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
-	#Build URL to check latest version for a particular product
+	#Build URL to check latest version for a particular application
 	my $versionurl = "https://my.atlassian.com/download/feeds/current/"
 	  . $lcApplication . ".json";
 	dumpSingleVarToLog( "$subname" . "_versionurl", $versionurl );
 	my $searchString;
 
- #For each product define the file type that we are looking for in the json feed
+#For each application define the file type that we are looking for in the json feed
 	if ( $lcApplication eq "confluence" ) {
 		$searchString = ".*Linux.*$architecture.*";
 	}
@@ -2669,7 +2672,7 @@ sub getLatestDownloadURL {
 	}
 	else {
 		print
-"That application ($lcApplication) is not recognised - Really you should never get here so if you managed to *wavesHi*";
+"That application ($application) is not recognised - Really you should never get here so if you managed to *wavesHi*";
 		exit 2;
 	}
 
@@ -2951,7 +2954,8 @@ sub getUserUidGid {
 #Get specific version URL to download  #
 ########################################
 sub getVersionDownloadURL {
-	my $product;
+	my $application;
+	my $lcApplication;
 	my $architecture;
 	my $filename;
 	my $fileExt;
@@ -2962,22 +2966,25 @@ sub getVersionDownloadURL {
 
 	$log->info("BEGIN: $subname");
 
-	$product      = $_[0];
-	$architecture = $_[1];
-	$version      = $_[2];
+	$application   = $_[0];
+	$architecture  = $_[1];
+	$version       = $_[2];
+	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_product",      $product );
+	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 	dumpSingleVarToLog( "$subname" . "_version",      $version );
 
-	#Generate product specific URL
+	#Generate application specific URL
 	$versionurl =
-	  "http://www.atlassian.com/software/" . $product . "/downloads/binary";
+	    "http://www.atlassian.com/software/"
+	  . $lcApplication
+	  . "/downloads/binary";
 	dumpSingleVarToLog( "$subname" . "_versionurl", $versionurl );
 
-#For each product generate the file name based on known information and input data
-	if ( $product eq "confluence" ) {
+#For each application generate the file name based on known information and input data
+	if ( $lcApplication eq "confluence" ) {
 		$fileExt = "bin";
 		$filename =
 		    "atlassian-confluence-" 
@@ -2985,24 +2992,24 @@ sub getVersionDownloadURL {
 		  . $architecture . "."
 		  . $fileExt;
 	}
-	elsif ( $product eq "jira" ) {
+	elsif ( $lcApplication eq "jira" ) {
 		$fileExt = "bin";
 		$filename =
 		  "atlassian-jira-" . $version . "-x" . $architecture . "." . $fileExt;
 	}
-	elsif ( $product eq "stash" ) {
+	elsif ( $lcApplication eq "stash" ) {
 		$fileExt  = "tar.gz";
 		$filename = "atlassian-stash-" . $version . "." . $fileExt;
 	}
-	elsif ( $product eq "fisheye" ) {
+	elsif ( $lcApplication eq "fisheye" ) {
 		$fileExt  = "zip";
 		$filename = "fisheye-" . $version . "." . $fileExt;
 	}
-	elsif ( $product eq "crowd" ) {
+	elsif ( $lcApplication eq "crowd" ) {
 		$fileExt  = "tar.gz";
 		$filename = "atlassian-crowd-" . $version . "." . $fileExt;
 	}
-	elsif ( $product eq "bamboo" ) {
+	elsif ( $lcApplication eq "bamboo" ) {
 		$fileExt  = "tar.gz";
 		$filename = "atlassian-bamboo-" . $version . "." . $fileExt;
 	}
@@ -3723,7 +3730,8 @@ sub isPortAvailable {
 #isSupportedVersion                   #
 ########################################
 sub isSupportedVersion {
-	my $product;
+	my $application;
+	my $lcApplication;
 	my $version;
 	my $productVersion;
 	my $count;
@@ -3732,12 +3740,13 @@ sub isSupportedVersion {
 
 	$log->info("BEGIN: $subname");
 
-	$product = $_[0];
-	$version = $_[1];
+	$application   = $_[0];
+	$version       = $_[1];
+	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_product", $product );
-	dumpSingleVarToLog( "$subname" . "_version", $version );
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_version",     $version );
 
 	#Set up maximum supported versions
 	my $jiraSupportedVerHigh       = "5.2.6";
@@ -3748,22 +3757,22 @@ sub isSupportedVersion {
 	my $stashSupportedVerHigh      = "2.1.2";
 
 	#Set up supported version for each product
-	if ( $product eq "confluence" ) {
+	if ( $lcApplication eq "confluence" ) {
 		$productVersion = $confluenceSupportedVerHigh;
 	}
-	elsif ( $product eq "jira" ) {
+	elsif ( $lcApplication eq "jira" ) {
 		$productVersion = $jiraSupportedVerHigh;
 	}
-	elsif ( $product eq "stash" ) {
+	elsif ( $lcApplication eq "stash" ) {
 		$productVersion = $stashSupportedVerHigh;
 	}
-	elsif ( $product eq "fisheye" ) {
+	elsif ( $lcApplication eq "fisheye" ) {
 		$productVersion = $fisheyeSupportedVerHigh;
 	}
-	elsif ( $product eq "crowd" ) {
+	elsif ( $lcApplication eq "crowd" ) {
 		$productVersion = $crowdSupportedVerHigh;
 	}
-	elsif ( $product eq "bamboo" ) {
+	elsif ( $lcApplication eq "bamboo" ) {
 		$productVersion = $bambooSupportedVerHigh;
 	}
 	else {
@@ -3777,13 +3786,13 @@ sub isSupportedVersion {
 	#If the version is supported return true
 	if ( $versionReturn eq "LESS" || $versionReturn eq "EQUAL" ) {
 		$log->info(
-"$subname: Version provided ($version) of $product is supported (max supported version is $productVersion)."
+"$subname: Version provided ($version) of $application is supported (max supported version is $productVersion)."
 		);
 		return "yes";
 	}
 	else {
 		$log->info(
-"$subname: Version provided ($version) of $product is NOT supported (max supported version is $productVersion)."
+"$subname: Version provided ($version) of $application is NOT supported (max supported version is $productVersion)."
 		);
 		return "no";
 	}
@@ -5161,7 +5170,7 @@ sub upgradeGeneric {
 #Iterate through required config items, if an are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		genConfigItem(
-			$mode,
+			"UPDATE",
 			$globalConfig,
 			"$lcApplication.installedVersion",
 "There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
@@ -5530,7 +5539,7 @@ sub upgradeGenericAtlassianBinary {
 "There is no current version of JIRA listed in the config file. Asking for input of current installed version."
 		);
 		genConfigItem(
-			$mode,
+			"UPDATE",
 			$globalConfig,
 			"$lcApplication.installedVersion",
 "There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
