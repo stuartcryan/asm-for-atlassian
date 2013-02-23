@@ -1852,7 +1852,7 @@ sub genConfigItem {
 		print "\n";
 
 #If default option is selected (i.e. just a return), use default value, otherwise use input
-		if ( $input eq "default" ) {
+		if ( $input eq "default" && $defaultInputValue ne "" ) {
 			$cfg->param( $configParam, $defaultValue );
 			$log->debug(
 "$subname: default selected, setting $configParam to $defaultValue"
@@ -1869,7 +1869,7 @@ sub genConfigItem {
 				if ( lc($input) =~ $validationRegex ) {
 					$cfg->param( $configParam, $input );
 					$log->debug("$subname: Setting $configParam to '$input'");
-					$LOOP = 0;    #accept input
+					$LOOP = 0;                 #accept input
 				}
 				else {
 					$log->info(
@@ -1878,10 +1878,10 @@ sub genConfigItem {
 					print $validationFailureMessage;
 				}
 			}
-			else {                #no regex checking needed
+			else {                             #no regex checking needed
 				$cfg->param( $configParam, $input );
 				$log->debug("$subname: Setting $configParam to '$input'");
-				$LOOP = 0;        #accept input
+				$LOOP = 0;                     #accept input
 			}
 		}
 	}
@@ -10947,7 +10947,6 @@ sub upgradeStash {
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
-
 	generateInitD( $lcApplication, $osUser,
 		$globalConfig->param("$lcApplication.installDir"),
 		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
