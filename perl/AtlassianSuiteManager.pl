@@ -140,25 +140,33 @@ sub backupApplication {
 	}
 
 	#Check that we have enough disk space
-	$installDirSize = dirSize($globalConfig->param("$lcApplication.installDir"));
-	$dataDirSize = dirSize($globalConfig->param("$lcApplication.dataDir"));
+	$installDirSize =
+	  dirSize( $globalConfig->param("$lcApplication.installDir") );
+	$dataDirSize = dirSize( $globalConfig->param("$lcApplication.dataDir") );
 
 	$installDirRef =
 	  dfportable( $globalConfig->param("$lcApplication.installDir") );
-	  $dataDirRef =
-	  dfportable( $globalConfig->param("$lcApplication.dataDir") );
-	
+	$dataDirRef = dfportable( $globalConfig->param("$lcApplication.dataDir") );
+
 	$installDriveFreeSpace = $installDirRef->{bfree};
-	$dataDriveFreeSpace = $dataDirRef->{bfree};
-	#check if the free space, minus install dir size minus a 500MB buffer is less than zero
-	if ($installDriveFreeSpace - $installDirSize - 524288000 < 0 ){
-		$log->logdie("There is not enough space on the drive containing " . $globalConfig->param("$lcApplication.installDir") . " to create a backup of the install directory for $application. Please free up space and then try again.");
+	$dataDriveFreeSpace    = $dataDirRef->{bfree};
+
+#check if the free space, minus install dir size minus a 500MB buffer is less than zero
+	if ( $installDriveFreeSpace - $installDirSize - 524288000 < 0 ) {
+		$log->logdie( "There is not enough space on the drive containing "
+			  . $globalConfig->param("$lcApplication.installDir")
+			  . " to create a backup of the install directory for $application. Please free up space and then try again."
+		);
 	}
-	
-	#we deliberately leave the installDirSize param in here as it is the smaller of the two and may reside on the same drive.
-	#we also add a 500MB buffer for safety.
-	if ($dataDriveFreeSpace - $installDirSize - $dataDirSize- 524288000 < 0 ){
-		$log->logdie("There is not enough space on the drive containing " . $globalConfig->param("$lcApplication.dataDir") . " to create a backup of the data directory for $application. Please free up space and then try again.");
+
+#we deliberately leave the installDirSize param in here as it is the smaller of the two and may reside on the same drive.
+#we also add a 500MB buffer for safety.
+	if ( $dataDriveFreeSpace - $installDirSize - $dataDirSize - 524288000 < 0 )
+	{
+		$log->logdie( "There is not enough space on the drive containing "
+			  . $globalConfig->param("$lcApplication.dataDir")
+			  . " to create a backup of the data directory for $application. Please free up space and then try again."
+		);
 	}
 
 	$applicationDirBackupDirName =
@@ -196,8 +204,9 @@ sub backupApplication {
 	loadSuiteConfig();
 
 	$log->debug(
-"$subname: Doing recursive chown of $applicationDirBackupDirName and $dataDirBackupDirName to " . $globalConfig->param("$lcApplication.osUser") . "."
-	);
+"$subname: Doing recursive chown of $applicationDirBackupDirName and $dataDirBackupDirName to "
+		  . $globalConfig->param("$lcApplication.osUser")
+		  . "." );
 	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
 		$applicationDirBackupDirName );
 	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
@@ -844,30 +853,36 @@ sub createOSUser {
 #dirSize - Calculate Directory Size    #
 ########################################
 sub dirSize {
-	#code written by docsnider on http://bytes.com/topic/perl/answers/603354-calculate-size-all-files-directory
-  my($dir)  = $_[0];
-  my($size) = 0;
-  my($fd);
-  my $subname = ( caller(0) )[3];
-  $log->info("BEGIN: $subname");
- 
-  opendir($fd, $dir) or $log-->logdie("Unable to open directory to calculate the directory size. Unable to continue: $!");
- 
-  for my $item ( readdir($fd) ) {
-    next if ( $item =~ /^\.\.?$/ );
- 
-    my($path) = "$dir/$item";
- 
-    $size += ((-d $path) ? dirSize($path) : (-f $path ? (stat($path))[7] : 0));
-  }
- 
-  closedir($fd);
-  
-  $log->info("Total directory size for $dir is $size bytes.");
- 
-  return($size);
-}
 
+#code written by docsnider on http://bytes.com/topic/perl/answers/603354-calculate-size-all-files-directory
+	my ($dir)  = $_[0];
+	my ($size) = 0;
+	my ($fd);
+	my $subname = ( caller(0) )[3];
+	$log->info("BEGIN: $subname");
+
+	opendir( $fd, $dir )
+	  or $log-- > logdie(
+"Unable to open directory to calculate the directory size. Unable to continue: $!"
+	  );
+
+	for my $item ( readdir($fd) ) {
+		next if ( $item =~ /^\.\.?$/ );
+
+		my ($path) = "$dir/$item";
+
+		$size +=
+		  ( ( -d $path )
+			? dirSize($path)
+			: ( -f $path ? ( stat($path) )[7] : 0 ) );
+	}
+
+	closedir($fd);
+
+	$log->info("Total directory size for $dir is $size bytes.");
+
+	return ($size);
+}
 
 ########################################
 #Download Atlassian Installer          #
@@ -1366,11 +1381,14 @@ sub extractAndMoveDownload {
 	#Check for existing folder and provide option to backup
 	if ( -d $expectedFolderName ) {
 		if ( $mode eq "UPGRADE" ) {
-			print "Backing up old installation folder to $expectedFolderName"
-			  . "_upgrade_"
-			  . $date
-			  . ", please wait...\n\n";
-			moveDirectoryAndChown( $expectedFolderName, $osUser );
+			print "Deleting old install directory please wait...\n\n";
+			rmtree( ["$expectedFolderName"] );
+
+			$log->info(
+				"$subname: Moving $ae->extract_path() to $expectedFolderName" );
+			moveDirectory( $ae->extract_path(), $expectedFolderName );
+			$log->info("$subname: Chowning $expectedFolderName to $osUser");
+			chownRecursive( $osUser, $expectedFolderName );
 		}
 		else {
 			my $LOOP = 1;
@@ -1378,7 +1396,7 @@ sub extractAndMoveDownload {
 			$log->info("$subname: $expectedFolderName already exists.");
 			print "The destination directory '"
 			  . $expectedFolderName
-			  . " already exists. Would you like to overwrite or create a backup? o=overwrite\\b=backup [b]\n";
+			  . " already exists. Would you like to overwrite or move to a backup? o=overwrite\\b=backup [b]\n";
 			while ( $LOOP == 1 ) {
 
 				$input = <STDIN>;
@@ -1560,7 +1578,7 @@ sub generateGenericKickstart {
 	  or $log->logdie("Unable to open $filename for writing.");
 	print FH "#install4j response file for $application\n";
 	if ( $mode eq "UPGRADE" ) {
-		print FH 'backup' . $application . '$Boolean=true\n';
+		print FH 'backup' . "$application" . '$Boolean=true' . "\n";
 	}
 	if ( $mode eq "INSTALL" ) {
 		print FH 'rmiPort$Long='
@@ -1588,7 +1606,7 @@ sub generateGenericKickstart {
 		print FH "sys.installationDir="
 		  . $globalConfig->param( $lcApplication . ".installDir" ) . "\n";
 	}
-	print FH 'executeLauncherAction$Boolean=true' . "\n";
+	print FH 'executeLauncherAction$Boolean=false' . "\n";
 	if ( $mode eq "INSTALL" ) {
 		print FH 'httpPort$Long='
 		  . $globalConfig->param( $lcApplication . ".connectorPort" ) . "\n";
@@ -3488,7 +3506,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 	#Generate the kickstart as we have all the information necessary
 	$log->info(
 		"$subname: Generating kickstart file for $application at $varfile");
-	generateGenericKickstart( $varfile, "INSTALL", $lcApplication );
+	generateGenericKickstart( $varfile, "INSTALL", $application );
 
 	if ( -d $globalConfig->param( $lcApplication . ".installDir" ) ) {
 		$input =
@@ -5318,13 +5336,14 @@ sub upgradeGeneric {
 		);
 	}
 
-	#Backup the existing install <workingHere>
+	#Backup the existing install
+	backupApplication($application);
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
 	extractAndMoveDownload( $downloadDetails[2],
 		$globalConfig->param("$lcApplication.installDir"),
-		$osUser, "" );
+		$osUser, "UPGRADE" );
 
 	#Check if user wants to remove the downloaded archive
 	$input =
@@ -5605,7 +5624,7 @@ sub upgradeGenericAtlassianBinary {
 	#Generate the kickstart as we have all the information necessary
 	$log->info(
 		"$subname: Generating kickstart file for $application at $varfile");
-	generateGenericKickstart( $varfile, "UPGRADE", $lcApplication );
+	generateGenericKickstart( $varfile, "UPGRADE", $application );
 
 	#upgrade
 	$log->info(
