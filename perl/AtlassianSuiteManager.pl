@@ -862,7 +862,7 @@ sub dirSize {
 	$log->info("BEGIN: $subname");
 
 	opendir( $fd, $dir )
-	  or $log-- > logdie(
+	  or $log->logdie(
 "Unable to open directory to calculate the directory size. Unable to continue: $!"
 	  );
 
@@ -871,10 +871,11 @@ sub dirSize {
 
 		my ($path) = "$dir/$item";
 
-		$size +=
-		  ( ( -d $path )
+		$size += (
+			( -d $path )
 			? dirSize($path)
-			: ( -f $path ? ( stat($path) )[7] : 0 ) );
+			: ( -f $path ? ( stat($path) )[7] : 0 )
+		);
 	}
 
 	closedir($fd);
@@ -1385,7 +1386,7 @@ sub extractAndMoveDownload {
 			rmtree( ["$expectedFolderName"] );
 
 			$log->info(
-				"$subname: Moving $ae->extract_path() to $expectedFolderName" );
+				"$subname: Moving $ae->extract_path() to $expectedFolderName");
 			moveDirectory( $ae->extract_path(), $expectedFolderName );
 			$log->info("$subname: Chowning $expectedFolderName to $osUser");
 			chownRecursive( $osUser, $expectedFolderName );
@@ -4922,6 +4923,7 @@ sub uninstallGeneric {
 	my $input;
 	my $subname = ( caller(0) )[3];
 	my $lcApplication;
+	my $processReturnCode;
 
 	$log->info("BEGIN: $subname");
 
@@ -4940,6 +4942,30 @@ sub uninstallGeneric {
 	print "\n";
 	if ( $input eq "yes" ) {
 		$log->info("$subname: User selected to uninstall $application");
+
+		$log->info("$subname: Stopping existing $application service...");
+		print "Stopping the existing $application service please wait...\n\n";
+		$processReturnCode = stopService(
+			$application,
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
+		);
+
+		if ( $processReturnCode eq "FAIL" ) {
+			print
+"We were unable to stop the $application process. Therefore you will need to manually kill the running process following the uninstall.\n\n";
+			$log->logwarn(
+"$subname: We were unable to stop the $application process. Therefore you will need to manually kill the running process following the uninstall."
+			);
+		}
 
 		#Remove Service
 		print "Disabling service...\n\n";
