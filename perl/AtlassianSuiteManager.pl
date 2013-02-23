@@ -980,11 +980,11 @@ sub downloadAtlassianInstaller {
 		$input =
 		  getBooleanInput( "The local install file "
 			  . $absoluteFilePath
-			  . " already exists. Would you like to skip re-downloading the file: [yes]"
+			  . " already exists. Would you like to download the file again and replace the existing file: [no]"
 		  );
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
-		if ( $input eq "yes" || $input eq "default" ) {
+		if ( $input eq "no" || $input eq "default" ) {
 			$log->debug(
 "$subname: User opted to skip redownloading the installer file for $application."
 			);
@@ -1070,11 +1070,11 @@ sub downloadFileAndChown {
 		$input =
 		  getBooleanInput( "The local download file "
 			  . $absoluteFilePath
-			  . " already exists. Would you like to skip re-downloading the file: [yes]"
+			  . " already exists. Would you like to download the file again and replace the existing file: [no]"
 		  );
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
-		if ( $input eq "yes" || $input eq "default" ) {
+		if ( $input eq "no" || $input eq "default" ) {
 			$log->debug(
 "$subname: User opted to skip redownloading the file $downloadURL."
 			);
@@ -1869,7 +1869,7 @@ sub genConfigItem {
 				if ( lc($input) =~ $validationRegex ) {
 					$cfg->param( $configParam, $input );
 					$log->debug("$subname: Setting $configParam to '$input'");
-					$LOOP = 0;                 #accept input
+					$LOOP = 0;    #accept input
 				}
 				else {
 					$log->info(
@@ -1878,10 +1878,10 @@ sub genConfigItem {
 					print $validationFailureMessage;
 				}
 			}
-			else {                             #no regex checking needed
+			else {                #no regex checking needed
 				$cfg->param( $configParam, $input );
 				$log->debug("$subname: Setting $configParam to '$input'");
-				$LOOP = 0;                     #accept input
+				$LOOP = 0;        #accept input
 			}
 		}
 	}
