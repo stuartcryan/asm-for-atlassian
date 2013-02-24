@@ -6445,9 +6445,90 @@ END_TXT
 sub displayUninstallMenu {
 	my $choice;
 	my $menuText;
+	my $isBambooInstalled;
+	my $bambooAdditionalText = "";
+	my $isCrowdInstalled;
+	my $crowdAdditionalText = "";
+	my $isConfluenceInstalled;
+	my $confluenceAdditionalText = "";
+	my $isFisheyeInstalled;
+	my $fisheyeAdditionalText = "";
+	my $isJiraInstalled;
+	my $jiraAdditionalText = "";
+	my $isStashInstalled;
+	my $stashAdditionalText = "";
+	my @parameterNull;
+	my $input;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
+
+	#Set up suite current install status
+	@parameterNull = $globalConfig->param("bamboo.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("bamboo.installedVersion") eq "" )
+	{
+		$isBambooInstalled = "FALSE";
+		$bambooAdditionalText = " (Disabled - Not Currently Installed)";
+	}
+	else {
+		$isBambooInstalled    = "TRUE";
+	}
+
+	@parameterNull = $globalConfig->param("confluence.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("confluence.installedVersion") eq "" )
+	{
+		$isConfluenceInstalled = "FALSE";
+		$confluenceAdditionalText = " (Disabled - Not Currently Installed)";
+	}
+	else {
+		$isConfluenceInstalled    = "TRUE";
+	}
+
+	@parameterNull = $globalConfig->param("crowd.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("crowd.installedVersion") eq "" )
+	{
+		$isCrowdInstalled = "FALSE";
+		$crowdAdditionalText = " (Disabled - Not Currently Installed)";
+	}
+	else {
+		$isCrowdInstalled    = "TRUE";
+	}
+
+	@parameterNull = $globalConfig->param("fisheye.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("fisheye.installedVersion") eq "" )
+	{
+		$isFisheyeInstalled = "FALSE";
+		$fisheyeAdditionalText = " (Disabled - Not Currently Installed)";
+	}
+	else {
+		$isFisheyeInstalled    = "TRUE";
+	}
+
+	@parameterNull = $globalConfig->param("jira.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("jira.installedVersion") eq "" )
+	{
+		$isJiraInstalled = "FALSE";
+		$jiraAdditionalText = " (Disabled - Not Currently Installed)";
+	}
+	else {
+		$isJiraInstalled    = "TRUE";
+	}
+
+	@parameterNull = $globalConfig->param("stash.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("stash.installedVersion") eq "" )
+	{
+		$isStashInstalled = "FALSE";
+		$stashAdditionalText = " (Disabled - Not Currently Installed)";
+	}
+	else {
+		$isStashInstalled    = "TRUE";
+	}
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
@@ -6479,15 +6560,19 @@ sub displayUninstallMenu {
       
       Please select from the following options:
 
-      1) Uninstall Bamboo
-      2) Uninstall Confluence
-      3) Uninstall Crowd
-      4) Uninstall Fisheye
-      5) Uninstall JIRA
-      6) Uninstall Stash
-      Q) Return to Main Menu
-
 END_TXT
+
+		$menuText =
+		  $menuText . "      1) Uninstall Bamboo $bambooAdditionalText\n";
+		$menuText =
+		  $menuText . "      2) Uninstall Confluence$confluenceAdditionalText\n";
+		$menuText = $menuText . "      3) Uninstall Crowd$crowdAdditionalText\n";
+		$menuText =
+		  $menuText . "      4) Uninstall Fisheye$fisheyeAdditionalText\n";
+		$menuText = $menuText . "      5) Uninstall JIRA$jiraAdditionalText\n";
+		$menuText = $menuText . "      6) Uninstall Stash$stashAdditionalText\n";
+		$menuText = $menuText . "      Q) Return to Main Menu\n";
+		$menuText = $menuText . "\n";
 
 		# print the main menu
 		system 'clear';
@@ -6508,27 +6593,87 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
-			uninstallBamboo();
+			if ( $isBambooInstalled eq "FALSE" ) {
+				print
+"Bamboo is not currently installed and therefore cannot be uninstalled. \nIf you believe you have received this in error, "
+				  . "please try removing the settings.cfg file and running the gather configuration utility again.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				uninstallBamboo();
+			}
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
-			uninstallConfluence();
+			if ( $isConfluenceInstalled eq "FALSE" ) {
+				print
+"Confluence is not currently installed and therefore cannot be uninstalled. \nIf you believe you have received this in error, "
+				  . "please try removing the settings.cfg file and running the gather configuration utility again.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				uninstallConfluence();
+			}
 		}
 		elsif ( lc($choice) eq "3\n" ) {
 			system 'clear';
-			uninstallCrowd();
+			if ( $isCrowdInstalled eq "FALSE" ) {
+				print
+"Crowd is not currently installed and therefore cannot be uninstalled. \nIf you believe you have received this in error, "
+				  . "please try removing the settings.cfg file and running the gather configuration utility again.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				uninstallCrowd();
+			}
 		}
 		elsif ( lc($choice) eq "4\n" ) {
 			system 'clear';
-			uninstallFisheye();
+			if ( $isFisheyeInstalled eq "FALSE" ) {
+				print
+"Fisheye is not currently installed and therefore cannot be uninstalled. \nIf you believe you have received this in error, "
+				  . "please try removing the settings.cfg file and running the gather configuration utility again.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				uninstallFisheye();
+			}
 		}
 		elsif ( lc($choice) eq "5\n" ) {
 			system 'clear';
-			uninstallJira();
+			if ( $isJiraInstalled eq "FALSE" ) {
+				print
+"JIRA is not currently installed and therefore cannot be uninstalled. \nIf you believe you have received this in error, "
+				  . "please try removing the settings.cfg file and running the gather configuration utility again.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				uninstallJira();
+			}
 		}
 		elsif ( lc($choice) eq "6\n" ) {
 			system 'clear';
-			uninstallStash();
+			if ( $isStashInstalled eq "FALSE" ) {
+				print
+"Stash is not currently installed and therefore cannot be uninstalled. \nIf you believe you have received this in error, "
+				  . "please try removing the settings.cfg file and running the gather configuration utility again.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				uninstallStash();
+			}
 		}
 	}
 }
@@ -6556,6 +6701,7 @@ sub displayUpgradeMenu {
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
+
 	#Set up suite current install status
 	@parameterNull = $globalConfig->param("bamboo.installedVersion");
 	if ( ( $#parameterNull == -1 )
