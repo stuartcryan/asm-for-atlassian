@@ -106,7 +106,7 @@ fi
 #Download new copy of LATEST file      #
 ########################################
 downloadLatestFile(){
-	mv LATEST .LATEST.OLD
+	mv LATEST .LATEST.OLD > /dev/null 2&>1
 
 	if ! wget --quiet $LATESTDOWNLOADURL ; then
     	mv .LATEST.OLD LATEST
@@ -118,15 +118,32 @@ downloadLatestFile(){
 ########################################
 processLatestVersionFile(){
 	source LATEST
-	echo ${downloadURL[0]}
-	#if [[ $test =~ ^test[A-Za-z0-9]+\.([0-9]+)\.out$ ]]; then
-    #  echo ${BASH_REMATCH[1]}
-    #fi
+	echo ${#downloadURL[@]} 
+    	
+    if [[ $SCRIPTVERSION =~ ^([0-9]*)\.([0-9]*)\.?([0-9]*?)$ ]]; then
+   		CURRMAJORVERSION = ${BASH_REMATCH[1]}
+   		CURRMIDVERSION   = ${BASH_REMATCH[2]}
+   		CURRMINORVERSION = ${BASH_REMATCH[3]}
+    	fi
+	
+	for i in "${downloadURL[@]}"
+	do
+		if [[ $i =~ ^(.*)\/(.*)\|(.*)\|(.*)$ ]]; then
+    	BASEURL = ${BASH_REMATCH[1]}
+    	FILENAME = ${BASH_REMATCH[2]}
+    	DIRECTORYLOCATION = ${BASH_REMATCH[3]}
+    	LASTUPDATEDINVER = ${BASH_REMATCH[4]}
+    	
+    	if [[ $LASTUPDATEDINVER =~ ^([0-9]*)\.([0-9]*)\.?([0-9]*?)$ ]]; then
+    		NEWMAJORVERSION = ${BASH_REMATCH[1]}
+    		NEWMIDVERSION   = ${BASH_REMATCH[2]}
+    		NEWMINORVERSION = ${BASH_REMATCH[3]}
+    	fi
+    	
+		
+    	fi
+	done
 }
-
-
-
-
 
 ########################################
 #Test for script running as root       #
@@ -155,10 +172,19 @@ if [ -f "shellScriptIncludes.inc" ]; then
 	fi
 fi
 
-echo "Please wait, checking for updates..."
-
-downloadLatestFile
-processLatestVersionFile
+#If we don't have a LATEST file get one.
+if [ ! -f "LATEST" ]; then
+	echo "Please wait, checking for updates..."
+	downloadLatestFile
+	processLatestVersionFile
+else
+	#only check for updates if we havent in the last 24 hours.
+	if test `find "LATEST" -mmin +1440`; then
+    echo "Please wait, checking for updates..."
+    downloadLatestFile
+	processLatestVersionFile
+	fi
+fi
 
 checkPerlModules
 perl perl/AtlassianSuiteManager.pl $ARGS
