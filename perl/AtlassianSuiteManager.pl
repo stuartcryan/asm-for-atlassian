@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 
 #
-#    Copyright 2013 Stuart Ryan
+#    Copyright 2012-2013 Stuart Ryan
 #
 #    Application Name: AtlassianSuiteManager
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Scripts+Home
@@ -6468,66 +6468,66 @@ sub displayUninstallMenu {
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("bamboo.installedVersion") eq "" )
 	{
-		$isBambooInstalled = "FALSE";
+		$isBambooInstalled    = "FALSE";
 		$bambooAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isBambooInstalled    = "TRUE";
+		$isBambooInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("confluence.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("confluence.installedVersion") eq "" )
 	{
-		$isConfluenceInstalled = "FALSE";
+		$isConfluenceInstalled    = "FALSE";
 		$confluenceAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isConfluenceInstalled    = "TRUE";
+		$isConfluenceInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("crowd.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("crowd.installedVersion") eq "" )
 	{
-		$isCrowdInstalled = "FALSE";
+		$isCrowdInstalled    = "FALSE";
 		$crowdAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isCrowdInstalled    = "TRUE";
+		$isCrowdInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("fisheye.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("fisheye.installedVersion") eq "" )
 	{
-		$isFisheyeInstalled = "FALSE";
+		$isFisheyeInstalled    = "FALSE";
 		$fisheyeAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isFisheyeInstalled    = "TRUE";
+		$isFisheyeInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("jira.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("jira.installedVersion") eq "" )
 	{
-		$isJiraInstalled = "FALSE";
+		$isJiraInstalled    = "FALSE";
 		$jiraAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isJiraInstalled    = "TRUE";
+		$isJiraInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("stash.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("stash.installedVersion") eq "" )
 	{
-		$isStashInstalled = "FALSE";
+		$isStashInstalled    = "FALSE";
 		$stashAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isStashInstalled    = "TRUE";
+		$isStashInstalled = "TRUE";
 	}
 
 	my $LOOP = 1;
@@ -6564,13 +6564,15 @@ END_TXT
 
 		$menuText =
 		  $menuText . "      1) Uninstall Bamboo $bambooAdditionalText\n";
+		$menuText = $menuText
+		  . "      2) Uninstall Confluence$confluenceAdditionalText\n";
 		$menuText =
-		  $menuText . "      2) Uninstall Confluence$confluenceAdditionalText\n";
-		$menuText = $menuText . "      3) Uninstall Crowd$crowdAdditionalText\n";
+		  $menuText . "      3) Uninstall Crowd$crowdAdditionalText\n";
 		$menuText =
 		  $menuText . "      4) Uninstall Fisheye$fisheyeAdditionalText\n";
 		$menuText = $menuText . "      5) Uninstall JIRA$jiraAdditionalText\n";
-		$menuText = $menuText . "      6) Uninstall Stash$stashAdditionalText\n";
+		$menuText =
+		  $menuText . "      6) Uninstall Stash$stashAdditionalText\n";
 		$menuText = $menuText . "      Q) Return to Main Menu\n";
 		$menuText = $menuText . "\n";
 
@@ -6707,66 +6709,66 @@ sub displayUpgradeMenu {
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("bamboo.installedVersion") eq "" )
 	{
-		$isBambooInstalled = "FALSE";
+		$isBambooInstalled    = "FALSE";
 		$bambooAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isBambooInstalled    = "TRUE";
+		$isBambooInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("confluence.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("confluence.installedVersion") eq "" )
 	{
-		$isConfluenceInstalled = "FALSE";
+		$isConfluenceInstalled    = "FALSE";
 		$confluenceAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isConfluenceInstalled    = "TRUE";
+		$isConfluenceInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("crowd.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("crowd.installedVersion") eq "" )
 	{
-		$isCrowdInstalled = "FALSE";
+		$isCrowdInstalled    = "FALSE";
 		$crowdAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isCrowdInstalled    = "TRUE";
+		$isCrowdInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("fisheye.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("fisheye.installedVersion") eq "" )
 	{
-		$isFisheyeInstalled = "FALSE";
+		$isFisheyeInstalled    = "FALSE";
 		$fisheyeAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isFisheyeInstalled    = "TRUE";
+		$isFisheyeInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("jira.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("jira.installedVersion") eq "" )
 	{
-		$isJiraInstalled = "FALSE";
+		$isJiraInstalled    = "FALSE";
 		$jiraAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isJiraInstalled    = "TRUE";
+		$isJiraInstalled = "TRUE";
 	}
 
 	@parameterNull = $globalConfig->param("stash.installedVersion");
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("stash.installedVersion") eq "" )
 	{
-		$isStashInstalled = "FALSE";
+		$isStashInstalled    = "FALSE";
 		$stashAdditionalText = " (Disabled - Not Currently Installed)";
 	}
 	else {
-		$isStashInstalled    = "TRUE";
+		$isStashInstalled = "TRUE";
 	}
 
 	my $LOOP = 1;

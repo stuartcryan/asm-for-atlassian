@@ -1,7 +1,7 @@
 #!/bin/bash
 
 #
-#    Copyright 2012 Stuart Ryan
+#    Copyright 2012-2013 Stuart Ryan
 #
 #    Application Name: AtlassianSuiteManager
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Scripts+Home
@@ -29,6 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+SCRIPTVERSION="0.1"
 clear
 
 
@@ -78,6 +79,28 @@ fi
 
 }
 
+########################################
+#Check for script updates              #
+########################################
+checkforUpdate(){
+
+
+for i in $MODULES
+do
+   perl -e "use $i" &>/dev/null  && continue  || { echo "$i PERL module not found."; BINARIESCHECK="FAIL"; }
+done
+
+if [[ $BINARIESCHECK == "FAIL" ]] ; then
+   echo ""
+   echo "Some PERL modules are missing therfore this script cannot be run. Please install the aforementioned"
+   echo "modules and then run this script again."
+   echo ""
+   echo ""
+   exit 1
+fi
+
+}
+
 
 
 ########################################
@@ -95,6 +118,11 @@ for arg in "$@"
 do
 ARGS="$ARGS $arg"
 done
+
+if [ -f "shellScriptIncludes.inc" ];
+then
+source shellScriptIncludes.inc
+fi
 
 checkForRootAccess
 checkRequiredBinaries

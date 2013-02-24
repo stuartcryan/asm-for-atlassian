@@ -1,0 +1,10 @@
+#    This file is automagically downloaded each time the script starts.
+#    It contains the latest version information for the ASM script
+#
+#    Copyright 2012-2013 Stuart Ryan
+
+LATESTAVAILABLEVER=0.2
+
+#downloadURL in the format URL|destinationPath|lastUpdatedInVer
+downloadURL[0]=http://technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|./|0.2
+downloadURL[1]=http://technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|perl/|0.2
