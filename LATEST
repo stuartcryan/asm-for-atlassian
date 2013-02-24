@@ -6,5 +6,5 @@
 LATESTAVAILABLEVER=0.2
 
 #downloadURL in the format URL|destinationPath|lastUpdatedInVer
-downloadURL[0]=http://technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|./|0.2
-downloadURL[1]=http://technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|perl/|0.2
+downloadURL[0]="http://technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|./|0.2"
+downloadURL[1]="http://technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|perl/|0.2"

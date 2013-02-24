@@ -30,6 +30,7 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 SCRIPTVERSION="0.1"
+LATESTDOWNLOADURL=http://technicalnotebook.com/asmGitPublicRepo/LATEST
 clear
 
 
@@ -101,6 +102,30 @@ fi
 
 }
 
+########################################
+#Download new copy of LATEST file      #
+########################################
+downloadLatestFile(){
+	mv LATEST .LATEST.OLD
+
+	if ! wget --quiet $LATESTDOWNLOADURL ; then
+    	mv .LATEST.OLD LATEST
+	fi
+}
+
+########################################
+#Process the LATEST file for updates   #
+########################################
+processLatestVersionFile(){
+	source LATEST
+	echo ${downloadURL[0]}
+	#if [[ $test =~ ^test[A-Za-z0-9]+\.([0-9]+)\.out$ ]]; then
+    #  echo ${BASH_REMATCH[1]}
+    #fi
+}
+
+
+
 
 
 ########################################
@@ -114,18 +139,27 @@ if [[ $EUID -ne 0 ]]; then
 fi
 }
 
-for arg in "$@"
-do
-ARGS="$ARGS $arg"
-done
-
-if [ -f "shellScriptIncludes.inc" ];
-then
-source shellScriptIncludes.inc
-fi
+#for arg in "$@"
+#do
+#ARGS="$ARGS $arg"
+#done
 
 checkForRootAccess
 checkRequiredBinaries
+
+#import custom includes if the file exists
+if [ -f "shellScriptIncludes.inc" ]; then
+	source shellScriptIncludes.inc
+	if [ ! -z "$VAR" ]; then
+	echo "test"
+	fi
+fi
+
+echo "Please wait, checking for updates..."
+
+downloadLatestFile
+processLatestVersionFile
+
 checkPerlModules
 perl perl/AtlassianSuiteManager.pl $ARGS
 
