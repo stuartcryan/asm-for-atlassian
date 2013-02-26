@@ -310,9 +310,10 @@ else
 	if test `find "LATEST" -mmin +1440`; then
     echo "Please wait, checking for updates..."
     downloadLatestFile
-	processLatestVersionFile
 	fi
 fi
+
+processLatestVersionFile
 
 checkPerlModules
 cd $INSTALLDIR
