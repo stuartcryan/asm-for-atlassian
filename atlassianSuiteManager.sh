@@ -114,6 +114,9 @@ downloadLatestFile(){
 	fi
 }
 
+########################################
+#Compare two versions to find newer    #
+########################################
 compareTwoVersions(){
 	
     #setUpCurrentVersion
@@ -282,15 +285,11 @@ if [[ $EUID -ne 0 ]]; then
 fi
 }
 
-#for arg in "$@"
-#do
-#ARGS="$ARGS $arg"
-#done
-
+#Do initial checks
 checkForRootAccess
 checkRequiredBinaries
 
-#import custom includes if the file exists
+#Import custom includes if the file exists
 if [ -f "shellScriptIncludes.inc" ]; then
 	source shellScriptIncludes.inc
 	if [ ! -z "$VAR" ]; then
@@ -298,6 +297,7 @@ if [ -f "shellScriptIncludes.inc" ]; then
 	fi
 fi
 
+#Display nice header
 	cat <<-____HERE
       Welcome to the Atlassian Suite Manager Script
 
@@ -313,20 +313,24 @@ fi
     
 	____HERE
 
-#If we don't have a LATEST file get one.
+#If we don't have a LATEST update file get one.
 if [ ! -f "LATEST" ]; then
 	downloadLatestFile
 	processLatestVersionFile
 else
-	#only check for updates if we havent in the last 24 hours.
+	#Only download a new file if we haven't in the last 24 hours.
 	if test `find "LATEST" -mmin +1440`; then
     downloadLatestFile
 	fi
 fi
 
+#process the update file each time the script runs (hint hint... you should be upgrading)
 processLatestVersionFile
 
+#check for the required perl modules
 checkPerlModules
+
+#run the perl script
 cd $INSTALLDIR
 perl perl/AtlassianSuiteManager.pl $ARGS
 
