@@ -7405,6 +7405,8 @@ sub generateBambooConfig {
 		"bamboo.processSearchParameter2",
 		"com.atlassian.bamboo.server.Server"
 	);
+
+	$cfg->param( "bamboo.enable", "TRUE" );
 }
 
 ########################################
@@ -8245,6 +8247,8 @@ sub generateConfluenceConfig {
 	$cfg->param( "confluence.processSearchParameter2",
 		"classpath " . $cfg->param("confluence.installDir") );
 
+	$cfg->param( "confluence.enable", "TRUE" );
+
 }
 
 ########################################
@@ -8896,6 +8900,8 @@ sub generateCrowdConfig {
 		    "Dcatalina.base="
 		  . $cfg->param("crowd.installDir")
 		  . $cfg->param("crowd.tomcatDir") );
+
+	$cfg->param( "crowd.enable", "TRUE" );
 }
 
 ########################################
@@ -9685,6 +9691,8 @@ sub generateFisheyeConfig {
 	$cfg->param( "fisheye.processSearchParameter1", "java" );
 	$cfg->param( "fisheye.processSearchParameter2",
 		"Dfisheye.inst=" . $cfg->param("fisheye.dataDir") );
+
+	$cfg->param( "fisheye.enable", "TRUE" );
 }
 
 ########################################
@@ -10442,6 +10450,8 @@ sub generateJiraConfig {
 	$cfg->param( "jira.processSearchParameter1", "java" );
 	$cfg->param( "jira.processSearchParameter2",
 		"classpath " . $cfg->param("jira.installDir") );
+
+	$cfg->param( "jira.enable", "TRUE" );
 }
 
 ########################################
@@ -11114,6 +11124,8 @@ sub generateStashConfig {
 	$cfg->param( "stash.processSearchParameter1", "java" );
 	$cfg->param( "stash.processSearchParameter2",
 		"classpath " . $cfg->param("stash.installDir") );
+
+	$cfg->param( "stash.enable", "TRUE" );
 }
 
 ########################################
