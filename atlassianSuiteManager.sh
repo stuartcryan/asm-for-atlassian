@@ -252,9 +252,10 @@ processLatestVersionFile(){
     				LASTUPDATEDINVER=${BASH_REMATCH[4]}
     			fi
     			#Possibly for future, look at updating only files that are required in a future release
+				echo $INSTALLDIR$DIRECTORYLOCATION
 				cd $INSTALLDIR$DIRECTORYLOCATION
 				mv $FILENAME .$FILENAME.OLD
-				if ! wget --quiet $LATESTDOWNLOADURL ; then
+				if ! wget --quiet $BASEURL/$FILENAME ; then
     				mv .$FILENAME.OLD $FILENAME
     				echo "Unable to update $FILENAME please try again later. The script will continue with the existing version."
 				fi
