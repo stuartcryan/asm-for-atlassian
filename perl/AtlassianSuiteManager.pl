@@ -5,7 +5,7 @@
 #
 #    Application Name: AtlassianSuiteManager
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Scripts+Home
-#    Version: 0.1
+#    Version: 0.2
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #

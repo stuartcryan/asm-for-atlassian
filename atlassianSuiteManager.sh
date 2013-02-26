@@ -246,7 +246,6 @@ processLatestVersionFile(){
 		if [[("$USERWANTSUPDATE" == "TRUE")]]; then
 			for i in "${downloadURL[@]}"
 			do
-			#only continue testing if we haven't ascertained that we DO need to update.
 				if [[ $i =~ ^(.*)\/(.*)\|(.*)\|(.*)$ ]]; then
     				BASEURL=${BASH_REMATCH[1]}
     				FILENAME=${BASH_REMATCH[2]}
@@ -254,17 +253,20 @@ processLatestVersionFile(){
     				LASTUPDATEDINVER=${BASH_REMATCH[4]}
     			fi
     			#Possibly for future, look at updating only files that are required in a future release
-				echo $INSTALLDIR$DIRECTORYLOCATION
+				echo "Downloading the latest version of $FILENAME. Please Wait..."
 				cd $INSTALLDIR$DIRECTORYLOCATION
 				mv $FILENAME .$FILENAME.OLD
 				if ! wget --quiet $BASEURL/$FILENAME ; then
     				mv .$FILENAME.OLD $FILENAME
-    				echo "Unable to update $FILENAME please try again later. The script will continue with the existing version."
+    				echo "Unable to update $FILENAME please try again later. The script will continue using the existing version."
 				fi
+				echo "Updated $FILENAME successfully"
+				echo ""
+				echo ""
 			done
 			
 			chmod a+x $INSTALLDIR/atlassianSuiteManager.sh
-			echo "The script has been updated and will now terminate, please run ASM again to use the new version."
+			echo "ASM has been updated and will now terminate, please run ASM again to use the new version."
 			exit 0
 		fi
 	fi
