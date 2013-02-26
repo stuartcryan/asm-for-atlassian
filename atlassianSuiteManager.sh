@@ -40,6 +40,7 @@ clear
 checkRequiredBinaries(){
 BINARIES="wget zip unzip tar perl"
 BINARIESCHECK=""
+INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 for i in $BINARIES
 do
@@ -106,6 +107,7 @@ fi
 #Download new copy of LATEST file      #
 ########################################
 downloadLatestFile(){
+	cd $INSTALLDIR
 	mv LATEST .LATEST.OLD > /dev/null 2&>1
 
 	if ! wget --quiet $LATESTDOWNLOADURL ; then
@@ -113,37 +115,157 @@ downloadLatestFile(){
 	fi
 }
 
+compareTwoVersions(){
+	
+    #setUpCurrentVersion
+    if [[ $1 =~ ^([0-9]*)\.([0-9]*)\.?([0-9]*?)$ ]]; then
+   		CURRMAJORVERSION=${BASH_REMATCH[1]}
+   		CURRMIDVERSION=${BASH_REMATCH[2]}
+   		CURRMINORVERSION=${BASH_REMATCH[3]}
+    fi
+	#setUpNewVersion
+    if [[ $2 =~ ^([0-9]*)\.([0-9]*)\.?([0-9]*?)$ ]]; then
+   		NEWMAJORVERSION=${BASH_REMATCH[1]}
+  		NEWMIDVERSION=${BASH_REMATCH[2]}
+   		NEWMINORVERSION=${BASH_REMATCH[3]}
+   	fi
+	
+    if [[("$CURRMAJORVERSION" -lt "$NEWMAJORVERSION")]]; then
+   		MAJORVERSIONSTATUS="LESS"	
+   	elif [[("$CURRMAJORVERSION" -eq "$NEWMAJORVERSION")]]; then
+   		MAJORVERSIONSTATUS="EQUAL"
+    elif [[("$CURRMAJORVERSION" -gt "$NEWMAJORVERSION")]]; then
+    	MAJORVERSIONSTATUS="GREATER"
+    fi
+    
+   	if [[("$CURRMIDVERSION" -lt "$NEWMIDVERSION")]]; then
+   	 	MIDVERSIONSTATUS="LESS"	
+    elif [[("$CURRMIDVERSION" -eq "$NEWMIDVERSION")]]; then
+    	MIDVERSIONSTATUS="EQUAL"
+    elif [[("$CURRMIDVERSION" -gt "$NEWMIDVERSION")]]; then
+    	MIDVERSIONSTATUS="GREATER"
+    fi
+    	
+    if [[(-z "$CURRMINORVERSION" && -z "$NEWMINORVERSION")]]; then
+    	if [[("$CURRMINORVERSION" -lt "$NEWMINORVERSION")]]; then
+   	 		MINORVERSIONSTATUS="LESS"	
+    	elif [[("$CURRMIDVERSION" -eq "$NEWMIDVERSION")]]; then
+    		MINORVERSIONSTATUS="EQUAL"
+    	elif [[("$CURRMIDVERSION" -gt "$NEWMIDVERSION")]]; then
+    		MINORVERSIONSTATUS="GREATER"
+    	fi
+	fi
+    	
+    if [[( -z "$CURRMINORVERSION" && (! -z "$NEWMINORVERSION"))]]; then
+    	MINORVERSIONSTATUS="NEWERNULL"
+	elif [[( (! -z "$CURRMINORVERSION") && -z "$NEWMINORVERSION")]]; then
+		MINORVERSIONSTATUS="CURRENTNULL"
+	elif [[( (! -z "$CURRMINORVERSION") && ( ! -z "$NEWMINORVERSION"))]]; then
+		MINORVERSIONSTATUS="BOTHNULL"
+	fi
+		
+	if [[("$MAJORVERSIONSTATUS" == "LESS")]]; then
+		VERSIONCOMPARISON="LESS"
+	elif [[("$MAJORVERSIONSTATUS" == "GREATER")]]; then
+		VERSIONCOMPARISON="GREATER"
+	elif [[("$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "LESS")]]; then
+		VERSIONCOMPARISON="LESS"
+	elif [[("$MAJORVERSIONTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "GREATER")]]; then
+		VERSIONCOMPARISON="GREATER"
+	elif [[( (! -z "$CURRMINORVERSION" ) && (! -z "$NEWMINORVERSION"))]]; then
+		VERSIONCOMPARISON="EQUAL"
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "LESS")]]; then
+		VERSIONCOMPARISON="LESS"
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "GREATER")]]; then
+		VERSIONCOMPARISON="GREATER"
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "EQUAL")]]; then
+		VERSIONCOMPARISON="EQUAL"
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "NEWERNULL")]]; then
+		VERSIONCOMPARISON="GREATER"
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "CURRENTNULL")]]; then
+		VERSIONCOMPARISON="LESS"
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "BOTHNULL")]]; then
+		VERSIONCOMPARISON="EQUAL"
+	fi	
+}
+
 ########################################
 #Process the LATEST file for updates   #
 ########################################
 processLatestVersionFile(){
 	source LATEST
-	echo ${#downloadURL[@]} 
-    	
-    if [[ $SCRIPTVERSION =~ ^([0-9]*)\.([0-9]*)\.?([0-9]*?)$ ]]; then
-   		CURRMAJORVERSION = ${BASH_REMATCH[1]}
-   		CURRMIDVERSION   = ${BASH_REMATCH[2]}
-   		CURRMINORVERSION = ${BASH_REMATCH[3]}
-    	fi
+	#assume no update is needed until we know better 
+	ISUPDATENEEDED="FALSE"
 	
 	for i in "${downloadURL[@]}"
 	do
-		if [[ $i =~ ^(.*)\/(.*)\|(.*)\|(.*)$ ]]; then
-    	BASEURL = ${BASH_REMATCH[1]}
-    	FILENAME = ${BASH_REMATCH[2]}
-    	DIRECTORYLOCATION = ${BASH_REMATCH[3]}
-    	LASTUPDATEDINVER = ${BASH_REMATCH[4]}
+		#only continue testing if we haven't ascertained that we DO need to update.
+		if [[( "$ISUPDATENEEDED" == "FALSE" )]]; then
+			if [[ $i =~ ^(.*)\/(.*)\|(.*)\|(.*)$ ]]; then
+    			BASEURL=${BASH_REMATCH[1]}
+    			FILENAME=${BASH_REMATCH[2]}
+    			DIRECTORYLOCATION=${BASH_REMATCH[3]}
+    			LASTUPDATEDINVER=${BASH_REMATCH[4]}
+    		fi
+    		#Null out VERSIONCOMPARISON
+    		VERSIONCOMPARISON=""
+    		compareTwoVersions $SCRIPTVERSION $LASTUPDATEDINVER
     	
-    	if [[ $LASTUPDATEDINVER =~ ^([0-9]*)\.([0-9]*)\.?([0-9]*?)$ ]]; then
-    		NEWMAJORVERSION = ${BASH_REMATCH[1]}
-    		NEWMIDVERSION   = ${BASH_REMATCH[2]}
-    		NEWMINORVERSION = ${BASH_REMATCH[3]}
-    	fi
-    	
-		
-    	fi
+    		if [[("$VERSIONCOMPARISON" == "LESS")]]; then
+    				ISUPDATENEEDED="TRUE"
+			elif [[("$VERSIONCOMPARISON" == "EQUAL")]]; then
+					ISUPDATENEEDED="FALSE"
+			elif [[("$VERSIONCOMPARISON" == "GREATER")]]; then
+					ISUPDATENEEDED="FALSE"
+			fi
+		fi
 	done
+	
+	if [[("$ISUPDATENEEDED" == "TRUE")]]; then
+		LOOP="1"
+		echo "An update to the script is available, it is STRONGLY recommended that you update prior to using ASM."
+		echo "Would you like to update the script now? yes/no [yes]:"
+		
+		while [ $LOOP -eq "1" ]
+		do
+			read USERWANTSUPDATE
+			if [[("${USERWANTSUPDATE,,}" == "y" || "${USERWANTSUPDATE,,}" == "yes")]]; then
+				USERWANTSUPDATE="TRUE"
+				LOOP="0"
+			elif [[("${USERWANTSUPDATE,,}" == "n" || "${USERWANTSUPDATE,,}" == "no")]]; then
+				USERWANTSUPDATE="FALSE"
+				LOOP="0"
+			else
+				echo ""
+				echo "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to update the script now? yes/no [yes]:" 
+			fi
+		done
+		
+		if [[("$USERWANTSUPDATE" == "TRUE")]]; then
+			for i in "${downloadURL[@]}"
+			do
+			#only continue testing if we haven't ascertained that we DO need to update.
+				if [[ $i =~ ^(.*)\/(.*)\|(.*)\|(.*)$ ]]; then
+    				BASEURL=${BASH_REMATCH[1]}
+    				FILENAME=${BASH_REMATCH[2]}
+    				DIRECTORYLOCATION=${BASH_REMATCH[3]}
+    				LASTUPDATEDINVER=${BASH_REMATCH[4]}
+    			fi
+    			#Possibly for future, look at updating only files that are required in a future release
+				cd $INSTALLDIR$DIRECTORYLOCATION
+				mv $FILENAME .$FILENAME.OLD
+				if ! wget --quiet $LATESTDOWNLOADURL ; then
+    				mv .$FILENAME.OLD $FILENAME
+    				echo "Unable to update $FILENAME please try again later. The script will continue with the existing version."
+				fi
+			done
+			
+			echo "The script has been updated and will now terminate, please run ASM again to use the new version."
+			exit 0
+		fi
+	fi
 }
+
 
 ########################################
 #Test for script running as root       #
@@ -187,6 +309,7 @@ else
 fi
 
 checkPerlModules
+cd $INSTALLDIR
 perl perl/AtlassianSuiteManager.pl $ARGS
 
 exit 0
