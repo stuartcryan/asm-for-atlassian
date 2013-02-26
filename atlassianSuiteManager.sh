@@ -32,6 +32,9 @@
 SCRIPTVERSION="0.1"
 LATESTDOWNLOADURL=http://technicalnotebook.com/asmGitPublicRepo/LATEST
 clear
+INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+
+echo $INSTALLDIR
 
 
 ########################################
@@ -40,7 +43,6 @@ clear
 checkRequiredBinaries(){
 BINARIES="wget zip unzip tar perl"
 BINARIESCHECK=""
-INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
 for i in $BINARIES
 do
@@ -261,6 +263,7 @@ processLatestVersionFile(){
 				fi
 			done
 			
+			chmod a+x $INSTALLDIR/atlassianSuiteManager.sh
 			echo "The script has been updated and will now terminate, please run ASM again to use the new version."
 			exit 0
 		fi
