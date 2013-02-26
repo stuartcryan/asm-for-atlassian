@@ -4,7 +4,7 @@
 #    Copyright 2012-2013 Stuart Ryan
 #
 #    Application Name: AtlassianSuiteManager
-#    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Scripts+Home
+#    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Script+Home
 #    Version: 0.1
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
@@ -33,9 +33,6 @@ SCRIPTVERSION="0.1"
 LATESTDOWNLOADURL=http://technicalnotebook.com/asmGitPublicRepo/LATEST
 clear
 INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-
-echo $INSTALLDIR
-
 
 ########################################
 #Test system for required Binaries     #
@@ -225,8 +222,9 @@ processLatestVersionFile(){
 	
 	if [[("$ISUPDATENEEDED" == "TRUE")]]; then
 		LOOP="1"
+	
 		echo "An update to the script is available, it is STRONGLY recommended that you update prior to using ASM."
-		echo "Would you like to update the script now? yes/no [yes]:"
+		echo -n "Would you like to update the script now? yes/no [yes]:"
 		
 		while [ $LOOP -eq "1" ]
 		do
@@ -300,15 +298,28 @@ if [ -f "shellScriptIncludes.inc" ]; then
 	fi
 fi
 
+	cat <<-____HERE
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ****************************************
+      * Checking for updates please wait...  *
+      ****************************************
+    
+	____HERE
+
 #If we don't have a LATEST file get one.
 if [ ! -f "LATEST" ]; then
-	echo "Please wait, checking for updates..."
 	downloadLatestFile
 	processLatestVersionFile
 else
 	#only check for updates if we havent in the last 24 hours.
 	if test `find "LATEST" -mmin +1440`; then
-    echo "Please wait, checking for updates..."
     downloadLatestFile
 	fi
 fi

@@ -4,8 +4,8 @@
 #    Copyright 2012-2013 Stuart Ryan
 #
 #    Application Name: AtlassianSuiteManager
-#    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Scripts+Home
-#    Version: 0.2
+#    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Script+Home
+#    Version: 0.1
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
