@@ -143,20 +143,29 @@ sub backupApplication {
 
 	#Check that we have enough disk space
 	$installDirSize =
-	  dirSize( $globalConfig->param("$lcApplication.installDir") );
-	$dataDirSize = dirSize( $globalConfig->param("$lcApplication.dataDir") );
+	  dirSize(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirSize =
+	  dirSize(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
 	$installDirRef =
-	  dfportable( $globalConfig->param("$lcApplication.installDir") );
-	$dataDirRef = dfportable( $globalConfig->param("$lcApplication.dataDir") );
+	  dfportable(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirRef =
+	  dfportable(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
 	$installDriveFreeSpace = $installDirRef->{bfree};
 	$dataDriveFreeSpace    = $dataDirRef->{bfree};
 
 #check if the free space, minus install dir size minus a 500MB buffer is less than zero
 	if ( $installDriveFreeSpace - $installDirSize - 524288000 < 0 ) {
-		$log->logdie( "There is not enough space on the drive containing "
-			  . $globalConfig->param("$lcApplication.installDir")
+		$log->logdie(
+			"There is not enough space on the drive containing "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
 			  . " to create a backup of the install directory for $application. Please free up space and then try again."
 		);
 	}
@@ -166,21 +175,26 @@ sub backupApplication {
 	if ( $dataDriveFreeSpace - $installDirSize - $dataDirSize - 524288000 < 0 )
 	{
 		$log->logdie( "There is not enough space on the drive containing "
-			  . $globalConfig->param("$lcApplication.dataDir")
+			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
 			  . " to create a backup of the data directory for $application. Please free up space and then try again."
 		);
 	}
 
 	$applicationDirBackupDirName =
-	  $globalConfig->param("$lcApplication.installDir") . "_backup_" . $date;
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "_backup_"
+	  . $date;
 	$dataDirBackupDirName =
-	  $globalConfig->param("$lcApplication.dataDir") . "_backup_" . $date;
+	    escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+	  . "_backup_"
+	  . $date;
 	$log->info(
 "$subname: Backing up the $application application directory to $applicationDirBackupDirName"
 	);
 
 	print "Backing up $application installation directory...\n\n";
-	copyDirectory( $globalConfig->param("$lcApplication.installDir"),
+	copyDirectory(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$applicationDirBackupDirName );
 	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation",
 		$applicationDirBackupDirName );
@@ -189,7 +203,8 @@ sub backupApplication {
 "$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
 
 	print "Backing up $application data directory...\n\n";
-	copyDirectory( $globalConfig->param("$lcApplication.dataDir"),
+	copyDirectory(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		$dataDirBackupDirName );
 	$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
 		$dataDirBackupDirName );
@@ -968,10 +983,12 @@ sub downloadAtlassianInstaller {
 
 	#Check that the install/download directory exists, if not create it
 	print "Checking that root install dir exists...\n\n";
-	createDirectory( $globalConfig->param("general.rootInstallDir") );
+	createDirectory(
+		escapeFilePath( $globalConfig->param("general.rootInstallDir") ) );
 
 	$absoluteFilePath =
-	  $globalConfig->param("general.rootInstallDir") . "/" . $bits[ @bits - 1 ];
+	  escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
+	  . $bits[ @bits - 1 ];
 	dumpSingleVarToLog( "$subname" . "_absoluteFilePath", $absoluteFilePath );
 
 #Check if local file already exists and if it does, provide the option to skip downloading
@@ -991,7 +1008,8 @@ sub downloadAtlassianInstaller {
 "$subname: User opted to skip redownloading the installer file for $application."
 			);
 			$downloadDetails[2] =
-			    $globalConfig->param("general.rootInstallDir") . "/"
+			    escapeFilePath( $globalConfig->param("general.rootInstallDir") )
+			  . "/"
 			  . $bits[ @bits - 1 ];
 			return @downloadDetails;
 		}
@@ -1001,7 +1019,7 @@ sub downloadAtlassianInstaller {
 	#Download the file and store the HTTP response code
 	print "Downloading file from Atlassian...\n\n";
 	$downloadResponseCode = getstore( $downloadDetails[0],
-		    $globalConfig->param("general.rootInstallDir") . "/"
+		escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
 		  . $bits[ @bits - 1 ] )
 	  or $log->logdie(
 		"Fatal error while attempting to download $downloadDetails[0]: $?");
@@ -1016,7 +1034,7 @@ sub downloadAtlassianInstaller {
 		print "\n";
 		print "Download completed successfully.\n\n";
 		$downloadDetails[2] =
-		    $globalConfig->param("general.rootInstallDir") . "/"
+		  escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
 		  . $bits[ @bits - 1 ];
 		return @downloadDetails;
 	}
@@ -1273,7 +1291,8 @@ sub downloadLatestAtlassianSuite {
 		$ua->show_progress(1);
 
 		$downloadResponseCode = getstore( $downloadDetails[0],
-			    $globalConfig->param("general.rootInstallDir") . "/"
+			    escapeFilePath( $globalConfig->param("general.rootInstallDir") )
+			  . "/"
 			  . $bits[ @bits - 1 ] )
 		  or $log->logdie(
 			"Fatal error while attempting to download $downloadDetails[0]: $?"
@@ -1325,6 +1344,18 @@ sub dumpVarsToLog {
 }
 
 ########################################
+#Escape Filepath                       #
+########################################
+sub escapeFilePath {
+	my $pathIn;
+
+	$pathIn = $_[0];
+	$pathIn =~ s/[ ]/\\$&/g;
+
+	return $pathIn;
+}
+
+########################################
 #extractAndMoveDownload                #
 ########################################
 sub extractAndMoveDownload {
@@ -1358,7 +1389,8 @@ sub extractAndMoveDownload {
 	print "Preparing to extract $inputFile...\n\n";
 
 	#Make sure directory exists
-	createDirectory( $globalConfig->param("general.rootInstallDir") );
+	createDirectory(
+		escapeFilePath( $globalConfig->param("general.rootInstallDir") ) );
 
 	#Make sure file exists
 	if ( !-e $inputFile ) {
@@ -1374,7 +1406,9 @@ sub extractAndMoveDownload {
 	$log->info("$subname: Extracting $inputFile");
 
 	#Extract
-	$ae->extract( to => $globalConfig->param("general.rootInstallDir") );
+	$ae->extract(
+		to => escapeFilePath( $globalConfig->param("general.rootInstallDir") )
+	);
 	if ( $ae->error ) {
 		$log->logdie(
 "Unable to extract $inputFile. The following error was encountered: $ae->error\n\n"
@@ -1590,7 +1624,8 @@ sub generateGenericKickstart {
 		print FH 'rmiPort$Long='
 		  . $globalConfig->param( $lcApplication . ".serverPort" ) . "\n";
 		print FH "app.confHome="
-		  . $globalConfig->param( $lcApplication . ".dataDir" ) . "\n";
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  . "\n";
 	}
 	if ( $globalConfig->param( $lcApplication . ".runAsService" ) eq "TRUE" ) {
 		print FH 'app.install.service$Boolean=true' . "\n";
@@ -1599,7 +1634,8 @@ sub generateGenericKickstart {
 		print FH 'app.install.service$Boolean=false' . "\n";
 	}
 	print FH "existingInstallationDir="
-	  . $globalConfig->param( $lcApplication . ".installDir" ) . "\n";
+	  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "\n";
 
 	if ( $mode eq "UPGRADE" ) {
 		print FH "sys.confirmedUpdateInstallationString=true" . "\n";
@@ -1610,7 +1646,8 @@ sub generateGenericKickstart {
 	print FH "sys.languageId=en" . "\n";
 	if ( $mode eq "INSTALL" ) {
 		print FH "sys.installationDir="
-		  . $globalConfig->param( $lcApplication . ".installDir" ) . "\n";
+		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "\n";
 	}
 	print FH 'executeLauncherAction$Boolean=false' . "\n";
 	if ( $mode eq "INSTALL" ) {
@@ -3265,7 +3302,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
 	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "" );
 
 	#Check if user wants to remove the downloaded archive
@@ -3295,12 +3332,18 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 		if ( $tomcatDir eq "" ) {
 			createAndChownDirectory(
-				$globalConfig->param("$lcApplication.installDir") . "/lib/",
-				$osUser );
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/",
+				$osUser
+			);
 		}
 		else {
 			createAndChownDirectory(
-				$globalConfig->param("$lcApplication.installDir")
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
 				  . $tomcatDir . "/lib/",
 				$osUser
 			);
@@ -3310,14 +3353,22 @@ is currently in use. We will continue however there is a good chance $applicatio
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		dumpSingleVarToLog( "$subname" . "_tomcatDir", $version );
 		if ( $tomcatDir eq "" ) {
-			copyFile( $globalConfig->param("general.dbJDBCJar"),
-				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
 		}
 		else {
-			copyFile( $globalConfig->param("general.dbJDBCJar"),
-				    $globalConfig->param("$lcApplication.installDir")
-				  . $tomcatDir
-				  . "/lib/" );
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir . "/lib/"
+			);
 		}
 
 		#Chown the files again
@@ -3326,18 +3377,26 @@ is currently in use. We will continue however there is a good chance $applicatio
 				  . $globalConfig->param( $lcApplication . ".installDir" )
 				  . "/lib/"
 				  . " to $osUser following MySQL JDBC install." );
-			chownRecursive( $osUser,
-				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
 		}
 		else {
 			$log->info( "$subname: Chowning "
 				  . $globalConfig->param( $lcApplication . ".installDir" )
 				  . $tomcatDir . "/lib/"
 				  . " to $osUser following MySQL JDBC install." );
-			chownRecursive( $osUser,
-				    $globalConfig->param("$lcApplication.installDir")
-				  . $tomcatDir
-				  . "/lib/" );
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir . "/lib/"
+			);
 		}
 	}
 
@@ -3347,7 +3406,8 @@ is currently in use. We will continue however there is a good chance $applicatio
 	);
 	print
 "Checking if data directory exists and creating if not, please wait...\n\n";
-	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
+	createAndChownDirectory(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		$osUser );
 
 	#GenericInstallCompleted
@@ -3393,7 +3453,7 @@ sub installGenericAtlassianBinary {
 
 	$lcApplication = lc($application);
 	$varfile =
-	    $globalConfig->param("general.rootInstallDir") . "/"
+	    escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
 	  . $lcApplication
 	  . "-install.varfile";
 	dumpSingleVarToLog( "$subname" . "_varfile", $varfile );
@@ -3518,20 +3578,27 @@ Therefore script is terminating, please ensure port configuration is correct and
 		"$subname: Generating kickstart file for $application at $varfile");
 	generateGenericKickstart( $varfile, "INSTALL", $application );
 
-	if ( -d $globalConfig->param( $lcApplication . ".installDir" ) ) {
-		$input =
-		  getBooleanInput( "The current installation directory ("
-			  . $globalConfig->param( $lcApplication . ".installDir" )
+	if (
+		-d escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) )
+	{
+		$input = getBooleanInput(
+			"The current installation directory ("
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
 			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
-		  );
+		);
 		print "\n";
 		if ( $input eq "default" || $input eq "yes" ) {
 			$log->info(
 "$subname: Current install directory for $application exists, user has selected to back this up."
 			);
 			backupDirectoryAndChown(
-				$globalConfig->param( $lcApplication . ".installDir" ),
-				"root" )
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				),
+				"root"
+			  )
 			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
 		}
 		else {
@@ -3541,10 +3608,10 @@ Therefore script is terminating, please ensure port configuration is correct and
 		}
 	}
 
-	if ( -d $globalConfig->param( $lcApplication . ".dataDir" ) ) {
+	if ( -d escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) ) {
 		$input =
 		  getBooleanInput( "The current installation directory ("
-			  . $globalConfig->param( $lcApplication . ".dataDir" )
+			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
 			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
 		  );
 		print "\n";
@@ -3553,13 +3620,19 @@ Therefore script is terminating, please ensure port configuration is correct and
 "$subname: Current data directory for $application exists, user has selected to back this up."
 			);
 			backupDirectoryAndChown(
-				$globalConfig->param( $lcApplication . ".dataDir" ), "root" )
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.dataDir")
+				),
+				"root"
+			  )
 			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
 		}
 		else {
 			$log->logdie(
 				"Cannot proceed installing $application if the data directory ("
-				  . $globalConfig->param( $lcApplication . ".dataDir" )
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.dataDir")
+				  )
 				  . ")already has data from a previous install, please remove this manually and try again.\n\n"
 			);
 		}
@@ -3632,7 +3705,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 
 	#Apply the JavaOpts configuration (if any)
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/setenv.sh",
 		"JAVA_OPTS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
@@ -3659,14 +3732,21 @@ Therefore script is terminating, please ensure port configuration is correct and
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/lib/" );
 
 		#Chown the files again
-		$log->info( "$subname: Chowning "
-			  . $globalConfig->param( $lcApplication . ".installDir" ) . "/lib/"
-			  . " to $osUser following MySQL JDBC install." );
+		$log->info(
+			"$subname: Chowning "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
+			  . "/lib/"
+			  . " to $osUser following MySQL JDBC install."
+		);
 		chownRecursive( $osUser,
-			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/lib/" );
 
 	}
 
@@ -3675,18 +3755,20 @@ Therefore script is terminating, please ensure port configuration is correct and
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 	backupFile(
-		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/server.xml",
 		$osUser
 	);
 
 	print "Applying the configured application context...\n\n";
 	$log->info( "$subname: Applying application context to "
-		  . $globalConfig->param("$lcApplication.installDir")
+		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/conf/server.xml" );
 
 	#Update the server config with the configured connector port
 	updateXMLAttribute(
-		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/server.xml",
 		"//////Context",
 		"path",
 		getConfigItem( "$lcApplication.appContext", $globalConfig )
@@ -4990,15 +5072,32 @@ sub uninstallGeneric {
 
 		#Remove install dir
 		print "Removing installation directory...\n\n";
-		$log->info( "$subname: Removing "
-			  . $globalConfig->param("$lcApplication.installDir") );
-		if ( -d $globalConfig->param("$lcApplication.installDir") ) {
-			rmtree( [ $globalConfig->param("$lcApplication.installDir") ] );
+		$log->info(
+			"$subname: Removing "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
+		);
+		if (
+			-d escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir") ) )
+		{
+			rmtree(
+				[
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+					)
+				]
+			);
 		}
 		else {
-			$log->warn( "$subname: Unable to remove "
-				  . $globalConfig->param("$lcApplication.installDir")
-				  . ". Directory does not exist." );
+			$log->warn(
+				"$subname: Unable to remove "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . ". Directory does not exist."
+			);
 			print
 "Could not find configured install directory... possibly not installed?\n\n";
 		}
@@ -5009,19 +5108,33 @@ sub uninstallGeneric {
 		);
 		print "\n";
 		if ( $input eq "yes" ) {
-			$log->info( "$subname: User selected to delete "
-				  . $globalConfig->param("$lcApplication.dataDir")
-				  . ". Deleting." );
-			rmtree( [ $globalConfig->param("$lcApplication.dataDir") ] );
+			$log->info(
+				"$subname: User selected to delete "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.dataDir")
+				  )
+				  . ". Deleting."
+			);
+			rmtree(
+				[
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.dataDir")
+					)
+				]
+			);
 		}
 		else {
 			$log->info(
 "$subname: User opted to keep the $application data directory at "
-				  . $globalConfig->param("$lcApplication.dataDir")
-				  . "." );
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.dataDir")
+				  )
+				  . "."
+			);
 			print
 "The data directory has not been deleted and is still available at "
-			  . $globalConfig->param("$lcApplication.dataDir") . ".\n\n";
+			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+			  . ".\n\n";
 		}
 
 		#Update config to null out the application config
@@ -5065,7 +5178,8 @@ sub uninstallGenericAtlassianBinary {
 	print "\n";
 	if ( $input eq "yes" ) {
 
-		system( $globalConfig->param("$lcApplication.installDir")
+		system(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/uninstall -q" );
 		if ( $? == -1 ) {
 			$log->logdie(
@@ -5079,12 +5193,19 @@ sub uninstallGenericAtlassianBinary {
 		);
 		print "\n";
 		if ( $input eq "yes" ) {
-			rmtree( [ $globalConfig->param("$lcApplication.dataDir") ] );
+			rmtree(
+				[
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.dataDir")
+					)
+				]
+			);
 		}
 		else {
 			print
 "The data directory has not been deleted and is still available at "
-			  . $globalConfig->param("$lcApplication.dataDir") . ".\n\n";
+			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+			  . ".\n\n";
 		}
 
 		#Update config to reflect that no version is installed
@@ -5379,7 +5500,7 @@ sub upgradeGeneric {
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
 	extractAndMoveDownload( $downloadDetails[2],
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "UPGRADE" );
 
 	#Check if user wants to remove the downloaded archive
@@ -5408,12 +5529,18 @@ sub upgradeGeneric {
 		);
 		if ( $tomcatDir eq "" ) {
 			createAndChownDirectory(
-				$globalConfig->param("$lcApplication.installDir") . "/lib/",
-				$osUser );
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/",
+				$osUser
+			);
 		}
 		else {
 			createAndChownDirectory(
-				$globalConfig->param("$lcApplication.installDir")
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
 				  . $tomcatDir . "/lib/",
 				$osUser
 			);
@@ -5422,34 +5549,58 @@ sub upgradeGeneric {
 		print
 "Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
 		if ( $tomcatDir eq "" ) {
-			copyFile( $globalConfig->param("general.dbJDBCJar"),
-				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
 		}
 		else {
-			copyFile( $globalConfig->param("general.dbJDBCJar"),
-				    $globalConfig->param("$lcApplication.installDir")
-				  . $tomcatDir
-				  . "/lib/" );
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir . "/lib/"
+			);
 		}
 
 		#Chown the files again
 		if ( $tomcatDir eq "" ) {
-			$log->info( "$subname: Chowning "
-				  . $globalConfig->param( $lcApplication . ".installDir" )
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
 				  . "/lib/"
-				  . " to $osUser following MySQL JDBC install." );
-			chownRecursive( $osUser,
-				$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+				  . " to $osUser following MySQL JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
 		}
 		else {
-			$log->info( "$subname: Chowning "
-				  . $globalConfig->param( $lcApplication . ".installDir" )
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
 				  . $tomcatDir . "/lib/"
-				  . " to $osUser following MySQL JDBC install." );
-			chownRecursive( $osUser,
-				    $globalConfig->param("$lcApplication.installDir")
-				  . $tomcatDir
-				  . "/lib/" );
+				  . " to $osUser following MySQL JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir . "/lib/"
+			);
 		}
 	}
 
@@ -5457,7 +5608,8 @@ sub upgradeGeneric {
 	$log->info(
 		"$subname: Checking for and chowning $application home directory.");
 	print "Checking if data directory exists and re-chowning it...\n\n";
-	createAndChownDirectory( $globalConfig->param("$lcApplication.dataDir"),
+	createAndChownDirectory(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		$osUser );
 
 	#GenericUpgradeCompleted
@@ -5503,7 +5655,7 @@ sub upgradeGenericAtlassianBinary {
 
 	$lcApplication = lc($application);
 	$varfile =
-	    $globalConfig->param("general.rootInstallDir") . "/"
+	    escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
 	  . $lcApplication
 	  . "-install.varfile";
 	dumpSingleVarToLog( "$subname" . "_varfile", $varfile );
@@ -5749,7 +5901,7 @@ sub upgradeGenericAtlassianBinary {
 
 	#Apply the JavaOpts configuration (if any)
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/setenv.sh",
 		"JAVA_OPTS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
@@ -5764,14 +5916,20 @@ sub upgradeGenericAtlassianBinary {
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
 		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			$globalConfig->param( $lcApplication . ".installDir" ) . "/lib/" );
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/lib/" );
 
 		#Chown the files again
-		$log->info( "$subname: Chowning "
-			  . $globalConfig->param( $lcApplication . ".installDir" )
-			  . "/lib/" );
+		$log->info(
+			"$subname: Chowning "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
+			  . "/lib/"
+		);
 		chownRecursive( $osUser,
-			$globalConfig->param("$lcApplication.installDir") . "/lib/" );
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/lib/" );
 	}
 
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -5780,18 +5938,20 @@ sub upgradeGenericAtlassianBinary {
 	$log->info("$subname: Backing up config files.");
 
 	backupFile(
-		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/server.xml",
 		$osUser
 	);
 
 	print "Applying the configured application context...\n\n";
 	$log->info( "$subname: Applying application context to "
-		  . $globalConfig->param("$lcApplication.installDir")
+		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/conf/server.xml" );
 
 	#Update the server config with the configured connector port
 	updateXMLAttribute(
-		$globalConfig->param("$lcApplication.installDir") . "/conf/server.xml",
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/server.xml",
 		"//////Context",
 		"path",
 		getConfigItem( "$lcApplication.appContext", $globalConfig )
@@ -6433,7 +6593,6 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			backupApplication("JIRA");
 			my $test = <STDIN>;
 		}
 	}
@@ -6958,21 +7117,21 @@ sub getExistingBambooConfig {
 			  . "leading '/' and NO trailing '/'.\n\n"
 		);
 
-		if ( -d $cfg->param("$lcApplication.installDir") ) {
+		if ( -d escapeFilePath( $cfg->param("$lcApplication.installDir") ) ) {
 			$LOOP = 1;    #break loop as directory exists
 			$log->info( "$subname: Directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " exists. Proceeding..." );
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " exists. Proceeding...\n\n";
 		}
 		else {
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " does not exist. Please try again.\n\n";
 			$log->info( "The directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " does not exist. Please try again." );
 		}
 	}
@@ -7000,7 +7159,8 @@ sub getExistingBambooConfig {
 	);
 
 	$serverConfigFile =
-	  $cfg->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/conf/wrapper.conf";
 
 	genBooleanConfigItem(
 		$mode,
@@ -7018,7 +7178,7 @@ sub getExistingBambooConfig {
 
 	#get data/home directory
 	$returnValue = getLineFromFile(
-		$cfg->param("$lcApplication.installDir")
+		escapeFilePath( $cfg->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
 		"bamboo.home=", ".*=(.*)"
 	);
@@ -7215,7 +7375,8 @@ sub getExistingBambooConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE,
+		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -7452,19 +7613,21 @@ sub installBamboo {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$serverConfigFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/wrapper.conf";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
 	backupFile( $serverConfigFile, $osUser );
 	backupFile(
-		$globalConfig->param("$lcApplication.installDir")
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
 		$osUser
 	);
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/wrapper.conf";
 	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
@@ -7488,14 +7651,15 @@ sub installBamboo {
 
 	#Edit Bamboo config file to reference homedir
 	$log->info( "$subname: Applying homedir in "
-		  . $globalConfig->param("$lcApplication.installDir")
+		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
-		$globalConfig->param("$lcApplication.installDir")
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
 		"bamboo.home",
-		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		"$lcApplication.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"#bamboo.home=C:/bamboo/bamboo-home"
 	);
 
@@ -7541,16 +7705,26 @@ sub installBamboo {
 	#Run any additional steps
 	if ( $globalArch eq "64" ) {
 		$WrapperDownloadFile = downloadFileAndChown(
-			$globalConfig->param("$lcApplication.installDir"),
-			$WrapperDownloadUrlFor64Bit, $osUser );
-
-		rmtree(
-			[ $globalConfig->param("$lcApplication.installDir") . "/wrapper" ]
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			$WrapperDownloadUrlFor64Bit, $osUser
 		);
 
-		extractAndMoveDownload( $WrapperDownloadFile,
-			$globalConfig->param("$lcApplication.installDir") . "/wrapper",
-			$osUser, "" );
+		rmtree(
+			[
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/wrapper"
+			]
+		);
+
+		extractAndMoveDownload(
+			$WrapperDownloadFile,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/wrapper",
+			$osUser,
+			""
+		);
 	}
 
 	#Generate the init.d file
@@ -7560,7 +7734,7 @@ sub installBamboo {
 
 	generateInitD(
 		$lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"bamboo.sh start",
 		"bamboo.sh stop"
 	);
@@ -7620,19 +7794,21 @@ sub upgradeBamboo {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$serverConfigFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/wrapper.conf";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
 	backupFile( $serverConfigFile, $osUser );
 	backupFile(
-		$globalConfig->param("$lcApplication.installDir")
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
 		$osUser
 	);
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/conf/wrapper.conf";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/wrapper.conf";
 	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
@@ -7656,14 +7832,15 @@ sub upgradeBamboo {
 
 	#Edit Bamboo config file to reference homedir
 	$log->info( "$subname: Applying homedir in "
-		  . $globalConfig->param("$lcApplication.installDir")
+		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
-		$globalConfig->param("$lcApplication.installDir")
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
 		"bamboo.home",
-		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		"$lcApplication.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"#bamboo.home=C:/bamboo/bamboo-home"
 	);
 
@@ -7709,16 +7886,26 @@ sub upgradeBamboo {
 	#Run any additional steps
 	if ( $globalArch eq "64" ) {
 		$WrapperDownloadFile = downloadFileAndChown(
-			$globalConfig->param("$lcApplication.installDir"),
-			$WrapperDownloadUrlFor64Bit, $osUser );
-
-		rmtree(
-			[ $globalConfig->param("$lcApplication.installDir") . "/wrapper" ]
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			$WrapperDownloadUrlFor64Bit, $osUser
 		);
 
-		extractAndMoveDownload( $WrapperDownloadFile,
-			$globalConfig->param("$lcApplication.installDir") . "/wrapper",
-			$osUser, "" );
+		rmtree(
+			[
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/wrapper"
+			]
+		);
+
+		extractAndMoveDownload(
+			$WrapperDownloadFile,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/wrapper",
+			$osUser,
+			""
+		);
 	}
 
 	#Generate the init.d file
@@ -7728,7 +7915,7 @@ sub upgradeBamboo {
 
 	generateInitD(
 		$lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"bamboo.sh start",
 		"bamboo.sh stop"
 	);
@@ -7780,21 +7967,21 @@ sub getExistingConfluenceConfig {
 			  . "leading '/' and NO trailing '/'.\n\n"
 		);
 
-		if ( -d $cfg->param("$lcApplication.installDir") ) {
+		if ( -d escapeFilePath( $cfg->param("$lcApplication.installDir") ) ) {
 			$LOOP = 1;    #break loop as directory exists
 			$log->info( "$subname: Directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " exists. Proceeding..." );
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " exists. Proceeding...\n\n";
 		}
 		else {
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " does not exist. Please try again.\n\n";
 			$log->info( "The directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " does not exist. Please try again." );
 		}
 	}
@@ -7822,10 +8009,12 @@ sub getExistingConfluenceConfig {
 	);
 
 	$serverSetEnvFile =
-	  $cfg->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 	$serverConfigFile =
-	  $cfg->param("$lcApplication.installDir") . "/conf/server.xml";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
 
 	genBooleanConfigItem(
 		$mode,
@@ -7843,7 +8032,7 @@ sub getExistingConfluenceConfig {
 
 	#get data/home directory
 	$returnValue = getLineFromFile(
-		$cfg->param("$lcApplication.installDir")
+		escapeFilePath( $cfg->param("$lcApplication.installDir") )
 		  . "/confluence/WEB-INF/classes/confluence-init.properties",
 		"confluence.home\\s?=", ".*=\\s?(.*)"
 	);
@@ -8291,7 +8480,8 @@ sub installConfluence {
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 	backupFile( $javaMemParameterFile, $osUser );
 
 	#Run any additional steps
@@ -8361,7 +8551,8 @@ sub upgradeConfluence {
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 	backupFile( $javaMemParameterFile, $osUser );
 
 	#Run any additional steps
@@ -8423,21 +8614,21 @@ sub getExistingCrowdConfig {
 			  . "leading '/' and NO trailing '/'.\n\n"
 		);
 
-		if ( -d $cfg->param("$lcApplication.installDir") ) {
+		if ( -d escapeFilePath( $cfg->param("$lcApplication.installDir") ) ) {
 			$LOOP = 1;    #break loop as directory exists
 			$log->info( "$subname: Directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " exists. Proceeding..." );
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " exists. Proceeding...\n\n";
 		}
 		else {
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " does not exist. Please try again.\n\n";
 			$log->info( "The directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " does not exist. Please try again." );
 		}
 	}
@@ -8465,9 +8656,11 @@ sub getExistingCrowdConfig {
 	);
 
 	$serverSetEnvFile =
-	  $cfg->param("$lcApplication.installDir") . "/apache-tomcat/bin/setenv.sh";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/apache-tomcat/bin/setenv.sh";
 
-	$serverConfigFile = $cfg->param("$lcApplication.installDir")
+	$serverConfigFile =
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
 	  . "/apache-tomcat/conf/server.xml";
 
 	genBooleanConfigItem(
@@ -8486,7 +8679,7 @@ sub getExistingCrowdConfig {
 
 	#get data/home directory
 	$returnValue = getLineFromFile(
-		$cfg->param("$lcApplication.installDir")
+		escapeFilePath( $cfg->param("$lcApplication.installDir") )
 		  . "/crowd-webapp/WEB-INF/classes/crowd-init.properties",
 		"crowd.home\\s?=", ".*=\\s?(.*)"
 	);
@@ -8713,7 +8906,8 @@ sub getExistingCrowdConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE,
+		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -8943,15 +9137,15 @@ sub installCrowd {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$serverXMLFile =
-	    $globalConfig->param("$lcApplication.installDir")
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/conf/server.xml";
 	$initPropertiesFile =
-	    $globalConfig->param("$lcApplication.installDir")
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . $globalConfig->param("$lcApplication.webappDir")
 	  . "/WEB-INF/classes/$lcApplication-init.properties";
 	$javaMemParameterFile =
-	    $globalConfig->param("$lcApplication.installDir")
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/bin/setenv.sh";
 
@@ -8990,14 +9184,15 @@ sub installCrowd {
 	updateLineInFile(
 		$initPropertiesFile,
 		"crowd.home",
-		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		"$lcApplication.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"#crowd.home=/var/crowd-home"
 	);
 
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . $globalConfig->param( $lcApplication . ".tomcatDir" )
 		  . "/bin/setenv.sh",
 		"JAVA_OPTS",
@@ -9026,7 +9221,7 @@ sub installCrowd {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"start_crowd.sh", "stop_crowd.sh" );
 
 	#Finally run generic post install tasks
@@ -9080,15 +9275,15 @@ sub upgradeCrowd {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$serverXMLFile =
-	    $globalConfig->param("$lcApplication.installDir")
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/conf/server.xml";
 	$initPropertiesFile =
-	    $globalConfig->param("$lcApplication.installDir")
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . $globalConfig->param("$lcApplication.webappDir")
 	  . "/WEB-INF/classes/$lcApplication-init.properties";
 	$javaMemParameterFile =
-	    $globalConfig->param("$lcApplication.installDir")
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . $globalConfig->param("$lcApplication.tomcatDir")
 	  . "/bin/setenv.sh";
 
@@ -9127,14 +9322,15 @@ sub upgradeCrowd {
 	updateLineInFile(
 		$initPropertiesFile,
 		"crowd.home",
-		"$lcApplication.home=" . $globalConfig->param("$lcApplication.dataDir"),
+		"$lcApplication.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"#crowd.home=/var/crowd-home"
 	);
 
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . $globalConfig->param( $lcApplication . ".tomcatDir" )
 		  . "/bin/setenv.sh",
 		"JAVA_OPTS",
@@ -9162,7 +9358,7 @@ sub upgradeCrowd {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"start_crowd.sh", "stop_crowd.sh" );
 
 	#Finally run generic post install tasks
@@ -9211,21 +9407,21 @@ sub getExistingFisheyeConfig {
 			  . "leading '/' and NO trailing '/'.\n\n"
 		);
 
-		if ( -d $cfg->param("$lcApplication.installDir") ) {
+		if ( -d escapeFilePath( $cfg->param("$lcApplication.installDir") ) ) {
 			$LOOP = 1;    #break loop as directory exists
 			$log->info( "$subname: Directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " exists. Proceeding..." );
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " exists. Proceeding...\n\n";
 		}
 		else {
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " does not exist. Please try again.\n\n";
 			$log->info( "The directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " does not exist. Please try again." );
 		}
 	}
@@ -9253,10 +9449,12 @@ sub getExistingFisheyeConfig {
 	);
 
 	$serverSetEnvFile =
-	  $cfg->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/bin/fisheyectl.sh";
 
 	$serverConfigFile =
-	  $cfg->param("$lcApplication.installDir") . "/config.xml";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/config.xml";
 
 	genBooleanConfigItem(
 		$mode,
@@ -9504,7 +9702,8 @@ sub getExistingFisheyeConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE,
+		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -9733,9 +9932,13 @@ sub installFisheye {
 	#Perform application specific configuration
 	print "Copying example config file, please wait...\n\n";
 	$serverXMLFile =
-	  $globalConfig->param("$lcApplication.dataDir") . "/config.xml";
-	copyFile( $globalConfig->param("$lcApplication.installDir") . "/config.xml",
-		$serverXMLFile );
+	  escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+	  . "/config.xml";
+	copyFile(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/config.xml",
+		$serverXMLFile
+	);
 	chownFile( $osUser, $serverXMLFile );
 
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -9744,7 +9947,8 @@ sub installFisheye {
 	$log->info("$subname: Backing up config files.");
 
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/fisheyectl.sh";
 	backupFile( $serverXMLFile,        $osUser );
 	backupFile( $javaMemParameterFile, $osUser );
 
@@ -9782,7 +9986,7 @@ sub installFisheye {
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/fisheyectl.sh",
 		"FISHEYE_OPTS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
@@ -9798,7 +10002,7 @@ sub installFisheye {
 	print
 	  "Inserting the FISHEYE_INST variable into '$environmentProfileFile'.\n\n";
 	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
-		$globalConfig->param("$lcApplication.dataDir") );
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
    #Also add to fisheyectl.sh as sometimes /etc/environment doesnt work reliably
 	$log->info(
@@ -9807,11 +10011,12 @@ sub installFisheye {
 	print
 	  "Inserting the FISHEYE_INST variable into '$javaMemParameterFile'.\n\n";
 	updateEnvironmentVars( $javaMemParameterFile, "FISHEYE_INST",
-		$globalConfig->param("$lcApplication.dataDir") );
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 	createOrUpdateLineInFile(
 		$javaMemParameterFile,
 		"export FISHEYE_INST=",
-		"export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"),
+		"export FISHEYE_INST="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"#!/bin/sh"
 	);
 
@@ -9820,9 +10025,14 @@ sub installFisheye {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir") . "/bin/",
-		"start.sh", "stop.sh" );
+	generateInitD(
+		$lcApplication,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/bin/",
+		"start.sh",
+		"stop.sh"
+	);
 
 	postInstallGeneric($application);
 }
@@ -9873,7 +10083,8 @@ sub upgradeFisheye {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/fisheyectl.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/fisheyectl.sh";
 
 	#backupFilesFirst
 	backupFile( $javaMemParameterFile, $osUser );
@@ -9894,7 +10105,7 @@ sub upgradeFisheye {
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/fisheyectl.sh",
 		"FISHEYE_OPTS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
@@ -9910,7 +10121,7 @@ sub upgradeFisheye {
 	print
 	  "Updating the FISHEYE_INST variable in '$environmentProfileFile'.\n\n";
 	updateEnvironmentVars( $environmentProfileFile, "FISHEYE_INST",
-		$globalConfig->param("$lcApplication.dataDir") );
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
    #Also add to fisheyectl.sh as sometimes /etc/environment doesnt work reliably
 	$log->info(
@@ -9919,11 +10130,12 @@ sub upgradeFisheye {
 	print
 	  "Inserting the FISHEYE_INST variable into '$javaMemParameterFile'.\n\n";
 	updateEnvironmentVars( $javaMemParameterFile, "FISHEYE_INST",
-		$globalConfig->param("$lcApplication.dataDir") );
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 	createOrUpdateLineInFile(
 		$javaMemParameterFile,
 		"export FISHEYE_INST=",
-		"export FISHEYE_INST=" . $globalConfig->param("$lcApplication.dataDir"),
+		"export FISHEYE_INST="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"#!/bin/sh"
 	);
 
@@ -9931,9 +10143,14 @@ sub upgradeFisheye {
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
-	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir") . "/bin/",
-		"start.sh", "stop.sh" );
+	generateInitD(
+		$lcApplication,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/bin/",
+		"start.sh",
+		"stop.sh"
+	);
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
@@ -9981,21 +10198,21 @@ sub getExistingJiraConfig {
 			  . "leading '/' and NO trailing '/'.\n\n"
 		);
 
-		if ( -d $cfg->param("$lcApplication.installDir") ) {
+		if ( -d escapeFilePath( $cfg->param("$lcApplication.installDir") ) ) {
 			$LOOP = 1;    #break loop as directory exists
 			$log->info( "$subname: Directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " exists. Proceeding..." );
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " exists. Proceeding...\n\n";
 		}
 		else {
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " does not exist. Please try again.\n\n";
 			$log->info( "The directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " does not exist. Please try again." );
 		}
 	}
@@ -10023,10 +10240,12 @@ sub getExistingJiraConfig {
 	);
 
 	$serverSetEnvFile =
-	  $cfg->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 	$serverConfigFile =
-	  $cfg->param("$lcApplication.installDir") . "/conf/server.xml";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
 
 	genBooleanConfigItem(
 		$mode,
@@ -10044,7 +10263,7 @@ sub getExistingJiraConfig {
 
 	#get data/home directory
 	$returnValue = getLineFromFile(
-		$cfg->param("$lcApplication.installDir")
+		escapeFilePath( $cfg->param("$lcApplication.installDir") )
 		  . "/atlassian-jira/WEB-INF/classes/jira-application.properties",
 		"jira.home\\s?=", ".*=\\s?(.*)"
 	);
@@ -10488,7 +10707,8 @@ sub installJira {
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 #backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
 
@@ -10569,7 +10789,8 @@ sub upgradeJira {
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	$javaMemParameterFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 #backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
 
@@ -10648,21 +10869,21 @@ sub getExistingStashConfig {
 			  . "leading '/' and NO trailing '/'.\n\n"
 		);
 
-		if ( -d $cfg->param("$lcApplication.installDir") ) {
+		if ( -d escapeFilePath( $cfg->param("$lcApplication.installDir") ) ) {
 			$LOOP = 1;    #break loop as directory exists
 			$log->info( "$subname: Directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " exists. Proceeding..." );
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " exists. Proceeding...\n\n";
 		}
 		else {
 			print "The directory "
-			  . $cfg->param("$lcApplication.installDir")
+			  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 			  . " does not exist. Please try again.\n\n";
 			$log->info( "The directory "
-				  . $cfg->param("$lcApplication.installDir")
+				  . escapeFilePath( $cfg->param("$lcApplication.installDir") )
 				  . " does not exist. Please try again." );
 		}
 	}
@@ -10690,10 +10911,12 @@ sub getExistingStashConfig {
 	);
 
 	$serverSetEnvFile =
-	  $cfg->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 	$serverConfigFile =
-	  $cfg->param("$lcApplication.installDir") . "/conf/server.xml";
+	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
 
 	genBooleanConfigItem(
 		$mode,
@@ -10942,7 +11165,8 @@ sub getExistingStashConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE, $cfg->param("$lcApplication.installDir") )
+	open( WORKING_DIR_HANDLE,
+		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -11166,10 +11390,12 @@ sub installStash {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$serverXMLFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/conf/server.xml";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
 
 	$initPropertiesFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
@@ -11204,7 +11430,9 @@ sub installStash {
 	updateLineInFile(
 		$initPropertiesFile,
 		"STASH_HOME=",
-		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") . "\"",
+		"STASH_HOME=\""
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  . "\"",
 		"#STASH_HOME="
 	);
 
@@ -11212,7 +11440,7 @@ sub installStash {
 	$javaMemParameterFile = $initPropertiesFile;
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/setenv.sh",
 		"JVM_REQUIRED_ARGS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
@@ -11256,7 +11484,7 @@ sub installStash {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
 
 	#Finally run generic post install tasks
@@ -11309,10 +11537,12 @@ sub upgradeStash {
 	print "Applying configuration settings to the install, please wait...\n\n";
 
 	$serverXMLFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/conf/server.xml";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
 
 	$initPropertiesFile =
-	  $globalConfig->param("$lcApplication.installDir") . "/bin/setenv.sh";
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
@@ -11347,7 +11577,9 @@ sub upgradeStash {
 	updateLineInFile(
 		$initPropertiesFile,
 		"STASH_HOME=",
-		"STASH_HOME=\"" . $globalConfig->param("$lcApplication.dataDir") . "\"",
+		"STASH_HOME=\""
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  . "\"",
 		"#STASH_HOME="
 	);
 
@@ -11355,7 +11587,7 @@ sub upgradeStash {
 	$javaMemParameterFile = $initPropertiesFile;
 	print "Applying Java_Opts configuration to install...\n\n";
 	updateJavaOpts(
-		$globalConfig->param( $lcApplication . ".installDir" )
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/setenv.sh",
 		"JVM_REQUIRED_ARGS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
@@ -11398,7 +11630,7 @@ sub upgradeStash {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 	generateInitD( $lcApplication, $osUser,
-		$globalConfig->param("$lcApplication.installDir"),
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
 
 	#Finally run generic post install tasks
