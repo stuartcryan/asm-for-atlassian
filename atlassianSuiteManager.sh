@@ -237,6 +237,8 @@ processLatestVersionFile(){
 				LOOP="0"
 			elif [[("${USERWANTSUPDATE,,}" == "n" || "${USERWANTSUPDATE,,}" == "no")]]; then
 				USERWANTSUPDATE="FALSE"
+				echo ""
+				echo ""
 				LOOP="0"
 			else
 				echo ""
