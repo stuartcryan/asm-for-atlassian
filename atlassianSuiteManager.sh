@@ -39,10 +39,10 @@ INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget zip unzip tar perl cpan"
+BINARIES="wget zip unzip tar perl cpan gcc gcc-c++ openssl"
 
 #as Debian does not know of a CPAN binary it comes in the PERL binary
-BINARIESDEBIAN="wget zip unzip tar perl"
+BINARIESDEBIAN="wget zip unzip tar perl gcc gcc-c++"
 
 #This is deliberately null
 BINARIESCHECK=""
@@ -51,6 +51,12 @@ for i in $BINARIES
 do
    type -P $i &>/dev/null  && continue  || { echo "'$i' binary not found."; BINARIESCHECK="FAIL"; }
 done
+
+if [[ ! -e "/usr/include/openssl/ssl.h" ]]; then
+	BINARIESCHECK="FAIL"
+	#add openssl-devel to the required binaries
+	BINARIES="$BINARIES openssl-devel"
+fi
 
 if [[ $BINARIESCHECK == "FAIL" ]] ; then
    echo ""
@@ -140,6 +146,7 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 		done
 		
 		if [[($USERWANTSPREREQS == "TRUE")]]; then
+			echo ""
 			echo -n "CPAN provides the ability to automatically install all dependencies without prompting. This is highly recommended and will save you a LOT of time... Would you like us to configure this? yes/no [yes]: "
 			LOOP2=1
 		while [ $LOOP2 -eq "1" ]
@@ -158,9 +165,12 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 		done
 		
 			#Final confirmation to USER
-			echo "Ready to begin the installation, we will install all required PERL modules as well as EXPAT (built from source) to support the XML PERL Modules."
+			echo ""
+			echo "We are now ready to begin the installation, we will install all required PERL modules as well as EXPAT (built from source) to support the XML PERL Modules."
 			echo "You will need to provide input several times, please ensure you just accept any default options that the PERL installers ask for."
 			echo "Please press enter to continue..."
+			
+			read ASKUSERTOPRESSENTER
 			 
 			#Test if XML::Parser is installed again
 			perl -e "use XML::Parser" &>/dev/null  && continue  || { XMLPARSER="FAIL"; }
