@@ -41,6 +41,9 @@ INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 checkRequiredBinaries(){
 BINARIES="wget zip unzip tar perl cpan"
 
+#as Debian does not know of a CPAN binary it comes in the PERL binary
+BINARIESDEBIAN="wget zip unzip tar perl"
+
 #This is deliberately null
 BINARIESCHECK=""
 
@@ -80,7 +83,7 @@ echo -n "Some required binary components are missing therefore this script canno
 			if [[($YUM != "FALSE")]]; then
 				yum -y install $BINARIES
 			elif [[($APTGET != "FALSE")]]; then
-				echo "we have apt get"
+				apt-get -y install $BINARIESDEBIAN
 			else
 			echo "It appears we are unable to find either yum (Redhat/CentOS) or apt-get (Debian/Ubuntu). Therefore you will have to install missing binaries manually. Please install the missing binaries and start the script again."
 			exit 1
