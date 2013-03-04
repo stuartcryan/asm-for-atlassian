@@ -186,7 +186,7 @@ fi
 ########################################
 downloadLatestFile(){
 	cd $INSTALLDIR
-	mv LATEST .LATEST.OLD > /dev/null 2&>1
+	mv LATEST .LATEST.OLD
 
 	if ! wget --quiet $LATESTDOWNLOADURL ; then
     	mv .LATEST.OLD LATEST
