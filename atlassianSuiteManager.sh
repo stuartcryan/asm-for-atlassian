@@ -30,7 +30,7 @@
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 SCRIPTVERSION="0.1"
-LATESTDOWNLOADURL=http://technicalnotebook.com/asmGitPublicRepo/LATEST
+LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
 clear
 INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
