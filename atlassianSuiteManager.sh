@@ -39,10 +39,11 @@ INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget zip unzip tar perl cpan gcc gcc-c++ openssl"
+BINARIES="wget zip unzip tar perl cpan gcc openssl g++"
 
 #as Debian does not know of a CPAN binary it comes in the PERL binary
-BINARIESDEBIAN="wget zip unzip tar perl gcc gcc-c++"
+BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++"
+BINARIESDEBIAN="wget zip unzip tar perl gcc g++"
 
 #This is deliberately null
 BINARIESCHECK=""
@@ -87,9 +88,9 @@ echo -n "Some required binary components are missing therefore this script canno
 			type apt-get >/dev/null 2>&1 || APTGET="FALSE"
 			
 			if [[($YUM != "FALSE")]]; then
-				yum -y install $BINARIES
+				yum -y install $BINARIESREDHAT || { echo "YUM Was unable to install all the required binaries. You will need to check this manually and fix before proceeding. This script will now exit"; exit 1; }
 			elif [[($APTGET != "FALSE")]]; then
-				apt-get -y install $BINARIESDEBIAN
+				apt-get -y install $BINARIESDEBIAN || { echo "apt-get Was unable to install all the required binaries. You will need to check this manually and fix before proceeding. This script will now exit"; exit 1; }
 			else
 			echo "It appears we are unable to find either yum (Redhat/CentOS) or apt-get (Debian/Ubuntu). Therefore you will have to install missing binaries manually. Please install the missing binaries and start the script again."
 			exit 1
@@ -100,12 +101,12 @@ fi
 }
 
 installExpat(){
-	wget $EXPATDOWNLOADURL
+	wget $EXPATDOWNLOADURL || { echo "WGET Was unable to download EXPAT, please check your internet connection and try again. This script will now exit."; exit 1; }
 	tar -xvzf expat-*
 	cd expat-*
-    ./configure
-    make
-    make install
+    ./configure || { echo "Unable to configure EXPAT. Without EXPAT the PERL XML binaries will not install correctly. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
+    make || { echo "Unable to 'make' EXPAT. Without EXPAT the PERL XML binaries will not install correctly. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
+    make install || { echo "Unable to 'make install' EXPAT. Without EXPAT the PERL XML binaries will not install correctly. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
     cd ../
     rm -r --force expat-*
 }
@@ -181,14 +182,13 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 			#Tell PERL/CPAN to accept all defaults
 			PERL_MM_USE_DEFAULT=1
 			#Do YAML First in case CPAN has not been set up before
-			cpan "YAML"
+			cpan "YAML" || { echo "CPAN was unable to install YAML. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
 			if [[($USERWANTSPREREQS == "TRUE")]]; then
 				(echo o conf prerequisites_policy follow;echo o conf commit)|cpan
 			fi
 			
-			cpan "LWP::Simple"
-			cpan $MODULES
-			#add that we have finished and test for modules again.
+			cpan "LWP::Simple" || { echo "CPAN was unable to install LWP::Simple. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
+			cpan $MODULES || { echo "CPAN was unable to install the required PERL modules. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
 		fi
 fi
 
