@@ -31,6 +31,7 @@
 
 SCRIPTVERSION="0.1"
 LATESTDOWNLOADURL=http://technicalnotebook.com/asmGitPublicRepo/LATEST
+EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
 clear
 INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
@@ -38,66 +39,144 @@ INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget zip unzip tar perl"
+BINARIES="wget zip unzip tar perl cpan"
+
+#This is deliberately null
 BINARIESCHECK=""
 
 for i in $BINARIES
 do
-   type -P $i &>/dev/null  && continue  || { echo "$i command not found."; BINARIESCHECK="FAIL"; }
+   type -P $i &>/dev/null  && continue  || { echo "'$i' binary not found."; BINARIESCHECK="FAIL"; }
 done
 
 if [[ $BINARIESCHECK == "FAIL" ]] ; then
    echo ""
-   echo "Some required components are missing therfore this script cannot be run. Please install the aforementioned"
-   echo "components and then run this script again."
-   echo ""
-   echo ""
-   exit 1
+echo -n "Some required binary components are missing therefore this script cannot be run. Would you like the script to attempt to install them? yes/no [yes]: "
+   LOOP=1
+		while [ $LOOP -eq "1" ]
+		do
+			read USERWANTSINSTALLPREREQ
+			if [[("${USERWANTSINSTALLPREREQ,,}" == "y" || "${USERWANTSINSTALLPREREQ,,}" == "yes" || "${USERWANTSINSTALLPREREQ,,}" == "")]]; then
+				USERWANTSPREREQS="TRUE"
+				LOOP="0"
+			elif [[("${USERWANTSINSTALLPREREQ,,}" == "n" || "${USERWANTSINSTALLPREREQ,,}" == "no")]]; then
+				USERWANTSPREREQS="FALSE"
+				echo ""
+				echo "Please install the required binaries and then run this script again."
+				echo ""
+				echo ""
+				LOOP="0"
+				exit 1
+			else
+				echo ""
+				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to update the script now? yes/no [yes]:" 
+			fi
+		done
+		
+		if [[($USERWANTSPREREQS == "TRUE")]]; then
+			type yum >/dev/null 2>&1 || YUM="FALSE"
+			type apt-get >/dev/null 2>&1 || APTGET="FALSE"
+			
+			if [[($YUM != "FALSE")]]; then
+				yum -y install $BINARIES
+			elif [[($APTGET != "FALSE")]]; then
+				echo "we have apt get"
+			else
+			echo "It appears we are unable to find either yum (Redhat/CentOS) or apt-get (Debian/Ubuntu). Therefore you will have to install missing binaries manually. Please install the missing binaries and start the script again."
+			exit 1
+			fi
+		fi
 fi
 
+}
+
+installExpat(){
+	wget $EXPATDOWNLOADURL
+	tar -xvzf expat-*
+	cd expat-*
+    ./configure
+    make
+    make install
+    cd ../
+    rm -r --force expat-*
 }
 
 ########################################
 #Test system for required PERL Modules #
 ########################################
 checkPerlModules(){
-MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Twig POSIX File::Copy File::Copy::Recursive Archive::Extract File::Path File::Find FindBin Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
+MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
 BINARIESCHECK=""
 
 for i in $MODULES
 do
-   perl -e "use $i" &>/dev/null  && continue  || { echo "$i PERL module not found."; BINARIESCHECK="FAIL"; }
+perl -e "use $i" &>/dev/null  && continue  || { echo "$i PERL module not found."; MODULESCHECK="FAIL"; }
 done
 
-if [[ $BINARIESCHECK == "FAIL" ]] ; then
-   echo ""
-   echo "Some PERL modules are missing therfore this script cannot be run. Please install the aforementioned"
-   echo "modules and then run this script again."
-   echo ""
-   echo ""
-   exit 1
-fi
-
-}
-
-########################################
-#Check for script updates              #
-########################################
-checkforUpdate(){
-
-
-for i in $MODULES
-do
-   perl -e "use $i" &>/dev/null  && continue  || { echo "$i PERL module not found."; BINARIESCHECK="FAIL"; }
-done
-
-if [[ $BINARIESCHECK == "FAIL" ]] ; then
-   echo ""
-   echo "Some PERL modules are missing therfore this script cannot be run. Please install the aforementioned"
-   echo "modules and then run this script again."
-   echo ""
-   echo ""
-   exit 1
+if [[ $MODULESCHECK == "FAIL" ]] ; then
+   echo -n "Some required PERL modules are missing therefore this script cannot be run. Would you like the script to attempt to install them? yes/no [yes]: "
+   LOOP=1
+		while [ $LOOP -eq "1" ]
+		do
+			read USERWANTSINSTALLPREREQ
+			if [[("${USERWANTSINSTALLPREREQ,,}" == "y" || "${USERWANTSINSTALLPREREQ,,}" == "yes" || "${USERWANTSINSTALLPREREQ,,}" == "")]]; then
+				USERWANTSPREREQS="TRUE"
+				LOOP="0"
+			elif [[("${USERWANTSINSTALLPREREQ,,}" == "n" || "${USERWANTSINSTALLPREREQ,,}" == "no")]]; then
+				USERWANTSPREREQS="FALSE"
+				echo ""
+				echo "Please manually install the required PERL modules listed above and then run this script again."
+				echo ""
+				echo ""
+				LOOP="0"
+				exit 1
+			else
+				echo ""
+				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to update the script now? yes/no [yes]:" 
+			fi
+		done
+		
+		if [[($USERWANTSPREREQS == "TRUE")]]; then
+			echo -n "CPAN provides the ability to automatically install all dependencies without prompting. This is highly recommended and will save you a LOT of time... Would you like us to configure this? yes/no [yes]: "
+			LOOP2=1
+		while [ $LOOP2 -eq "1" ]
+		do
+			read UPDATECPANCONF
+			if [[("${UPDATECPANCONF,,}" == "y" || "${UPDATECPANCONF,,}" == "yes" || "${UPDATECPANCONF,,}" == "")]]; then
+				UPDATECPANCONF="TRUE"
+				LOOP2="0"
+			elif [[("${UPDATECPANCONF,,}" == "n" || "${UPADTECPANCONF,,}" == "no")]]; then
+				UPADTECPANCONF="FALSE"
+				LOOP2="0"
+			else
+				echo ""
+				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to enable dependencies following with minimal input? yes/no [yes]:" 
+			fi
+		done
+		
+			#Final confirmation to USER
+			echo "Ready to begin the installation, we will install all required PERL modules as well as EXPAT (built from source) to support the XML PERL Modules."
+			echo "You will need to provide input several times, please ensure you just accept any default options that the PERL installers ask for."
+			echo "Please press enter to continue..."
+			 
+			#Test if XML::Parser is installed again
+			perl -e "use XML::Parser" &>/dev/null  && continue  || { XMLPARSER="FAIL"; }
+			if [[($XMLPARSER == "FAIL")]]; then
+				installExpat
+			fi
+			
+			#Tell PERL/CPAN to accept all defaults
+			PERL_MM_USE_DEFAULT=1
+			#Do YAML First in case CPAN has not been set up before
+			cpan "YAML"
+			if [[($USERWANTSPREREQS == "TRUE")]]; then
+				(echo o conf prerequisites_policy follow;echo o conf commit)|cpan
+			fi
+			
+			cpan "LWP::Simple"
+			cpan $MODULES
+			#add that we have finished and test for modules again.
+		fi
 fi
 
 }
@@ -232,7 +311,7 @@ processLatestVersionFile(){
 		while [ $LOOP -eq "1" ]
 		do
 			read USERWANTSUPDATE
-			if [[("${USERWANTSUPDATE,,}" == "y" || "${USERWANTSUPDATE,,}" == "yes")]]; then
+			if [[("${USERWANTSUPDATE,,}" == "y" || "${USERWANTSUPDATE,,}" == "yes" || "${USERWANTSUPDATE,,}" == "")]]; then
 				USERWANTSUPDATE="TRUE"
 				LOOP="0"
 			elif [[("${USERWANTSUPDATE,,}" == "n" || "${USERWANTSUPDATE,,}" == "no")]]; then
@@ -289,7 +368,6 @@ fi
 
 #Do initial checks
 checkForRootAccess
-checkRequiredBinaries
 
 #Import custom includes if the file exists
 if [ -f "shellScriptIncludes.inc" ]; then
@@ -329,7 +407,44 @@ fi
 #process the update file each time the script runs (hint hint... you should be upgrading)
 processLatestVersionFile
 
-#check for the required perl modules
+#check for the required binaries and modules
+clear
+
+#Display nice header
+	cat <<-____HERE
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ****************************************
+      *Checking for required system binaries *
+      ****************************************
+    
+	____HERE
+	
+checkRequiredBinaries
+
+clear
+#Display nice header
+	cat <<-____HERE
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ****************************************
+      * Checking for required PERL modules   *
+      ****************************************
+    
+	____HERE
+	
 checkPerlModules
 
 #run the perl script
