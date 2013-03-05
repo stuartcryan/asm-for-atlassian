@@ -39,11 +39,11 @@ INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget zip unzip tar perl cpan gcc openssl g++"
+BINARIES="wget zip unzip tar perl cpan gcc openssl g++ make"
 
 #as Debian does not know of a CPAN binary it comes in the PERL binary
-BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++"
-BINARIESDEBIAN="wget zip unzip tar perl gcc g++"
+BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make"
+BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
 
 #This is deliberately null
 BINARIESCHECK=""
@@ -56,7 +56,9 @@ done
 if [[ ! -e "/usr/include/openssl/ssl.h" ]]; then
 	BINARIESCHECK="FAIL"
 	#add openssl-devel to the required binaries
-	BINARIES="$BINARIES openssl-devel"
+	BINARIESREDHAT="$BINARIESREDHAT openssl-devel"
+	BINARIESDEBIAN="$BINARIESDEBIAN libssl-dev"
+	echo "'openssl-devel/libssl-dev' libraries not found.";
 fi
 
 if [[ $BINARIESCHECK == "FAIL" ]] ; then
@@ -101,8 +103,10 @@ fi
 }
 
 installExpat(){
-	wget $EXPATDOWNLOADURL || { echo "WGET Was unable to download EXPAT, please check your internet connection and try again. This script will now exit."; exit 1; }
-	tar -xvzf expat-*
+	#Run in tmp as make for expat has problems with paths with spaces
+	cd /tmp
+	wget --output-document=expat.tar.gz $EXPATDOWNLOADURL || { echo "WGET Was unable to download EXPAT, please check your internet connection and try again. This script will now exit."; exit 1; }
+	tar -xvzf expat.tar.gz
 	cd expat-*
     ./configure || { echo "Unable to configure EXPAT. Without EXPAT the PERL XML binaries will not install correctly. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
     make || { echo "Unable to 'make' EXPAT. Without EXPAT the PERL XML binaries will not install correctly. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
@@ -115,7 +119,7 @@ installExpat(){
 #Test system for required PERL Modules #
 ########################################
 checkPerlModules(){
-MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
+MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath qXML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
 BINARIESCHECK=""
 
 for i in $MODULES
@@ -181,7 +185,8 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 			
 			#Tell PERL/CPAN to accept all defaults
 			PERL_MM_USE_DEFAULT=1
-			#Do YAML First in case CPAN has not been set up before
+			#install local::lib to support ubuntu sudo, try twice as the first time seems to fail
+			cpan "local::lib" || { cpan "local::lib" || { echo "CPAN was unable to install YAML. Please correct this manually and then run this script again. This script will now exit"; exit 1; } }
 			cpan "YAML" || { echo "CPAN was unable to install YAML. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
 			if [[($USERWANTSPREREQS == "TRUE")]]; then
 				(echo o conf prerequisites_policy follow;echo o conf commit)|cpan
@@ -374,8 +379,12 @@ processLatestVersionFile(){
 checkForRootAccess(){
 
 if [[ $EUID -ne 0 ]]; then
-   echo "This script must be run as root" 1>&2
-   exit 1
+	echo ""
+	echo "This script must be run as root. Terminating..." 1>&2
+	echo ""
+	echo ""
+	echo ""
+	exit 1
 fi
 }
 
