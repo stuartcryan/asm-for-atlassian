@@ -50,7 +50,7 @@ BINARIESCHECK=""
 
 for i in $BINARIES
 do
-   type -P $i &>/dev/null  && continue  || { echo "'$i' binary not found."; BINARIESCHECK="FAIL"; }
+   type -P $i &>/dev/null  || { echo "'$i' binary not found."; BINARIESCHECK="FAIL"; }
 done
 
 if [[ ! -e "/usr/include/openssl/ssl.h" ]]; then
@@ -124,7 +124,7 @@ BINARIESCHECK=""
 
 for i in $MODULES
 do
-perl -e "use $i" &>/dev/null  && continue  || { echo "$i PERL module not found."; MODULESCHECK="FAIL"; }
+perl -e "use $i" &>/dev/null  || { echo "$i PERL module not found."; MODULESCHECK="FAIL"; }
 done
 
 if [[ $MODULESCHECK == "FAIL" ]] ; then
@@ -178,7 +178,7 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 			read ASKUSERTOPRESSENTER
 			 
 			#Test if XML::Parser is installed again
-			perl -e "use XML::Parser" &>/dev/null  && continue  || { XMLPARSER="FAIL"; }
+			perl -e "use XML::Parser" &>/dev/null  || { XMLPARSER="FAIL"; }
 			if [[($XMLPARSER == "FAIL")]]; then
 				installExpat
 			fi
