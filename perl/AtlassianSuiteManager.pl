@@ -78,6 +78,7 @@ my $globalArch;
 my @suiteApplications =
   ( "Bamboo", "Confluence", "Crowd", "Fisheye", "JIRA", "Stash" );
 my $log = Log::Log4perl->get_logger("");
+$Archive::Extract::PREFER_BIN = 1;
 
 #######################################################################
 #BEGIN SUPPORTING FUNCTIONS                                           #
@@ -2011,7 +2012,7 @@ sub generateSuiteConfig {
 			$mode,
 			$cfg,
 			"general.apacheProxySingleDomain",
-"Will you be using a single domain for the suite (i.e. no subdomains) AND will you be using the same HTTP/HTTS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
+"Will you be using a single domain for ALL suite applications AND will you be using the same HTTP/HTTPS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
 			"yes"
 		);
 
@@ -2458,7 +2459,7 @@ sub getExistingSuiteConfig {
 			$mode,
 			$cfg,
 			"general.apacheProxySingleDomain",
-"Do you use a single domain for the suite (i.e. no subdomains) AND do you currently use the same HTTP/HTTS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
+"Do you use a single domain for ALL application in the suite AND do you currently use the same HTTP/HTTPS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
 			"yes"
 		);
 
@@ -3344,6 +3345,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 			#get the version specific URL to test
 			@downloadDetails =
 			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
+			$ua->show_progress(0);
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -3390,9 +3392,9 @@ is currently in use. We will continue however there is a good chance $applicatio
 	$input =
 	  getBooleanInput( "Do you wish to delete the downloaded archive "
 		  . $downloadDetails[2]
-		  . "? [yes]: " );
+		  . "? [no]: " );
 	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
+	if ( $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -3615,6 +3617,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 			#get the version specific URL to test
 			@downloadDetails =
 			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
+			$ua->show_progress(0);
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -3797,9 +3800,9 @@ Therefore script is terminating, please ensure port configuration is correct and
 	$input =
 	  getBooleanInput( "Do you wish to delete the downloaded installer "
 		  . $downloadDetails[2]
-		  . "? [yes]: " );
+		  . "? [no]: " );
 	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
+	if ( $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -3861,6 +3864,7 @@ Therefore script is terminating, please ensure port configuration is correct and
 	  . "/conf/server.xml";
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
@@ -4953,6 +4957,48 @@ sub updateXMLAttribute {
 }
 
 ########################################
+#updateXMLTextValue                    #
+########################################
+sub updateXMLTextValue {
+
+	my $xmlFile;    #Must Be Absolute Path
+	my $searchString;
+	my $attributeValue;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$xmlFile        = $_[0];
+	$searchString   = $_[1];
+	$attributeValue = $_[2];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_xmlFile",        $xmlFile );
+	dumpSingleVarToLog( "$subname" . "_searchString",   $searchString );
+	dumpSingleVarToLog( "$subname" . "_attributeValue", $attributeValue );
+
+	#Set up new XML object, with "pretty" spacing (i.e. standard spacing)
+	my $twig = new XML::Twig( pretty_print => 'indented' );
+
+	#Parse the XML file
+	$twig->parsefile($xmlFile);
+
+	#Find the node we are looking for based on the provided search string
+	for my $node ( $twig->findnodes($searchString) ) {
+		$log->info(
+"$subname: Found $searchString in $xmlFile. Setting element to $attributeValue"
+		);
+
+		#Set the node to the new attribute value
+		$node->set_text($attributeValue);
+	}
+
+	#Print the new XML tree back to the original file
+	$log->info("$subname: Writing out updated xmlFile: $xmlFile.");
+	$twig->print_to_file($xmlFile);
+}
+
+########################################
 #updateLineInBambooWrapperConf         #
 #This can be used under certain        #
 #circumstances to update lines in the  #
@@ -5527,6 +5573,7 @@ sub upgradeGeneric {
 			#get the version specific URL to test
 			@downloadDetails =
 			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
+			$ua->show_progress(0);
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -5635,9 +5682,9 @@ sub upgradeGeneric {
 	$input =
 	  getBooleanInput( "Do you wish to delete the downloaded archive "
 		  . $downloadDetails[2]
-		  . "? [yes]: " );
+		  . "? [no]: " );
 	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
+	if ( $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -5869,6 +5916,7 @@ sub upgradeGenericAtlassianBinary {
 			#get the version specific URL to test
 			@downloadDetails =
 			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
+			$ua->show_progress(0);
 
 			#Try to get the header of the version URL to ensure it exists
 			if ( head( $downloadDetails[0] ) ) {
@@ -6020,9 +6068,9 @@ sub upgradeGenericAtlassianBinary {
 	$input =
 	  getBooleanInput( "Do you wish to delete the downloaded installer "
 		  . $downloadDetails[2]
-		  . "? [yes]: " );
+		  . "? [no]: " );
 	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
+	if ( $input eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -6083,6 +6131,7 @@ sub upgradeGenericAtlassianBinary {
 	  . "/conf/server.xml";
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
 		{
@@ -6402,8 +6451,8 @@ sub displayInitialConfigMenu {
       
       No configuration file has been found. Please select from the following options:
 
-      1) Gather configuration - use if one or more Atlassian installations already exist on this server
-      2) Generate new configuration - No installation of any Atlassian products exist on this server
+      1) Existing install: Gather configuration (one or more products already installed)
+      2) New install: Generate new configuration - (no products currently installed)
       Q) Exit script
 
 END_TXT
@@ -6603,6 +6652,9 @@ END_TXT
 			}
 			else {
 				installBamboo();
+				system 'clear';
+				$LOOP = 0;
+				displayInstallMenu();
 			}
 
 		}
@@ -6618,6 +6670,9 @@ END_TXT
 			}
 			else {
 				installConfluence();
+				system 'clear';
+				$LOOP = 0;
+				displayInstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "3\n" ) {
@@ -6632,6 +6687,9 @@ END_TXT
 			}
 			else {
 				installCrowd();
+				system 'clear';
+				$LOOP = 0;
+				displayInstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "4\n" ) {
@@ -6646,6 +6704,9 @@ END_TXT
 			}
 			else {
 				installFisheye();
+				system 'clear';
+				$LOOP = 0;
+				displayInstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "5\n" ) {
@@ -6660,6 +6721,9 @@ END_TXT
 			}
 			else {
 				installJira();
+				system 'clear';
+				$LOOP = 0;
+				displayInstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "6\n" ) {
@@ -6674,6 +6738,9 @@ END_TXT
 			}
 			else {
 				installStash();
+				system 'clear';
+				$LOOP = 0;
+				displayInstallMenu();
 			}
 		}
 	}
@@ -6769,6 +6836,8 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
+			testXMLAttribute(
+				"/opt/atlassian/bamboo/webapp/WEB-INF/classes/jetty.xml");
 			my $test = <STDIN>;
 		}
 	}
@@ -6940,6 +7009,9 @@ END_TXT
 			}
 			else {
 				uninstallBamboo();
+				system 'clear';
+				$LOOP = 0;
+				displayUninstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "2\n" ) {
@@ -6954,6 +7026,9 @@ END_TXT
 			}
 			else {
 				uninstallConfluence();
+				system 'clear';
+				$LOOP = 0;
+				displayUninstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "3\n" ) {
@@ -6968,6 +7043,9 @@ END_TXT
 			}
 			else {
 				uninstallCrowd();
+				system 'clear';
+				$LOOP = 0;
+				displayUninstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "4\n" ) {
@@ -6982,6 +7060,9 @@ END_TXT
 			}
 			else {
 				uninstallFisheye();
+				system 'clear';
+				$LOOP = 0;
+				displayUninstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "5\n" ) {
@@ -6996,6 +7077,9 @@ END_TXT
 			}
 			else {
 				uninstallJira();
+				system 'clear';
+				$LOOP = 0;
+				displayUninstallMenu();
 			}
 		}
 		elsif ( lc($choice) eq "6\n" ) {
@@ -7010,6 +7094,9 @@ END_TXT
 			}
 			else {
 				uninstallStash();
+				system 'clear';
+				$LOOP = 0;
+				displayUninstallMenu();
 			}
 		}
 	}
@@ -7798,6 +7885,7 @@ sub installBamboo {
 	my $application = "Bamboo";
 	my $osUser;
 	my $serverConfigFile;
+	my $serverJettyConfigFile;
 	my $javaMemParameterFile;
 	my $lcApplication;
 	my $downloadArchivesUrl =
@@ -7846,6 +7934,10 @@ sub installBamboo {
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/conf/wrapper.conf";
 
+	$serverJettyConfigFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/webapp/WEB-INF/classes/jetty.xml";
+
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
@@ -7887,43 +7979,48 @@ sub installBamboo {
 		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
 	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+		"bamboo.home",
+		"$lcApplication.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"#bamboo.home=C:/bamboo/bamboo-home"
+	);
 
 	#Update the server config with reverse proxy configuration
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverConfigFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		updateLineInFile(
 			$serverConfigFile,
 			"wrapper.app.parameter.2",
-			"wrapper.app.parameter.2",
-			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml"
+			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
+			"wrapper.app.parameter.2"
 		);
 
 		updateLineInFile(
-			$serverConfigFile,         "wrapper.app.parameter.3",
-			"wrapper.app.parameter.3", "wrapper.app.parameter.3=../webapp"
+			$serverConfigFile,                    "wrapper.app.parameter.3",
+			"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
 		);
 
 		updateLineInFile(
-			$serverConfigFile,         "wrapper.app.parameter.4",
-			"wrapper.app.parameter.4", "wrapper.app.parameter.4=/"
+			$serverConfigFile,            "wrapper.app.parameter.4",
+			"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
 		);
 
-#Note: Aware this is NOT the most ideal way to update Jetty conf, however will be superceeded by full Tomcat installs soon
-		updateLineInFile(
-			$serverConfigFile,
-			"<Arg name=\"contextPath\">",
-			"<Arg name=\"contextPath\">",
-			"                <Arg name=\"contextPath\">$bambooContext</Arg>"
+		updateXMLAttribute(
+			$serverJettyConfigFile,
+"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
+			"default",
+			$globalConfig->param("$lcApplication.connectorPort")
 		);
 
-		updateLineInFile(
-			$serverConfigFile,
-			"Property name=\"jetty.port\"",
-			"Property name=\"jetty.port\"",
-"                <Set name=\"port\"><Property name=\"jetty.port\" default=\""
-			  . $globalConfig->param("bamboo.connectorPort")
-			  . "\"/></Set>"
+		updateXMLTextValue(
+			$serverJettyConfigFile,
+"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
+			$globalConfig->param("$lcApplication.appContext")
 		);
 
 	}
@@ -8024,6 +8121,7 @@ sub upgradeBamboo {
 	my $application = "Bamboo";
 	my $osUser;
 	my $serverConfigFile;
+	my $serverJettyConfigFile;
 	my $javaMemParameterFile;
 	my $lcApplication;
 	my $downloadArchivesUrl =
@@ -8072,6 +8170,10 @@ sub upgradeBamboo {
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/conf/wrapper.conf";
 
+	$serverJettyConfigFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/webapp/WEB-INF/classes/jetty.xml";
+
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
@@ -8108,6 +8210,42 @@ sub upgradeBamboo {
 	updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
 		"wrapper.app.parameter.4=" . $bambooContext, "" );
 
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverConfigFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		updateLineInFile(
+			$serverConfigFile,
+			"wrapper.app.parameter.2",
+			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
+			"wrapper.app.parameter.2"
+		);
+
+		updateLineInFile(
+			$serverConfigFile,                    "wrapper.app.parameter.3",
+			"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
+		);
+
+		updateLineInFile(
+			$serverConfigFile,            "wrapper.app.parameter.4",
+			"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
+		);
+
+		updateXMLAttribute(
+			$serverJettyConfigFile,
+"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
+			"default",
+			$globalConfig->param("$lcApplication.connectorPort")
+		);
+
+		updateXMLTextValue(
+			$serverJettyConfigFile,
+"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
+			$globalConfig->param("$lcApplication.appContext")
+		);
+	}
+
 	#Edit Bamboo config file to reference homedir
 	$log->info( "$subname: Applying homedir in "
 		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
@@ -8125,6 +8263,7 @@ sub upgradeBamboo {
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 
 	updateLineInBambooWrapperConf( $javaMemParameterFile,
 		"wrapper.java.additional.", "-Xms",
@@ -9220,7 +9359,7 @@ sub getExistingCrowdConfig {
 			$cfg,
 			"$lcApplication.serverPort",
 "Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
-			"8000",
+			"8001",
 			'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 		);
@@ -9564,7 +9703,7 @@ sub generateCrowdConfig {
 		$cfg,
 		"crowd.serverPort",
 "Please enter the SERVER port Crowd will run on (note this is the control port not the port you access in a browser).",
-		"8000",
+		"8001",
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
@@ -9737,6 +9876,7 @@ sub installCrowd {
 	#Update the server config with reverse proxy configuration
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
 		{
@@ -9934,6 +10074,7 @@ sub upgradeCrowd {
 	#Update the server config with reverse proxy configuration
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
 		{
@@ -10250,7 +10391,7 @@ sub getExistingFisheyeConfig {
 			$cfg,
 			"$lcApplication.serverPort",
 "Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
-			"8000",
+			"8059",
 			'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 		);
@@ -10770,6 +10911,7 @@ sub installFisheye {
 	#Update the server config with reverse proxy configuration
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
 		{
@@ -11224,7 +11366,7 @@ sub getExistingJiraConfig {
 			$cfg,
 			"$lcApplication.serverPort",
 "Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
-			"8000",
+			"8003",
 			'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 		);
@@ -11562,7 +11704,7 @@ sub generateJiraConfig {
 		$cfg,
 		"jira.serverPort",
 "Please enter the SERVER port Jira will run on (note this is the control port not the port you access in a browser).",
-		"8000",
+		"8003",
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
@@ -12043,7 +12185,7 @@ sub getExistingStashConfig {
 			$cfg,
 			"$lcApplication.serverPort",
 "Unable to find the server port in the expected location in the $application config. Please enter the Server port $application *currently* runs on (note this is the tomcat control port).",
-			"8000",
+			"8004",
 			'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 		);
@@ -12387,7 +12529,7 @@ sub generateStashConfig {
 		$cfg,
 		"stash.serverPort",
 "Please enter the SERVER port Stash will run on (note this is the control port not the port you access in a browser).",
-		"8000",
+		"8004",
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
@@ -12559,6 +12701,7 @@ sub installStash {
 	#Update the server config with reverse proxy configuration
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
 		{
@@ -12756,6 +12899,7 @@ sub upgradeStash {
 	#Update the server config with reverse proxy configuration
 	$log->info( "$subname: Updating the reverse proxy configuration in "
 		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
 		{
