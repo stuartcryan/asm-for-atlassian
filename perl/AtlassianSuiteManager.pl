@@ -2092,6 +2092,47 @@ sub generateSuiteConfig {
 		}
 	}
 
+	#Get Proxy configuration
+	genBooleanConfigItem( $mode, $cfg, "general.apacheProxy",
+		"Will you be using Apache as a front end (i.e. proxy) to the suite ",
+		"yes" );
+
+	if ( $cfg->param("general.apacheProxy") eq "TRUE" ) {
+
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"general.apacheProxySingleDomain",
+"Will you be using a single domain for the suite (i.e. no subdomains) AND will you be using the same HTTP/HTTS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
+			"yes"
+		);
+
+		if ( $cfg->param("general.apacheProxySingleDomain") eq "TRUE" ) {
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+
+			genBooleanConfigItem( $mode, $cfg, "general.apacheProxyMode",
+				"Will you be running the applications(s) over SSL.", "no" );
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.apacheProxyPort",
+"Please enter the port number that apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+	}
+
 	#Get suite database architecture configuration
 	@parameterNull = $cfg->param("general.targetDBType");
 
@@ -6019,7 +6060,8 @@ sub bootStrapper {
 	else {
 		@requiredConfigItems = (
 			"general.rootDataDir",  "general.rootInstallDir",
-			"general.targetDBType", "general.force32Bit"
+			"general.targetDBType", "general.force32Bit",
+			"general.apacheProxy",  "general.ApacheProxySingleDomain"
 		);
 		if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 			$log->info(
@@ -7503,16 +7545,6 @@ sub generateBambooConfig {
 	);
 	checkConfiguredPort( "bamboo.connectorPort", $cfg );
 
-#	genConfigItem(
-#		$mode,
-#		$cfg,
-#		"confluence.serverPort",
-#"Please enter the SERVER port Confluence will run on (note this is the control port not the port you access in a browser).",
-#		"8000"
-#	);
-#
-#	checkConfiguredPort( "confluence.serverPort", $cfg );
-
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -7552,6 +7584,33 @@ sub generateBambooConfig {
 		'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
+
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "bamboo.apacheProxyMode",
+			"Will you be running Bamboo over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.apacheProxyPort",
+"Please enter the port number that Apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
 
 	genBooleanConfigItem( $mode, $cfg, "bamboo.runAsService",
 		"Would you like to run Bamboo as a service? yes/no.", "yes" );
@@ -8428,6 +8487,33 @@ sub generateConfluenceConfig {
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"confluence.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "confluence.apacheProxyMode",
+			"Will you be running Confluence over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"confluence.apacheProxyPort",
+"Please enter the port number that Apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
+
 	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
 		"Would you like to run Confluence as a service? yes/no.", "yes" );
 
@@ -9082,6 +9168,33 @@ sub generateCrowdConfig {
 		'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
+
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"crowd.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "crowd.apacheProxyMode",
+			"Will you be running Crowd over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"crowd.apacheProxyPort",
+"Please enter the port number that Apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
 
 	genBooleanConfigItem( $mode, $cfg, "crowd.runAsService",
 		"Would you like to run Crowd as a service? yes/no.", "yes" );
@@ -9879,6 +9992,33 @@ sub generateFisheyeConfig {
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"fisheye.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "fisheye.apacheProxyMode",
+			"Will you be running Fisheye over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"fisheye.apacheProxyPort",
+"Please enter the port number that Apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
+
 	genBooleanConfigItem( $mode, $cfg, "fisheye.runAsService",
 		"Would you like to run Fisheye as a service? yes/no.", "yes" );
 
@@ -10662,6 +10802,33 @@ sub generateJiraConfig {
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"jira.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "jira.apacheProxyMode",
+			"Will you be running JIRA over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"jira.apacheProxyPort",
+"Please enter the port number that Apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
+
 	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
 		"Would you like to run Jira as a service? yes/no.", "yes" );
 
@@ -11338,6 +11505,33 @@ sub generateStashConfig {
 		'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
 	);
+
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"stash.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "stash.apacheProxyMode",
+			"Will you be running Stash over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"stash.apacheProxyPort",
+"Please enter the port number that Apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
 
 	genBooleanConfigItem( $mode, $cfg, "stash.runAsService",
 		"Would you like to run Stash as a service? yes/no.", "yes" );
