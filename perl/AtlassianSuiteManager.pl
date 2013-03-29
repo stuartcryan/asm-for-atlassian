@@ -6061,7 +6061,7 @@ sub bootStrapper {
 		@requiredConfigItems = (
 			"general.rootDataDir",  "general.rootInstallDir",
 			"general.targetDBType", "general.force32Bit",
-			"general.apacheProxy",  "general.ApacheProxySingleDomain"
+			"general.apacheProxyMode"
 		);
 		if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 			$log->info(
@@ -7699,12 +7699,19 @@ sub installBamboo {
 		""
 	);
 
+	my $bambooContext;
+	if ($globalConfig->param("$lcApplication.appContext") eq "NULL"){
+		$bambooContext = "/";
+	} else{
+		$bambooContext = $globalConfig->param("$lcApplication.appContext");
+	}
+	
 	#Apply application context
 	updateLineInFile(
 		$serverConfigFile,
 		"wrapper.app.parameter.4",
 		"wrapper.app.parameter.4="
-		  . $globalConfig->param("$lcApplication.appContext"),
+		  . $bambooContext,
 		""
 	);
 
@@ -7879,13 +7886,20 @@ sub upgradeBamboo {
 		  . $globalConfig->param("$lcApplication.connectorPort"),
 		""
 	);
-
+	
+	my $bambooContext;
+	if ($globalConfig->param("$lcApplication.appContext") eq "NULL"){
+		$bambooContext = "/";
+	} else{
+		$bambooContext = $globalConfig->param("$lcApplication.appContext");
+	}
+	
 	#Apply application context
 	updateLineInFile(
 		$serverConfigFile,
 		"wrapper.app.parameter.4",
 		"wrapper.app.parameter.4="
-		  . $globalConfig->param("$lcApplication.appContext"),
+		  . $bambooContext,
 		""
 	);
 
