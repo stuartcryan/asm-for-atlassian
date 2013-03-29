@@ -2000,6 +2000,47 @@ sub generateSuiteConfig {
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
+	#Get Proxy configuration
+	genBooleanConfigItem( $mode, $cfg, "general.apacheProxy",
+		"Will you be using Apache as a front end (i.e. proxy) to the suite ",
+		"yes" );
+
+	if ( $cfg->param("general.apacheProxy") eq "TRUE" ) {
+
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"general.apacheProxySingleDomain",
+"Will you be using a single domain for the suite (i.e. no subdomains) AND will you be using the same HTTP/HTTS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
+			"yes"
+		);
+
+		if ( $cfg->param("general.apacheProxySingleDomain") eq "TRUE" ) {
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.apacheProxyHost",
+"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+
+			genBooleanConfigItem( $mode, $cfg, "general.apacheProxySSL",
+				"Will you be running the applications(s) over SSL.", "no" );
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.apacheProxyPort",
+"Please enter the port number that apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+	}
+
 	#Get Bamboo configuration
 	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
 		"Do you wish to install/manage Bamboo? yes/no ", "yes" );
@@ -2089,47 +2130,6 @@ sub generateSuiteConfig {
 		if ( $input eq "yes" ) {
 			print "\n";
 			generateStashConfig( $mode, $cfg );
-		}
-	}
-
-	#Get Proxy configuration
-	genBooleanConfigItem( $mode, $cfg, "general.apacheProxy",
-		"Will you be using Apache as a front end (i.e. proxy) to the suite ",
-		"yes" );
-
-	if ( $cfg->param("general.apacheProxy") eq "TRUE" ) {
-
-		genBooleanConfigItem(
-			$mode,
-			$cfg,
-			"general.apacheProxySingleDomain",
-"Will you be using a single domain for the suite (i.e. no subdomains) AND will you be using the same HTTP/HTTS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
-			"yes"
-		);
-
-		if ( $cfg->param("general.apacheProxySingleDomain") eq "TRUE" ) {
-			genConfigItem(
-				$mode,
-				$cfg,
-				"general.apacheProxyHost",
-"Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
-				"",
-				'^([a-zA-Z0-9\.]*)$',
-"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
-			);
-
-			genBooleanConfigItem( $mode, $cfg, "general.apacheProxyMode",
-				"Will you be running the applications(s) over SSL.", "no" );
-
-			genConfigItem(
-				$mode,
-				$cfg,
-				"general.apacheProxyPort",
-"Please enter the port number that apache will serve on (80 for HTTP, 443 for HTTPS in standard situations).",
-				"80",
-				'^([0-9]*)$',
-"The input you entered was not a valid port number, please try again.\n\n"
-			);
 		}
 	}
 
@@ -2447,6 +2447,46 @@ sub getExistingSuiteConfig {
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
+
+	#Get Proxy configuration
+	genBooleanConfigItem( $mode, $cfg, "general.apacheProxy",
+		"Do you use Apache as a front end (i.e. proxy) to the suite ", "yes" );
+
+	if ( $cfg->param("general.apacheProxy") eq "TRUE" ) {
+
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"general.apacheProxySingleDomain",
+"Do you use a single domain for the suite (i.e. no subdomains) AND do you currently use the same HTTP/HTTS scheme for all applications managed by this script (i.e. all over HTTP OR all over HTTPS not mixed)",
+			"yes"
+		);
+
+		if ( $cfg->param("general.apacheProxySingleDomain") eq "TRUE" ) {
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.apacheProxyHost",
+"Please enter the base URL that the suite currently resides on (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+
+			genBooleanConfigItem( $mode, $cfg, "general.apacheProxySSL",
+				"Do you run the applications(s) over SSL.", "no" );
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.apacheProxyPort",
+"Please enter the port number that Apache serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+	}
 
 	#Get Bamboo configuration
 	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
@@ -3474,6 +3514,7 @@ sub installGenericAtlassianBinary {
 	my @requiredConfigItems;
 	my $downloadArchivesUrl;
 	my $configUser;
+	my $serverXMLFile;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3806,7 +3847,6 @@ Therefore script is terminating, please ensure port configuration is correct and
 		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/conf/server.xml" );
 
-	#Update the server config with the configured connector port
 	updateXMLAttribute(
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/conf/server.xml",
@@ -3814,6 +3854,53 @@ Therefore script is terminating, please ensure port configuration is correct and
 		"path",
 		getConfigItem( "$lcApplication.appContext", $globalConfig )
 	);
+
+	#Update the server config with reverse proxy configuration
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "ProxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
 
 	#Update config to reflect new version that is installed
 	$log->info("$subname: Writing new installed version to the config file.");
@@ -5676,6 +5763,7 @@ sub upgradeGenericAtlassianBinary {
 	my $downloadArchivesUrl;
 	my $configUser;
 	my $lcApplication;
+	my $serverXMLFile;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -5989,6 +6077,52 @@ sub upgradeGenericAtlassianBinary {
 		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/conf/server.xml" );
 
+	#Update the server config with reverse proxy configuration
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
 	#Update the server config with the configured connector port
 	updateXMLAttribute(
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
@@ -6061,7 +6195,7 @@ sub bootStrapper {
 		@requiredConfigItems = (
 			"general.rootDataDir",  "general.rootInstallDir",
 			"general.targetDBType", "general.force32Bit",
-			"general.apacheProxyMode"
+			"general.apacheProxy"
 		);
 		if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 			$log->info(
@@ -7200,6 +7334,33 @@ sub getExistingBambooConfig {
 		""
 	);
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.apacheProxyHost",
+"Please enter the base URL Bamboo currently runs on (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "bamboo.apacheProxySSL",
+			"Do you currently run Bamboo over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.apacheProxyPort",
+"Please enter the port number that Apache currently serves Bamboo on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
+
 	$serverConfigFile =
 	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
 	  . "/conf/wrapper.conf";
@@ -7598,7 +7759,7 @@ sub generateBambooConfig {
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
-		genBooleanConfigItem( $mode, $cfg, "bamboo.apacheProxyMode",
+		genBooleanConfigItem( $mode, $cfg, "bamboo.apacheProxySSL",
 			"Will you be running Bamboo over SSL.", "no" );
 
 		genConfigItem(
@@ -7663,6 +7824,16 @@ sub installBamboo {
 		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2"
 	);
 
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "bamboo.apacheProxyPort" );
+			push( @requiredConfigItems, "bamboo.apacheProxySSL" );
+			push( @requiredConfigItems, "bamboo.apacheProxyHost" );
+		}
+	}
+
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -7700,34 +7871,62 @@ sub installBamboo {
 	);
 
 	my $bambooContext;
-	if ($globalConfig->param("$lcApplication.appContext") eq "NULL"){
+	if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
 		$bambooContext = "/";
-	} else{
+	}
+	else {
 		$bambooContext = $globalConfig->param("$lcApplication.appContext");
 	}
-	
+
 	#Apply application context
-	updateLineInFile(
-		$serverConfigFile,
-		"wrapper.app.parameter.4",
-		"wrapper.app.parameter.4="
-		  . $bambooContext,
-		""
-	);
+	updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
+		"wrapper.app.parameter.4=" . $bambooContext, "" );
 
 	#Edit Bamboo config file to reference homedir
 	$log->info( "$subname: Applying homedir in "
 		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
 	print "Applying home directory to config...\n\n";
-	updateLineInFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		"bamboo.home",
-		"$lcApplication.home="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
-		"#bamboo.home=C:/bamboo/bamboo-home"
-	);
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverConfigFile );
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		updateLineInFile(
+			$serverConfigFile,
+			"wrapper.app.parameter.2",
+			"wrapper.app.parameter.2",
+			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml"
+		);
+
+		updateLineInFile(
+			$serverConfigFile,         "wrapper.app.parameter.3",
+			"wrapper.app.parameter.3", "wrapper.app.parameter.3=../webapp"
+		);
+
+		updateLineInFile(
+			$serverConfigFile,         "wrapper.app.parameter.4",
+			"wrapper.app.parameter.4", "wrapper.app.parameter.4=/"
+		);
+
+#Note: Aware this is NOT the most ideal way to update Jetty conf, however will be superceeded by full Tomcat installs soon
+		updateLineInFile(
+			$serverConfigFile,
+			"<Arg name=\"contextPath\">",
+			"<Arg name=\"contextPath\">",
+			"                <Arg name=\"contextPath\">$bambooContext</Arg>"
+		);
+
+		updateLineInFile(
+			$serverConfigFile,
+			"Property name=\"jetty.port\"",
+			"Property name=\"jetty.port\"",
+"                <Set name=\"port\"><Property name=\"jetty.port\" default=\""
+			  . $globalConfig->param("bamboo.connectorPort")
+			  . "\"/></Set>"
+		);
+
+	}
 
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
@@ -7851,6 +8050,16 @@ sub upgradeBamboo {
 		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2"
 	);
 
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "bamboo.apacheProxyPort" );
+			push( @requiredConfigItems, "bamboo.apacheProxySSL" );
+			push( @requiredConfigItems, "bamboo.apacheProxyHost" );
+		}
+	}
+
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -7886,22 +8095,18 @@ sub upgradeBamboo {
 		  . $globalConfig->param("$lcApplication.connectorPort"),
 		""
 	);
-	
+
 	my $bambooContext;
-	if ($globalConfig->param("$lcApplication.appContext") eq "NULL"){
+	if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
 		$bambooContext = "/";
-	} else{
+	}
+	else {
 		$bambooContext = $globalConfig->param("$lcApplication.appContext");
 	}
-	
+
 	#Apply application context
-	updateLineInFile(
-		$serverConfigFile,
-		"wrapper.app.parameter.4",
-		"wrapper.app.parameter.4="
-		  . $bambooContext,
-		""
-	);
+	updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
+		"wrapper.app.parameter.4=" . $bambooContext, "" );
 
 	#Edit Bamboo config file to reference homedir
 	$log->info( "$subname: Applying homedir in "
@@ -8377,6 +8582,107 @@ sub getExistingConfluenceConfig {
 		}
 	}
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyName" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyName. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyHost",
+"Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyHost", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "scheme" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxy scheme. Asking user for input."
+			);
+			genBooleanConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxySSL",
+"Unable to locate the Apache proxy scheme configuration in $application config. Will you be running $application over SSL.",
+				"no"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			print
+"$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
+			$log->info(
+				"$subname: $application proxy scheme found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyPort" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyPort. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyPort",
+"Unable to find the Apache proxy port attribute in the expected location in the $application config. Please enter the port number that Apache currently serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80/443",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyPort", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+	}
+
 	#Set up some defaults for Confluence
 	$cfg->param( "confluence.processSearchParameter1", "java" );
 	$cfg->param( "confluence.processSearchParameter2",
@@ -8514,7 +8820,7 @@ sub generateConfluenceConfig {
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
-		genBooleanConfigItem( $mode, $cfg, "confluence.apacheProxyMode",
+		genBooleanConfigItem( $mode, $cfg, "confluence.apacheProxySSL",
 			"Will you be running Confluence over SSL.", "no" );
 
 		genConfigItem(
@@ -8570,6 +8876,16 @@ sub installConfluence {
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2"
 	);
+
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "confluence.apacheProxyPort" );
+			push( @requiredConfigItems, "confluence.apacheProxySSL" );
+			push( @requiredConfigItems, "confluence.apacheProxyHost" );
+		}
+	}
 
 	#Run generic installer steps
 	installGenericAtlassianBinary(
@@ -8642,6 +8958,16 @@ sub upgradeConfluence {
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2"
 	);
+
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "confluence.apacheProxyPort" );
+			push( @requiredConfigItems, "confluence.apacheProxySSL" );
+			push( @requiredConfigItems, "confluence.apacheProxyHost" );
+		}
+	}
 
 	upgradeGenericAtlassianBinary(
 		$application, $downloadArchivesUrl,
@@ -9043,6 +9369,107 @@ sub getExistingCrowdConfig {
 		);
 	}
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyName" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyName. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyHost",
+"Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyHost", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "scheme" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxy scheme. Asking user for input."
+			);
+			genBooleanConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxySSL",
+"Unable to locate the Apache proxy scheme configuration in $application config. Will you be running $application over SSL.",
+				"no"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			print
+"$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
+			$log->info(
+				"$subname: $application proxy scheme found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyPort" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyPort. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyPort",
+"Unable to find the Apache proxy port attribute in the expected location in the $application config. Please enter the port number that Apache currently serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80/443",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyPort", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+	}
+
 	#Set up some defaults for Crowd
 	$cfg->param( "$lcApplication.tomcatDir",               "/apache-tomcat" );
 	$cfg->param( "$lcApplication.webappDir",               "/crowd-webapp" );
@@ -9196,7 +9623,7 @@ sub generateCrowdConfig {
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
-		genBooleanConfigItem( $mode, $cfg, "crowd.apacheProxyMode",
+		genBooleanConfigItem( $mode, $cfg, "crowd.apacheProxySSL",
 			"Will you be running Crowd over SSL.", "no" );
 
 		genConfigItem(
@@ -9255,6 +9682,16 @@ sub installCrowd {
 		"crowd.processSearchParameter2"
 	);
 
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "crowd.apacheProxyPort" );
+			push( @requiredConfigItems, "crowd.apacheProxySSL" );
+			push( @requiredConfigItems, "crowd.apacheProxyHost" );
+		}
+	}
+
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -9296,6 +9733,49 @@ sub installCrowd {
 	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
 	updateXMLAttribute( $serverXMLFile, "/Server", "port",
 		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
 
 	#Apply application context
 	$log->info( "$subname: Applying application context to " . $serverXMLFile );
@@ -9393,6 +9873,16 @@ sub upgradeCrowd {
 		"crowd.processSearchParameter1", "crowd.processSearchParameter2"
 	);
 
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "crowd.apacheProxyPort" );
+			push( @requiredConfigItems, "crowd.apacheProxySSL" );
+			push( @requiredConfigItems, "crowd.apacheProxyHost" );
+		}
+	}
+
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -9440,6 +9930,49 @@ sub upgradeCrowd {
 	print "Applying application context to config...\n\n";
 	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
 
 	print "Applying home directory location to config...\n\n";
 
@@ -9865,6 +10398,106 @@ sub getExistingFisheyeConfig {
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
 	}
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "//http", "proxy-host" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyName. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyHost",
+"Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyHost", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "//http", "proxy-scheme" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxy scheme. Asking user for input."
+			);
+			genBooleanConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxySSL",
+"Unable to locate the Apache proxy scheme configuration in $application config. Will you be running $application over SSL.",
+				"no"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			print
+"$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
+			$log->info(
+				"$subname: $application proxy scheme found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "//http", "proxy-port" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyPort. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyPort",
+"Unable to find the Apache proxy port attribute in the expected location in the $application config. Please enter the port number that Apache currently serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80/443",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyPort", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+	}
 
 	#Set up some defaults for Fisheye
 	$cfg->param( "fisheye.tomcatDir", "" )
@@ -10019,7 +10652,7 @@ sub generateFisheyeConfig {
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
-		genBooleanConfigItem( $mode, $cfg, "fisheye.apacheProxyMode",
+		genBooleanConfigItem( $mode, $cfg, "fisheye.apacheProxySSL",
 			"Will you be running Fisheye over SSL.", "no" );
 
 		genConfigItem(
@@ -10078,6 +10711,16 @@ sub installFisheye {
 		"fisheye.processSearchParameter2"
 	);
 
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "fisheye.apacheProxyPort" );
+			push( @requiredConfigItems, "fisheye.apacheProxySSL" );
+			push( @requiredConfigItems, "fisheye.apacheProxyHost" );
+		}
+	}
+
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -10123,6 +10766,45 @@ sub installFisheye {
 	print "Applying application context to config...\n\n";
 	updateXMLAttribute( $serverXMLFile, "web-server", "context",
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "//http", "proxy-host",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "//http", "proxy-scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "//http", "proxy-scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "//http", "proxy-port",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "//http", "proxy-host",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "//http", "proxy-scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "//http", "proxy-scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "//http", "proxy-port",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
 
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
@@ -10227,6 +10909,16 @@ sub upgradeFisheye {
 		"fisheye.javaMaxPermSize", "fisheye.processSearchParameter1",
 		"fisheye.processSearchParameter2"
 	);
+
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "fisheye.apacheProxyPort" );
+			push( @requiredConfigItems, "fisheye.apacheProxySSL" );
+			push( @requiredConfigItems, "fisheye.apacheProxyHost" );
+		}
+	}
 
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -10689,6 +11381,107 @@ sub getExistingJiraConfig {
 		}
 	}
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyName" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyName. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyHost",
+"Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyHost", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "scheme" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxy scheme. Asking user for input."
+			);
+			genBooleanConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxySSL",
+"Unable to locate the Apache proxy scheme configuration in $application config. Will you be running $application over SSL.",
+				"no"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			print
+"$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
+			$log->info(
+				"$subname: $application proxy scheme found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyPort" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyPort. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyPort",
+"Unable to find the Apache proxy port attribute in the expected location in the $application config. Please enter the port number that Apache currently serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80/443",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyPort", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+	}
+
 	#Set up some defaults for JIRA
 	$cfg->param( "$lcApplication.processSearchParameter1", "java" );
 	$cfg->param( "$lcApplication.processSearchParameter2",
@@ -10829,7 +11622,7 @@ sub generateJiraConfig {
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
-		genBooleanConfigItem( $mode, $cfg, "jira.apacheProxyMode",
+		genBooleanConfigItem( $mode, $cfg, "jira.apacheProxySSL",
 			"Will you be running JIRA over SSL.", "no" );
 
 		genConfigItem(
@@ -10878,6 +11671,16 @@ sub installJira {
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
 		"jira.processSearchParameter1", "jira.processSearchParameter2"
 	);
+
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "jira.apacheProxyPort" );
+			push( @requiredConfigItems, "jira.apacheProxySSL" );
+			push( @requiredConfigItems, "jira.apacheProxyHost" );
+		}
+	}
 
 	#Run generic installer steps
 	installGenericAtlassianBinary(
@@ -10961,6 +11764,16 @@ sub upgradeJira {
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
 		"jira.processSearchParameter1", "jira.processSearchParameter2"
 	);
+
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "jira.apacheProxyPort" );
+			push( @requiredConfigItems, "jira.apacheProxySSL" );
+			push( @requiredConfigItems, "jira.apacheProxyHost" );
+		}
+	}
 
 	upgradeGenericAtlassianBinary(
 		$application, $downloadArchivesUrl,
@@ -11383,6 +12196,107 @@ sub getExistingStashConfig {
 		);
 	}
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyName" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyName. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyHost",
+"Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyHost", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "scheme" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxy scheme. Asking user for input."
+			);
+			genBooleanConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxySSL",
+"Unable to locate the Apache proxy scheme configuration in $application config. Will you be running $application over SSL.",
+				"no"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			print
+"$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
+			$log->info(
+				"$subname: $application proxy scheme found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverConfigFile, "///Connector", "proxyPort" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application proxyPort. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.apacheProxyPort",
+"Unable to find the Apache proxy port attribute in the expected location in the $application config. Please enter the port number that Apache currently serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+				"80/443",
+				'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.apacheProxyPort", $returnValue );
+			print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application base hostname found and added to config."
+			);
+		}
+	}
+
 	#Set up some defaults for Stash
 	$cfg->param( "$lcApplication.tomcatDir",               "" );
 	$cfg->param( "$lcApplication.webappDir",               "/atlassian-stash" );
@@ -11533,7 +12447,7 @@ sub generateStashConfig {
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
-		genBooleanConfigItem( $mode, $cfg, "stash.apacheProxyMode",
+		genBooleanConfigItem( $mode, $cfg, "stash.apacheProxySSL",
 			"Will you be running Stash over SSL.", "no" );
 
 		genConfigItem(
@@ -11589,6 +12503,16 @@ sub installStash {
 		"stash.processSearchParameter1", "stash.processSearchParameter2"
 	);
 
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "stash.apacheProxyPort" );
+			push( @requiredConfigItems, "stash.apacheProxySSL" );
+			push( @requiredConfigItems, "stash.apacheProxyHost" );
+		}
+	}
+
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -11631,6 +12555,48 @@ sub installStash {
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
 
 	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
 
 	#Edit Stash config file to reference homedir
 	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
@@ -11736,6 +12702,16 @@ sub upgradeStash {
 		"stash.processSearchParameter1", "stash.processSearchParameter2"
 	);
 
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if (
+			$globalConfig->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			push( @requiredConfigItems, "stash.apacheProxyPort" );
+			push( @requiredConfigItems, "stash.apacheProxySSL" );
+			push( @requiredConfigItems, "stash.apacheProxyHost" );
+		}
+	}
+
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -11776,6 +12752,49 @@ sub upgradeStash {
 	print "Applying application context to config...\n\n";
 	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
 
 	print "Applying home directory location to config...\n\n";
 
