@@ -119,7 +119,7 @@ installExpat(){
 #Test system for required PERL Modules #
 ########################################
 checkPerlModules(){
-MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath qXML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
+MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
 BINARIESCHECK=""
 
 for i in $MODULES
