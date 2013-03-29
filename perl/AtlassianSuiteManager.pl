@@ -515,7 +515,7 @@ sub compareTwoVersions {
 	@splitVersion2 = split( /\./, $version2 );
 
 #Iterate through first array and test if the version provided is less than or equal to the second array
-	for ( $count = 0 ; $count <= $#splitVersion1 ; $count++ ) {
+	for ( $count = 0 ; $count <= 3 ; $count++ ) {
 		if ( $count == 0 ) {
 			if ( $splitVersion1[$count] < $splitVersion2[$count] ) {
 				$majorVersionStatus = "LESS";
