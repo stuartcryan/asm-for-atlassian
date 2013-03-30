@@ -105,7 +105,7 @@ fi
 installExpat(){
 	#Run in tmp as make for expat has problems with paths with spaces
 	cd /tmp
-	wget --output-document=expat.tar.gz $EXPATDOWNLOADURL || { echo "WGET Was unable to download EXPAT, please check your internet connection and try again. This script will now exit."; exit 1; }
+	wget $PROXYUSER $PROXYPASS --output-document=expat.tar.gz $EXPATDOWNLOADURL || { echo "WGET Was unable to download EXPAT, please check your internet connection and try again. This script will now exit."; exit 1; }
 	tar -xvzf expat.tar.gz
 	cd expat-*
     ./configure || { echo "Unable to configure EXPAT. Without EXPAT the PERL XML binaries will not install correctly. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
@@ -208,9 +208,11 @@ fi
 ########################################
 downloadLatestFile(){
 	cd $INSTALLDIR
-	mv LATEST .LATEST.OLD
+	if [[ -e LATEST ]]; then
+	   mv LATEST .LATEST.OLD
+    fi
 
-	if ! wget --quiet $LATESTDOWNLOADURL ; then
+	if ! wget $PROXYUSER $PROXYPASS --quiet $LATESTDOWNLOADURL ; then
     	mv .LATEST.OLD LATEST
 	fi
 }
@@ -360,7 +362,7 @@ processLatestVersionFile(){
 				echo "Downloading the latest version of $FILENAME. Please Wait..."
 				cd $INSTALLDIR$DIRECTORYLOCATION
 				mv $FILENAME .$FILENAME.OLD
-				if ! wget --quiet $BASEURL/$FILENAME ; then
+				if ! wget $PROXYUSER $PROXYPASS --quiet $BASEURL/$FILENAME ; then
     				mv .$FILENAME.OLD $FILENAME
     				echo "Unable to update $FILENAME please try again later. The script will continue using the existing version."
 				fi
@@ -398,9 +400,14 @@ checkForRootAccess
 #Import custom includes if the file exists
 if [ -f "shellScriptIncludes.inc" ]; then
 	source shellScriptIncludes.inc
-	if [ ! -z "$VAR" ]; then
-	echo "test"
+	if [[ $PROXYUSER ]]; then
+		PROXYUSER="--proxy-user="$PROXYUSER 
+	fi 
+	if [[ $PROXYPASS ]]; then
+		PROXYPASS="--proxy-password="$PROXYPASS 
 	fi
+	echo "ProxyUser is "$PROXYUSER
+	echo "ProxyPass is "$PROXYPASS
 fi
 
 #check for Oracle JVM
