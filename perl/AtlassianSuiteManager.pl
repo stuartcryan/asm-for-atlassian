@@ -5526,39 +5526,6 @@ sub upgradeGeneric {
 	#Check the user exists or create if not
 	createOSUser($osUser);
 
-#Commenting out for the time being... will be correctly enabled as part of [#ATLASMGR-146]
-#	$serverPortAvailCode =
-#	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
-#
-#	$connectorPortAvailCode =
-#	  isPortAvailable( $globalConfig->param("lcApplication.connectorPort") );
-#
-#	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-#		$log->info(
-#"$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0
-#is currently in use. We will continue however there is a good chance $application will not start."
-#		);
-#		print
-#"One or more of the ports configured for $application are currently in use. We can proceed however there is a very good chance"
-#		  . " that $application will not start correctly.\n\n";
-#		print
-#"Would you like to continue even though the ports are in use? yes/no [yes]: ";
-#
-#		$input = getBooleanInput();
-#		print "\n";
-#		if ( $input eq "no" ) {
-#			$log->logdie(
-#"User selected NO as ports are in use: Install will not proceed. Exiting script. \n\n"
-#			);
-#		}
-#		else {
-#			$log->info(
-#				"$subname: User opted to continue even though ports are in use."
-#			);
-#		}
-#
-#	}
-
 	$input = getBooleanInput(
 		"Would you like to upgrade to the latest version? yes/no [yes]: ");
 	print "\n";
