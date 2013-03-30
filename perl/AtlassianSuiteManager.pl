@@ -999,11 +999,11 @@ sub downloadAtlassianInstaller {
 		$input =
 		  getBooleanInput( "The local install file "
 			  . $absoluteFilePath
-			  . " already exists. Would you like to download the file again and replace the existing file: [no]"
+			  . " already exists. Would you like to skip downloading it again?: [yes]"
 		  );
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
-		if ( $input eq "no" || $input eq "default" ) {
+		if ( $input eq "yes" || $input eq "default" ) {
 			$log->debug(
 "$subname: User opted to skip redownloading the installer file for $application."
 			);
@@ -1090,11 +1090,11 @@ sub downloadFileAndChown {
 		$input =
 		  getBooleanInput( "The local download file "
 			  . $absoluteFilePath
-			  . " already exists. Would you like to download the file again and replace the existing file: [no]"
+			  . " already exists. Would you like to skip downloading it again?: [yes]"
 		  );
 		dumpSingleVarToLog( "$subname" . "_input", $input );
 		print "\n";
-		if ( $input eq "no" || $input eq "default" ) {
+		if ( $input eq "yes" || $input eq "default" ) {
 			$log->debug(
 "$subname: User opted to skip redownloading the file $downloadURL."
 			);
