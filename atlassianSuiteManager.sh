@@ -115,6 +115,10 @@ installExpat(){
     rm -r --force expat-*
 }
 
+checkJVM(){
+	java -version  2>&1 | grep HotSpot || { java -version || { echo ""; echo ""; echo "Java is not currently installed. Please install an Oracle JDK (not OpenJDK) and run this script again. This script will now exit."; echo ""; exit 1; }; echo ""; echo ""; echo "The Java Runtime Environment currently installed is OpenJDK. At this time the Atlassian Suite does not support OpenJDK. Please install an Oracle JDK and run this script again. This script will now exit."; echo ""; exit 1; }
+}
+
 ########################################
 #Test system for required PERL Modules #
 ########################################
@@ -398,6 +402,29 @@ if [ -f "shellScriptIncludes.inc" ]; then
 	echo "test"
 	fi
 fi
+
+#check for Oracle JVM
+clear
+
+#Display nice header
+	cat <<-____HERE
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ****************************************
+      *Checking for Oracle JVM               *
+      ****************************************
+    
+	____HERE
+	
+checkJVM
+
+clear
 
 #Display nice header
 	cat <<-____HERE
