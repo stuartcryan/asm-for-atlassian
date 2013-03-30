@@ -1747,7 +1747,7 @@ sub generateInitD {
 		"exit 0\n"
 	);
 
-	push(@initSpecific, @initGeneric);
+	push( @initSpecific, @initGeneric );
 
 	#Write out file to /etc/init.d
 	$log->info("$subname: Writing out init.d file for $application.");
@@ -3536,6 +3536,8 @@ sub installGenericAtlassianBinary {
 	my @requiredConfigItems;
 	my $downloadArchivesUrl;
 	my $configUser;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $serverXMLFile;
 	my $subname = ( caller(0) )[3];
 
@@ -3808,13 +3810,27 @@ Therefore script is terminating, please ensure port configuration is correct and
 "Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
 	}
 
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
 	#Apply the JavaOpts configuration (if any)
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/bin/setenv.sh",
-		"JAVA_OPTS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
 
 	#Check if user wants to remove the downloaded installer
 	$input =
@@ -5792,6 +5808,8 @@ sub upgradeGenericAtlassianBinary {
 	my $VERSIONLOOP = 1;
 	my @uidGid;
 	my @parameterNull;
+	my @parameterNull2;
+	my $javaOptsValue;
 	my $varfile;
 	my @requiredConfigItems;
 	my $downloadArchivesUrl;
@@ -6063,13 +6081,27 @@ sub upgradeGenericAtlassianBinary {
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
 
+	@parameterNull2 = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull2 == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
 	#Apply the JavaOpts configuration (if any)
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/bin/setenv.sh",
-		"JAVA_OPTS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
 
 #If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
@@ -8042,8 +8074,9 @@ sub installBamboo {
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq "" )
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
 	{
 		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
 	}
@@ -9803,6 +9836,8 @@ sub installCrowd {
 	my $serverXMLFile;
 	my $initPropertiesFile;
 	my $javaMemParameterFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -9917,11 +9952,11 @@ sub installCrowd {
 		}
 	}
 
-	#Apply application context
-	$log->info( "$subname: Applying application context to " . $serverXMLFile );
-	print "Applying application context to config...\n\n";
-	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+   #Apply application context
+   #$log->info( "$subname: Applying application context to " . $serverXMLFile );
+   #print "Applying application context to config...\n\n";
+   #updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+   #	getConfigItem( "$lcApplication.appContext", $globalConfig ) );
 
 	print "Applying home directory location to config...\n\n";
 
@@ -9936,15 +9971,28 @@ sub installCrowd {
 		"#crowd.home=/var/crowd-home"
 	);
 
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . $globalConfig->param( $lcApplication . ".tomcatDir" )
-		  . "/bin/setenv.sh",
-		"JAVA_OPTS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
 
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
@@ -9995,6 +10043,8 @@ sub upgradeCrowd {
 	my $serverXMLFile;
 	my $initPropertiesFile;
 	my $javaMemParameterFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -10128,15 +10178,28 @@ sub upgradeCrowd {
 		"#crowd.home=/var/crowd-home"
 	);
 
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . $globalConfig->param( $lcApplication . ".tomcatDir" )
-		  . "/bin/setenv.sh",
-		"JAVA_OPTS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
 
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
@@ -10295,7 +10358,8 @@ sub getExistingFisheyeConfig {
 		print
 "$application data directory has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application data directory found and added to config.");
+			"$subname: $application data directory found and added to config."
+		);
 	}
 
 	#getContextFromFile
@@ -10364,7 +10428,7 @@ sub getExistingFisheyeConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
@@ -10836,6 +10900,8 @@ sub installFisheye {
 	  "http://www.atlassian.com/software/fisheye/download-archives";
 	my $configFile;
 	my @requiredConfigItems;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -10961,14 +11027,28 @@ sub installFisheye {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/bin/fisheyectl.sh",
-		"FISHEYE_OPTS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/fisheyectl.sh",
+			"FISHEYE_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+
+	}
 
 	print "Configuration settings have been applied successfully.\n\n";
 
@@ -11036,6 +11116,8 @@ sub upgradeFisheye {
 	my $initPropertiesFile;
 	my $javaMemParameterFile;
 	my @requiredConfigItems;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -11090,14 +11172,28 @@ sub upgradeFisheye {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/bin/fisheyectl.sh",
-		"FISHEYE_OPTS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/fisheyectl.sh",
+			"FISHEYE_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+
+	}
 
 	print "Configuration settings have been applied successfully.\n\n";
 
@@ -11277,7 +11373,8 @@ sub getExistingJiraConfig {
 		print
 "$application data directory has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application data directory found and added to config.");
+			"$subname: $application data directory found and added to config."
+		);
 	}
 
 	#getContextFromFile
@@ -11343,7 +11440,7 @@ sub getExistingJiraConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
@@ -12096,7 +12193,8 @@ sub getExistingStashConfig {
 		print
 "$application data directory has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application data directory found and added to config.");
+			"$subname: $application data directory found and added to config."
+		);
 	}
 
 	#getContextFromFile
@@ -12162,7 +12260,7 @@ sub getExistingStashConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
@@ -12628,6 +12726,8 @@ sub installStash {
 	my $serverXMLFile;
 	my $initPropertiesFile;
 	my $javaMemParameterFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -12752,16 +12852,27 @@ sub installStash {
 		  . "\"",
 		"#STASH_HOME="
 	);
+	
+@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+if ( ( $#parameterNull == -1 )
+	|| $globalConfig->param("$lcApplication.javaParams") eq "" || $globalConfig->param("$lcApplication.javaParams") eq "default" )
+{
+	$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+}
+else {
+	$javaOptsValue = "CONFIGSPECIFIED";
+}
 
-	#Apply the JavaOpts configuration (if any)
-	$javaMemParameterFile = $initPropertiesFile;
-	print "Applying Java_Opts configuration to install...\n\n";
+#Apply the JavaOpts configuration (if any)
+print "Applying Java_Opts configuration to install...\n\n";
+if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 	updateJavaOpts(
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/setenv.sh",
 		"JVM_REQUIRED_ARGS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
 	);
+}
 
 	print "Configuration settings have been applied successfully.\n\n";
 
@@ -12829,6 +12940,8 @@ sub upgradeStash {
 	my $initPropertiesFile;
 	my $javaMemParameterFile;
 	my @requiredConfigItems;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -12954,15 +13067,27 @@ sub upgradeStash {
 		"#STASH_HOME="
 	);
 
-	#Apply the JavaOpts configuration (if any)
-	$javaMemParameterFile = $initPropertiesFile;
-	print "Applying Java_Opts configuration to install...\n\n";
+@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+if ( ( $#parameterNull == -1 )
+	|| $globalConfig->param("$lcApplication.javaParams") eq "" || $globalConfig->param("$lcApplication.javaParams") eq "default" )
+{
+	$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+}
+else {
+	$javaOptsValue = "CONFIGSPECIFIED";
+}
+
+#Apply the JavaOpts configuration (if any)
+print "Applying Java_Opts configuration to install...\n\n";
+if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 	updateJavaOpts(
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/setenv.sh",
 		"JVM_REQUIRED_ARGS",
 		$globalConfig->param( $lcApplication . ".javaParams" )
 	);
+}
+
 
 	print "Configuration settings have been applied successfully.\n\n";
 
