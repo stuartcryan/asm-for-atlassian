@@ -34,8 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use LWP::Simple;    # From CPAN
-use LWP::Simple qw($ua getstore);
+use LWP::Simple qw($ua getstore get);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
 use URI;                       # From CPAN
@@ -6212,6 +6211,7 @@ sub whichApplicationArchitecture {
 ########################################
 sub bootStrapper {
 	my @parameterNull;
+	my @proxyParameterNull;
 	my @requiredConfigItems;
 	my $input;
 	my $subname = ( caller(0) )[3];
@@ -6273,6 +6273,21 @@ sub bootStrapper {
 				downloadJDBCConnector( "MySQL", $globalConfig );
 			}
 		}
+	}
+
+	#set up proxy configuration
+	@proxyParameterNull = $globalConfig->param('general.httpNetworkProxy');
+	if (
+		defined( $globalConfig->param('general.httpNetworkProxy') ) &
+		!( $#proxyParameterNull == -1 ) )
+	{
+		$log->info(
+"$subname: HTTP Proxy has been defined and set up for use: $globalConfig->param('general.httpNetworkProxy')"
+		);
+		$ua->proxy(
+			[ 'http', 'https' ],
+			$globalConfig->param('general.httpNetworkProxy')
+		);
 	}
 
 	#Set the architecture once on startup
@@ -6765,7 +6780,6 @@ sub displayMainMenu {
       Welcome to the Atlassian Suite Manager Script
 
       AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
-      
       ###########################################################################################
       I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
       CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
