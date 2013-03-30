@@ -45,8 +45,9 @@ BINARIES="wget zip unzip tar perl cpan gcc openssl g++ make"
 BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make"
 BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
 
-#This is deliberately null
+#These are deliberately null
 BINARIESCHECK=""
+MISSINGBINARIES=""
 
 for i in $BINARIES
 do
@@ -125,10 +126,11 @@ checkJVM(){
 checkPerlModules(){
 MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
 BINARIESCHECK=""
+MISSINGMODULES=""
 
 for i in $MODULES
 do
-perl -e "use $i" &>/dev/null  || { echo "$i PERL module not found."; MODULESCHECK="FAIL"; }
+perl -e "use $i" &>/dev/null  || { echo "$i PERL module not found."; MODULESCHECK="FAIL"; MISSINGMODULES=$MISSINGMODULES"$i "; }
 done
 
 if [[ $MODULESCHECK == "FAIL" ]] ; then
@@ -196,8 +198,8 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 				(echo o conf prerequisites_policy follow;echo o conf commit)|cpan
 			fi
 			
-			cpan "LWP::Simple" || { echo "CPAN was unable to install LWP::Simple. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
-			cpan $MODULES || { echo "CPAN was unable to install the required PERL modules. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
+			perl -e "use LWP::Simple" &>/dev/null  || { cpan "LWP::Simple" || { echo "CPAN was unable to install LWP::Simple. Please correct this manually and then run this script again. This script will now exit"; exit 1; } ; }
+			cpan $MISSINGMODULES || { echo "CPAN was unable to install the required PERL modules. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
 		fi
 fi
 
