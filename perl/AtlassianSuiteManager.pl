@@ -34,7 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use LWP::Simple qw($ua getstore get);
+use LWP::Simple qw($ua getstore get is_success);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
 use URI;                       # From CPAN
@@ -1668,7 +1668,8 @@ sub generateInitD {
 	my $baseDir;
 	my $startCmd;
 	my $stopCmd;
-	my @initFile;
+	my @initGeneric;
+	my @initSpecific;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -1688,12 +1689,30 @@ sub generateInitD {
 	dumpSingleVarToLog( "$subname" . "_startCmd",    $startCmd );
 	dumpSingleVarToLog( "$subname" . "_stopCmd",     $stopCmd );
 
-	#generate INITD file
-	@initFile = (
-		"#!/bin/sh -e\n",
-		"#" . $application . " startup script\n",
-		"#chkconfig: 2345 80 05\n",
-		"#description: " . $application . "\n",
+	if ( $distro eq "redhat" ) {
+		@initSpecific = (
+			"#!/bin/sh -e\n",
+			"#" . $application . " startup script\n",
+			"#chkconfig: 2345 80 05\n",
+			"#description: " . $application . "\n"
+		);
+	}
+	elsif ( $distro eq "debian" ) {
+		@initSpecific = (
+			"#!/bin/sh -e\n",
+			"### BEGIN INIT INFO\n",
+			"# Provides:          $lcApplication\n",
+			"# Required-Start:    \n",
+			"# Required-Stop:     \n",
+			"# Default-Start:     2 3 4 5\n",
+			"# Default-Stop:      0 1 6\n",
+			"# Short-Description: Start $lcApplication at boot time\n",
+			"# Description:       Enable auto startup of $lcApplication.\n",
+			"### END INIT INFO\n"
+		);
+	}
+
+	@initGeneric = (
 		"\n",
 		"APP=" . $lcApplication . "\n",
 		"USER=" . $runUser . "\n",
@@ -1728,11 +1747,13 @@ sub generateInitD {
 		"exit 0\n"
 	);
 
+	push(@initSpecific, @initGeneric);
+
 	#Write out file to /etc/init.d
 	$log->info("$subname: Writing out init.d file for $application.");
 	open FILE, ">/etc/init.d/$lcApplication"
 	  or $log->logdie("Unable to open file /etc/init.d/$lcApplication: $!");
-	print FILE @initFile;
+	print FILE @initSpecific;
 	close FILE;
 
 	#Make the new init.d file executable
@@ -6284,10 +6305,8 @@ sub bootStrapper {
 		$log->info(
 "$subname: HTTP Proxy has been defined and set up for use: $globalConfig->param('general.httpNetworkProxy')"
 		);
-		$ua->proxy(
-			[ 'http', 'https' ],
-			$globalConfig->param('general.httpNetworkProxy')
-		);
+		$ua->proxy( [ 'http', 'https' ],
+			$globalConfig->param('general.httpNetworkProxy') );
 	}
 
 	#Set the architecture once on startup
