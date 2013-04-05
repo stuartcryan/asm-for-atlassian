@@ -42,7 +42,7 @@ checkRequiredBinaries(){
 BINARIES="wget zip unzip tar perl cpan gcc openssl g++ make"
 
 #as Debian does not know of a CPAN binary it comes in the PERL binary
-BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make"
+BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make cpan"
 BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
 
 #These are deliberately null
