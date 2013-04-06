@@ -10202,6 +10202,9 @@ sub upgradeCrowd {
 	backupFile( $initPropertiesFile, $osUser );
 
 	backupFile( $javaMemParameterFile, $osUser );
+	
+	print "Applying custom context to $application...\n\n";
+	setCustomCrowdContext();
 
 	print "Applying port numbers to server config...\n\n";
 
