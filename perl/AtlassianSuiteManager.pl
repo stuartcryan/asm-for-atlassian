@@ -4415,7 +4415,7 @@ sub setCustomCrowdContext {
 			"crowd.url="
 			  . "crowd.url=http://localhost:"
 			  . $globalConfig->param("crowd.connectorPort")
-			  . $globalConfig->param("crowd.appContext"),
+			  . getConfigItem( "crowd.appContext", $globalConfig ),
 			""
 		);
 
@@ -4440,10 +4440,10 @@ sub setCustomCrowdContext {
 '     <Host appBase="webapps" autoDeploy="true" name="localhost" unpackWARs="true">'
 			  . "\n"
 			  . '           <Context path="'
-			  . $globalConfig->param("crowd.appContext")
+			  . getConfigItem( "crowd.appContext", $globalConfig )
 			  . '" docBase="../../crowd-webapp" debug="0">' . "\n"
 			  . '                 <Manager pathname="'
-			  . $globalConfig->param("crowd.appContext") . '" />' . "\n"
+			  . getConfigItem( "crowd.appContext", $globalConfig ) . '" />' . "\n"
 			  . '           </Context>' . "\n"
 			  . '     </Host>' . "\n",
 			""
