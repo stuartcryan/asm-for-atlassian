@@ -34,7 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use LWP::Simple qw($ua getstore get is_success);
+use LWP::Simple qw($ua getstore get is_success head);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
 use URI;                       # From CPAN
@@ -4139,6 +4139,32 @@ sub moveDirectory {
 }
 
 ########################################
+#MoveFile                              #
+########################################
+sub moveFile {
+	my $origFile;
+	my $newFile;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$origFile = $_[0];
+	$newFile  = $_[1];
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_origFile", $origFile );
+	dumpSingleVarToLog( "$subname" . "_newFile",  $newFile );
+
+	$log->info("$subname: Moving $origFile to $newFile.");
+
+	if ( move( $origFile, $newFile ) == 0 ) {
+		$log->logdie(
+"Unable to move file $origFile to $newFile. Unknown error occured.\n\n"
+		);
+	}
+}
+
+########################################
 #PostInstallGeneric                    #
 ########################################
 sub postInstallGeneric {
@@ -4355,6 +4381,83 @@ sub restartService {
 	else {
 		$log->info("$subname: Service stop for $application failed.");
 		return "FAIL";
+	}
+}
+
+########################################
+#setCustomCrowdContext                 #
+########################################
+sub setCustomCrowdContext {
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$log->info("$subname: Setting custom Crowd context");
+	if ( $globalConfig->param("crowd.appContext") eq "/crowd" ) {
+
+		#do nothing, as no custom context is required, this is the default
+		return;
+	}
+	else {
+		backupDirectoryAndChown(
+			escapeFilePath(
+				$globalConfig->param("crowd.installDir")
+				  . "/apache-tomcat/webapps/ROOT"
+			),
+			$globalConfig->param("crowd.osUser")
+		);
+
+		updateLineInFile(
+			escapeFilePath(
+				$globalConfig->param("crowd.installDir") . "/build.properties"
+			),
+			"crowd.url",
+			"crowd.url="
+			  . "crowd.url=http://localhost:"
+			  . $globalConfig->param("crowd.connectorPort")
+			  . $globalConfig->param("crowd.appContext"),
+			""
+		);
+
+		system(
+			"cd "
+			  . escapeFilePath(
+				$globalConfig->param("crowd.installDir") )
+			  . " && " . $globalConfig->param("crowd.installDir") . "/build.sh"
+		);
+		if ( $? == -1 ) {
+			$log->logdie(
+"Crowd: unable to run the build script to complete the custom context. $!\n"
+			);
+		}
+
+		updateLineInFile(
+			escapeFilePath(
+				$globalConfig->param("crowd.installDir")
+				  . "/apache-tomcat/conf/server.xml"
+			),
+".*.*(appBase|autoDeploy|name|unpackWARs).*(appBase|autoDeploy|name|unpackWARs).*(appBase|autoDeploy|name|unpackWARs).*.*(appBase|autoDeploy|name|unpackWARs).*",
+'     <Host appBase="webapps" autoDeploy="true" name="localhost" unpackWARs="true">'
+			  . "\n"
+			  . '           <Context path="'
+			  . $globalConfig->param("crowd.appContext")
+			  . '" docBase="../../crowd-webapp" debug="0">' . "\n"
+			  . '                 <Manager pathname="'
+			  . $globalConfig->param("crowd.appContext") . '" />' . "\n"
+			  . '           </Context>' . "\n"
+			  . '     </Host>' . "\n",
+			""
+		);
+		moveFile(
+			escapeFilePath(
+				$globalConfig->param("crowd.installDir")
+				  . "/apache-tomcat/conf/Catalina/localhost/crowd.xml"
+			),
+			escapeFilePath(
+				$globalConfig->param("crowd.installDir")
+				  . "/apache-tomcat/conf/Catalina/localhost/crowdbak.bak"
+			)
+		);
 	}
 }
 
@@ -9896,6 +9999,9 @@ sub installCrowd {
 
 	backupFile( $javaMemParameterFile, $osUser );
 
+	print "Applying custom context to $application...\n\n";
+	setCustomCrowdContext();
+
 	print "Applying port numbers to server config...\n\n";
 
 	#Update the server config with the configured connector port
@@ -9951,12 +10057,6 @@ sub installCrowd {
 				$globalConfig->param("$lcApplication.apacheProxyPort") );
 		}
 	}
-
-   #Apply application context
-   #$log->info( "$subname: Applying application context to " . $serverXMLFile );
-   #print "Applying application context to config...\n\n";
-   #updateXMLAttribute( $serverXMLFile, "//////Context", "path",
-   #	getConfigItem( "$lcApplication.appContext", $globalConfig ) );
 
 	print "Applying home directory location to config...\n\n";
 
@@ -10428,7 +10528,7 @@ sub getExistingFisheyeConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
@@ -11440,7 +11540,7 @@ sub getExistingJiraConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
@@ -12260,7 +12360,7 @@ sub getExistingStashConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
@@ -12852,27 +12952,28 @@ sub installStash {
 		  . "\"",
 		"#STASH_HOME="
 	);
-	
-@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-if ( ( $#parameterNull == -1 )
-	|| $globalConfig->param("$lcApplication.javaParams") eq "" || $globalConfig->param("$lcApplication.javaParams") eq "default" )
-{
-	$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-}
-else {
-	$javaOptsValue = "CONFIGSPECIFIED";
-}
 
-#Apply the JavaOpts configuration (if any)
-print "Applying Java_Opts configuration to install...\n\n";
-if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/bin/setenv.sh",
-		"JVM_REQUIRED_ARGS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
-}
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JVM_REQUIRED_ARGS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
 
 	print "Configuration settings have been applied successfully.\n\n";
 
@@ -13067,27 +13168,27 @@ sub upgradeStash {
 		"#STASH_HOME="
 	);
 
-@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-if ( ( $#parameterNull == -1 )
-	|| $globalConfig->param("$lcApplication.javaParams") eq "" || $globalConfig->param("$lcApplication.javaParams") eq "default" )
-{
-	$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-}
-else {
-	$javaOptsValue = "CONFIGSPECIFIED";
-}
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
 
-#Apply the JavaOpts configuration (if any)
-print "Applying Java_Opts configuration to install...\n\n";
-if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-	updateJavaOpts(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/bin/setenv.sh",
-		"JVM_REQUIRED_ARGS",
-		$globalConfig->param( $lcApplication . ".javaParams" )
-	);
-}
-
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JVM_REQUIRED_ARGS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
 
 	print "Configuration settings have been applied successfully.\n\n";
 
