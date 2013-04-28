@@ -14499,7 +14499,7 @@ sub upgradeStash {
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
 	updateLineInFile(
-		$javaMemParameterFile,
+		$initPropertiesFile,
 		"JVM_MINIMUM_MEMORY",
 		"JVM_MINIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMinMemory"),
@@ -14507,7 +14507,7 @@ sub upgradeStash {
 	);
 
 	updateLineInFile(
-		$javaMemParameterFile,
+		$initPropertiesFile,
 		"JVM_MAXIMUM_MEMORY",
 		"JVM_MAXIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
@@ -14515,7 +14515,7 @@ sub upgradeStash {
 	);
 
 	updateLineInFile(
-		$javaMemParameterFile,
+		$initPropertiesFile,
 		"STASH_MAX_PERM_SIZE",
 		"STASH_MAX_PERM_SIZE="
 		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
