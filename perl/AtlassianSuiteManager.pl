@@ -7654,7 +7654,7 @@ sub displayRestoreMenu {
 	@parameterNull =
 	  $globalConfig->param("bamboo.latestInstallDirBackupLocation");
 	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("bamboo..latestInstallDirBackupLocation") eq
+		|| $globalConfig->param("bamboo.latestInstallDirBackupLocation") eq
 		"" )
 	{
 		$isBambooBackedUp     = "FALSE";
