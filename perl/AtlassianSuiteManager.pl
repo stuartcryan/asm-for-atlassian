@@ -232,7 +232,7 @@ sub backupApplication {
 	print
 "A backup of $application has been taken. Please note, this script can only backup your application and data directories.\n"
 	  . "It is imperative that you take a backup of your database. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n"
-	  . "restore your database. This script DOES NOT RESTORE YOUR DATABASE!!!\n\n";
+	  . "restore your database. This script DOES NOT BACKUP OR RESTORE YOUR DATABASE!!!\n\n";
 
 	print
 "Please press enter to confirm you have read and thorougly understand the above warning regarding database restores.";
@@ -1748,7 +1748,7 @@ sub generateGenericKickstart {
 	  or $log->logdie("Unable to open $filename for writing.");
 	print FH "#install4j response file for $application\n";
 	if ( $mode eq "UPGRADE" ) {
-		print FH 'backup' . "$application" . '$Boolean=true' . "\n";
+		print FH 'backup' . "$application" . '$Boolean=false' . "\n";
 	}
 	if ( $mode eq "INSTALL" ) {
 		print FH 'rmiPort$Long='
@@ -4623,6 +4623,84 @@ sub restartService {
 }
 
 ########################################
+#restoreApplicationBackup              #
+########################################
+sub restoreApplicationBackup {
+	my $subname = ( caller(0) )[3];
+	my $date = strftime "%Y%m%d_%H%M%S", localtime;
+	my $application;
+	my $lcApplication;
+	my $input;
+
+	$log->info("BEGIN: $subname");
+	$application   = $_[0];
+	$lcApplication = lc($application);
+
+	print
+"You have selected to restore the previous backup for $application. Please be aware this will NOT restore your database and this MUST be done separately.\n";
+	print
+"By continuing this script will immediately stop the services and restore $application without any further confirmation.\n\n";
+	$input = getBooleanInput("Do you *really* want to continue? yes/no [no]: ");
+	print "\n";
+	if ( $input eq "no" || $input eq "default" ) {
+		return;
+	}
+
+	stopService(
+		$application,
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter1" )
+		  . "\"",
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter2" )
+		  . "\""
+	);
+
+	if ( -d $globalConfig->param("$lcApplication.latestDataDirBackupLocation")
+		&& -d $globalConfig->param(
+			"$lcApplication.latestInstallDirBackupLocation") )
+	{
+
+		#Move broken install directories
+		moveDirectory( $globalConfig->param("$lcApplication.installDir"),
+			$globalConfig->param("$lcApplication.installDir")
+			  . "_prerestore_$date" );
+		moveDirectory( $globalConfig->param("$lcApplication.dataDir"),
+			$globalConfig->param("$lcApplication.dataDir")
+			  . "_prerestore_$date" );
+
+		#Copy back last backup
+		moveDirectory(
+			$globalConfig->param(
+				"$lcApplication.latestInstallDirBackupLocation"),
+			$globalConfig->param("$lcApplication.installDir")
+		);
+		moveDirectory(
+			$globalConfig->param("$lcApplication.latestDataDirBackupLocation"),
+			$globalConfig->param("$lcApplication.dataDir")
+		);
+
+	}
+	else {
+		$log->logdie(
+"Either the Data Directory backup or Application Installation Directory backup do not exist. Unfortunately we are unable to proceed."
+		);
+	}
+
+	#Null out as the directory no longer exists
+	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation", "" );
+
+	$log->info("Writing out config file to disk.");
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+	print
+"$application has now been restored successfully. Please restore your database and then start up the services manually.";
+	print
+"Please note that the backup has been MOVED back into place, not copied, so cannot be restored a second time. Please press enter to return to the menu...\n";
+	$input = <STDIN>;
+}
+
+########################################
 #setCustomCrowdContext                 #
 ########################################
 sub setCustomCrowdContext {
@@ -6366,6 +6444,9 @@ sub upgradeGenericAtlassianBinary {
 		}
 	}
 
+	#Backup the existing install
+	backupApplication($application);
+
 	#We are upgrading, get the latest version
 	$input = getBooleanInput(
 		"Would you like to upgrade to the latest version? yes/no [yes]: ");
@@ -7394,6 +7475,7 @@ sub displayMainMenu {
       1) Install a new application
       2) Upgrade an existing application
       3) Uninstall an application
+      4) Recover backup for failed upgrade
       D) Download the full latest version of the Atlassian Suite (Testing & Debugging)
       G) Generate Suite Config
       T) Testing Function (varies)
@@ -7431,6 +7513,10 @@ END_TXT
 			system 'clear';
 			displayUninstallMenu();
 		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			displayRestoreMenu();
+		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
 			generateSuiteConfig();
@@ -7448,6 +7534,252 @@ END_TXT
 				"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
 			);
 			my $test = <STDIN>;
+		}
+	}
+}
+
+########################################
+#Display Restore Menu                  #
+########################################
+sub displayRestoreMenu {
+	my $choice;
+	my $menuText;
+	my $isBambooBackedUp;
+	my $bambooAdditionalText = "";
+	my $isCrowdBackedUp;
+	my $crowdAdditionalText = "";
+	my $isConfluenceBackedUp;
+	my $confluenceAdditionalText = "";
+	my $isFisheyeBackedUp;
+	my $fisheyeAdditionalText = "";
+	my $isJiraBackedUp;
+	my $jiraAdditionalText = "";
+	my $isStashBackedUp;
+	my $stashAdditionalText = "";
+	my @parameterNull;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Set up suite current install status
+	@parameterNull =
+	  $globalConfig->param("bamboo.latestInstallDirBackupLocation");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("bamboo..latestInstallDirBackupLocation") eq
+		"" )
+	{
+		$isBambooBackedUp     = "FALSE";
+		$bambooAdditionalText = " (Disabled - No Backup Available)";
+	}
+	else {
+		$isBambooBackedUp = "TRUE";
+	}
+
+	@parameterNull =
+	  $globalConfig->param("confluence.latestInstallDirBackupLocation");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("confluence.latestInstallDirBackupLocation") eq
+		"" )
+	{
+		$isConfluenceBackedUp     = "FALSE";
+		$confluenceAdditionalText = " (Disabled - No Backup Available)";
+	}
+	else {
+		$isConfluenceBackedUp = "TRUE";
+	}
+
+	@parameterNull =
+	  $globalConfig->param("crowd.latestInstallDirBackupLocation");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("crowd.latestInstallDirBackupLocation") eq "" )
+	{
+		$isCrowdBackedUp     = "FALSE";
+		$crowdAdditionalText = " (Disabled - No Backup Available)";
+	}
+	else {
+		$isCrowdBackedUp = "TRUE";
+	}
+
+	@parameterNull =
+	  $globalConfig->param("fisheye.latestInstallDirBackupLocation");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("fisheye.latestInstallDirBackupLocation") eq
+		"" )
+	{
+		$isFisheyeBackedUp     = "FALSE";
+		$fisheyeAdditionalText = " (Disabled - No Backup Available)";
+	}
+	else {
+		$isFisheyeBackedUp = "TRUE";
+	}
+
+	@parameterNull =
+	  $globalConfig->param("jira.latestInstallDirBackupLocation");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("jira.latestInstallDirBackupLocation") eq "" )
+	{
+		$isJiraBackedUp     = "FALSE";
+		$jiraAdditionalText = " (Disabled - No Backup Available)";
+	}
+	else {
+		$isJiraBackedUp = "TRUE";
+	}
+
+	@parameterNull =
+	  $globalConfig->param("stash.latestInstallDirBackupLocation");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("stash.latestInstallDirBackupLocation") eq "" )
+	{
+		$isStashBackedUp     = "FALSE";
+		$stashAdditionalText = " (Disabled - No Backup Available)";
+	}
+	else {
+		$isStashBackedUp = "TRUE";
+	}
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$menuText = <<'END_TXT';
+
+      Welcome to the Atlassian Suite Manager Script
+
+      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with significantly discounted hosting without which I would not have been
+      able to write, and continue hosting the Atlassian Suite for my open source projects and
+      this script.
+      ###########################################################################################
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      *************************************
+      * ASM Restore Failed Upgrades Menu  *
+      *************************************
+      
+END_TXT
+
+		$menuText =
+		  $menuText . "      1) Restore Bamboo $bambooAdditionalText\n";
+		$menuText =
+		  $menuText . "      2) Restore Confluence$confluenceAdditionalText\n";
+		$menuText = $menuText . "      3) Restore Crowd$crowdAdditionalText\n";
+		$menuText =
+		  $menuText . "      4) Restore Fisheye$fisheyeAdditionalText\n";
+		$menuText = $menuText . "      5) Restore JIRA$jiraAdditionalText\n";
+		$menuText = $menuText . "      6) Restore Stash$stashAdditionalText\n";
+		$menuText = $menuText . "      Q) Return to Main Menu\n";
+		$menuText = $menuText . "\n";
+
+		# print the main menu
+		system 'clear';
+		print $menuText;
+
+		# prompt for user's choice
+		printf( "%s", "Please enter you selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+		dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
+			$LOOP = 0;
+		}
+		elsif ( lc($choice) eq "1\n" ) {
+			system 'clear';
+			if ( $isBambooBackedUp eq "FALSE" ) {
+				print
+"There does not appear to be any backup of Bamboo available. \nIf you believe you have received this in error, "
+				  . "please contact support.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				restoreApplicationBackup("Bamboo");
+			}
+		}
+		elsif ( lc($choice) eq "2\n" ) {
+			system 'clear';
+			if ( $isConfluenceBackedUp eq "FALSE" ) {
+				print
+"There does not appear to be any backup of Confluence available. \nIf you believe you have received this in error, "
+				  . "please contact support.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				restoreApplicationBackup("Confluence");
+			}
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			if ( $isCrowdBackedUp eq "FALSE" ) {
+				print
+"There does not appear to be any backup of Crowd available. \nIf you believe you have received this in error, "
+				  . "please contact support.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				restoreApplicationBackup("Crowd");
+			}
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			if ( $isFisheyeBackedUp eq "FALSE" ) {
+				print
+"There does not appear to be any backup of Fisheye available. \nIf you believe you have received this in error, "
+				  . "please contact support.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				restoreApplicationBackup("Fisheye");
+			}
+		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			if ( $isJiraBackedUp eq "FALSE" ) {
+				print
+"There does not appear to be any backup of JIRA available. \nIf you believe you have received this in error, "
+				  . "please contact support.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				restoreApplicationBackup("JIRA");
+			}
+		}
+		elsif ( lc($choice) eq "6\n" ) {
+			system 'clear';
+			if ( $isStashBackedUp eq "FALSE" ) {
+				print
+"There does not appear to be any backup of Stash available. \nIf you believe you have received this in error, "
+				  . "please contact support.\n\n";
+				print "Please press enter to continue...";
+				$input = <STDIN>;
+				print "/n";
+			}
+			else {
+				restoreApplicationBackup("Stash");
+			}
 		}
 	}
 }
