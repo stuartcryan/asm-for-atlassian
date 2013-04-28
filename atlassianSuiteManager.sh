@@ -477,6 +477,16 @@ else
 	fi
 fi
 
+#If we don't have a supportedVersions.cfg file get one.
+if [ ! -f "supportedVersions.cfg" ]; then
+	downloadSupportedVersionsFile
+else
+	#Only download a new file if we haven't in the last 24 hours.
+	if test `find "supportedVersions.cfg" -mmin +1440`; then
+    downloadSupportedVersionsFile
+	fi
+fi
+
 #process the update file each time the script runs (hint hint... you should be upgrading)
 processLatestVersionFile
 

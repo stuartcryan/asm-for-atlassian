@@ -11353,6 +11353,7 @@ sub getExistingFisheyeConfig {
 	my $subname       = ( caller(0) )[3];
 	my $serverConfigFile;
 	my $serverSetEnvFile;
+	my $externalCrowdInstance;
 	my @parameterNull;
 	my $input;
 	my $LOOP = 0;
@@ -11860,6 +11861,8 @@ sub generateFisheyeConfig {
 	my $cfg;
 	my $mode;
 	my $defaultValue;
+	my $externalCrowdInstance;
+	my @parameterNull;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -13305,6 +13308,8 @@ sub getExistingStashConfig {
 	my $subname       = ( caller(0) )[3];
 	my $serverConfigFile;
 	my $serverSetEnvFile;
+	my $externalCrowdInstance;
+	my @parameterNull;
 	my $input;
 	my $LOOP = 0;
 	my $returnValue;
@@ -13811,6 +13816,8 @@ sub generateStashConfig {
 	my $mode;
 	my $defaultValue;
 	my $subname = ( caller(0) )[3];
+	my $externalCrowdInstance;
+	my @parameterNull;
 
 	$log->info("BEGIN: $subname");
 
