@@ -31,6 +31,7 @@
 
 SCRIPTVERSION="0.1"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
+LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
 clear
 INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -216,6 +217,20 @@ downloadLatestFile(){
 
 	if ! wget $PROXYUSER $PROXYPASS --quiet $LATESTDOWNLOADURL ; then
     	mv .LATEST.OLD LATEST
+	fi
+}
+
+##########################################
+#Download new copy of supportedVersioncfg#
+##########################################
+downloadSupportedVersionsFile(){
+	cd $INSTALLDIR
+	if [[ -e supportedVersions.cfg ]]; then
+	   mv supportedVersions.cfg .supportedVersions.cfg.OLD
+    fi
+
+	if ! wget $PROXYUSER $PROXYPASS --quiet $LATESTSUPPORTEDDOWNLOADURL ; then
+    	mv .supportedVersions.cfg.OLD supportedVersions.cfg
 	fi
 }
 

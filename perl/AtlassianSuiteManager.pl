@@ -64,7 +64,10 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
+my $scriptVersion = "0.1";
+my $supportedVersionsConfig;
 my $configFile = "settings.cfg";
+my $supportedVersionsConfigFile = "supportedVersions.cfg";
 my $distro;
 my $silent                  = '';    #global flag for command line paramaters
 my $debug                   = '';    #global flag for command line paramaters
@@ -4227,12 +4230,12 @@ sub isSupportedVersion {
 	dumpSingleVarToLog( "$subname" . "_version",     $version );
 
 	#Set up maximum supported versions
-	my $jiraSupportedVerHigh       = "5.2.6";
-	my $confluenceSupportedVerHigh = "4.3.7";
-	my $crowdSupportedVerHigh      = "2.6.0";
-	my $fisheyeSupportedVerHigh    = "2.10.1";
-	my $bambooSupportedVerHigh     = "4.4.3";
-	my $stashSupportedVerHigh      = "2.1.2";
+	my $jiraSupportedVerHigh       = $supportedVersionConfig->param("$scriptVersion.jira");
+	my $confluenceSupportedVerHigh = $supportedVersionConfig->param("$scriptVersion.confluence");;
+	my $crowdSupportedVerHigh      = $supportedVersionConfig->param("$scriptVersion.crowd");;
+	my $fisheyeSupportedVerHigh    = $supportedVersionConfig->param("$scriptVersion.fisheye");;
+	my $bambooSupportedVerHigh     = $supportedVersionConfig->param("$scriptVersion.bamboo");;
+	my $stashSupportedVerHigh      = $supportedVersionConfig->param("$scriptVersion.stash");;
 
 	#Set up supported version for each product
 	if ( $lcApplication eq "confluence" ) {
@@ -4284,6 +4287,11 @@ sub loadSuiteConfig {
 	#Test if config file exists, if so load it
 	if ( -e $configFile ) {
 		$globalConfig = new Config::Simple($configFile);
+	}
+	
+	#Test if config file exists, if so load it
+	if ( -e $supportedVersionsConfigFile ) {
+		$supportedVersionsConfig = new Config::Simple($supportedVersionsConfigFile);
 	}
 }
 
