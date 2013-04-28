@@ -70,10 +70,10 @@ echo -n "Some required binary components are missing therefore this script canno
 		while [ $LOOP -eq "1" ]
 		do
 			read USERWANTSINSTALLPREREQ
-			if [[("${USERWANTSINSTALLPREREQ,,}" == "y" || "${USERWANTSINSTALLPREREQ,,}" == "yes" || "${USERWANTSINSTALLPREREQ,,}" == "")]]; then
+			if [[("$USERWANTSINSTALLPREREQ" == "y" || "$USERWANTSINSTALLPREREQ" == "yes"|| "$USERWANTSINSTALLPREREQ" == "YES" || "$USERWANTSINSTALLPREREQ" == "Yes" || "$USERWANTSINSTALLPREREQ" == "YEs" || "$USERWANTSINSTALLPREREQ" == "yEs" || "$USERWANTSINSTALLPREREQ" == "YeS" || "$USERWANTSINSTALLPREREQ" == "")]]; then
 				USERWANTSPREREQS="TRUE"
 				LOOP="0"
-			elif [[("${USERWANTSINSTALLPREREQ,,}" == "n" || "${USERWANTSINSTALLPREREQ,,}" == "no")]]; then
+			elif [[("$USERWANTSINSTALLPREREQ" == "n" || "$USERWANTSINSTALLPREREQ" == "no" || "$USERWANTSINSTALLPREREQ" == "NO" || "$USERWANTSINSTALLPREREQ" == "No" || "$USERWANTSINSTALLPREREQ" == "nO")]]; then
 				USERWANTSPREREQS="FALSE"
 				echo ""
 				echo "Please install the required binaries and then run this script again."
@@ -140,10 +140,10 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 		while [ $LOOP -eq "1" ]
 		do
 			read USERWANTSINSTALLPREREQ
-			if [[("${USERWANTSINSTALLPREREQ,,}" == "y" || "${USERWANTSINSTALLPREREQ,,}" == "yes" || "${USERWANTSINSTALLPREREQ,,}" == "")]]; then
+			if [[("$USERWANTSINSTALLPREREQ" == "y" || "$USERWANTSINSTALLPREREQ" == "yes"|| "$USERWANTSINSTALLPREREQ" == "YES" || "$USERWANTSINSTALLPREREQ" == "Yes" || "$USERWANTSINSTALLPREREQ" == "YEs" || "$USERWANTSINSTALLPREREQ" == "yEs" || "$USERWANTSINSTALLPREREQ" == "YeS" || "$USERWANTSINSTALLPREREQ" == "")]]; then
 				USERWANTSPREREQS="TRUE"
 				LOOP="0"
-			elif [[("${USERWANTSINSTALLPREREQ,,}" == "n" || "${USERWANTSINSTALLPREREQ,,}" == "no")]]; then
+			elif [[("$USERWANTSINSTALLPREREQ" == "n" || "$USERWANTSINSTALLPREREQ" == "no" || "$USERWANTSINSTALLPREREQ" == "NO" || "$USERWANTSINSTALLPREREQ" == "No" || "$USERWANTSINSTALLPREREQ" == "nO")]]; then
 				USERWANTSPREREQS="FALSE"
 				echo ""
 				echo "Please manually install the required PERL modules listed above and then run this script again."
@@ -164,10 +164,10 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 		while [ $LOOP2 -eq "1" ]
 		do
 			read UPDATECPANCONF
-			if [[("${UPDATECPANCONF,,}" == "y" || "${UPDATECPANCONF,,}" == "yes" || "${UPDATECPANCONF,,}" == "")]]; then
+			if [[("$UPDATECPANCONF" == "y" || "$UPDATECPANCONF" == "yes"|| "$UPDATECPANCONF" == "YES" || "$UPDATECPANCONF" == "Yes" || "$UPDATECPANCONF" == "YEs" || "$UPDATECPANCONF" == "yEs" || "$UPDATECPANCONF" == "YeS" || "$UPDATECPANCONF" == "")]]; then
 				UPDATECPANCONF="TRUE"
 				LOOP2="0"
-			elif [[("${UPDATECPANCONF,,}" == "n" || "${UPADTECPANCONF,,}" == "no")]]; then
+			elif [[("$UPDATECPANCONF" == "n" || "$UPDATECPANCONF" == "no" || "$UPDATECPANCONF" == "NO" || "$UPDATECPANCONF" == "No" || "$UPDATECPANCONF" == "nO")]]; then
 				UPADTECPANCONF="FALSE"
 				LOOP2="0"
 			else
@@ -352,10 +352,10 @@ processLatestVersionFile(){
 		while [ $LOOP -eq "1" ]
 		do
 			read USERWANTSUPDATE
-			if [[("${USERWANTSUPDATE,,}" == "y" || "${USERWANTSUPDATE,,}" == "yes" || "${USERWANTSUPDATE,,}" == "")]]; then
+			if [[("$USERWANTSUPDATE" == "y" || "$USERWANTSUPDATE" == "yes"|| "$USERWANTSUPDATE" == "YES" || "$USERWANTSUPDATE" == "Yes" || "$USERWANTSUPDATE" == "YEs" || "$USERWANTSUPDATE" == "yEs" || "$USERWANTSUPDATE" == "YeS" || "$USERWANTSUPDATE" == "")]]; then
 				USERWANTSUPDATE="TRUE"
 				LOOP="0"
-			elif [[("${USERWANTSUPDATE,,}" == "n" || "${USERWANTSUPDATE,,}" == "no")]]; then
+			elif [[("$USERWANTSUPDATE" == "n" || "$USERWANTSUPDATE" == "no" || "$USERWANTSUPDATE" == "NO" || "$USERWANTSUPDATE" == "No" || "$USERWANTSUPDATE" == "nO")]]; then
 				USERWANTSUPDATE="FALSE"
 				echo ""
 				echo ""
