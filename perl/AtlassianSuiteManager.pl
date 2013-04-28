@@ -64,7 +64,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0.1";
+my $scriptVersion = "0-1"; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
 my $supportedVersionsConfigFile = "supportedVersions.cfg";
@@ -7542,12 +7542,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			updateSeraphConfig(
-				"Bamboo",
-"/opt/atlassian/bamboo/webapp/WEB-INF/classes/seraph-config.xml",
-				"com.atlassian.crowd.integration.seraph.*BambooAuthenticator",
-				"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
-			);
+			isSupportedVersion("jira","5.0.0");
 			my $test = <STDIN>;
 		}
 	}

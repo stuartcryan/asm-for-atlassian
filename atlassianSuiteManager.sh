@@ -423,8 +423,6 @@ if [ -f "shellScriptIncludes.inc" ]; then
 	if [[ $PROXYPASS ]]; then
 		PROXYPASS="--proxy-password="$PROXYPASS 
 	fi
-	echo "ProxyUser is "$PROXYUSER
-	echo "ProxyPass is "$PROXYPASS
 fi
 
 #check for Oracle JVM
