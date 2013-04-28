@@ -2209,7 +2209,7 @@ sub generateSuiteConfig {
 			print "\n";
 			generateCrowdConfig( $mode, $cfg );
 		}
-		$cfg->param("general.externalCrowdInstance","FALSE");
+		$cfg->param( "general.externalCrowdInstance", "FALSE" );
 	}
 	else {
 		genBooleanConfigItem(
@@ -9567,6 +9567,33 @@ sub getExistingConfluenceConfig {
 		""
 	);
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"confluence.apacheProxyHost",
+"Please enter the base URL Confluence currently runs on (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "confluence.apacheProxySSL",
+			"Do you currently run Confluence over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"confluence.apacheProxyPort",
+"Please enter the port number that Apache currently serves Confluence on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
+
 	$serverSetEnvFile =
 	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
@@ -10428,6 +10455,33 @@ sub getExistingCrowdConfig {
 		"",
 		""
 	);
+
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"crowd.apacheProxyHost",
+"Please enter the base URL Crowd currently runs on (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "crowd.apacheProxySSL",
+			"Do you currently run Crowd over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"crowd.apacheProxyPort",
+"Please enter the port number that Apache currently serves Crowd on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
 
 	$serverSetEnvFile =
 	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
@@ -11490,6 +11544,33 @@ sub getExistingFisheyeConfig {
 		"",
 		""
 	);
+
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"fisheye.apacheProxyHost",
+"Please enter the base URL Fisheye currently runs on (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "fisheye.apacheProxySSL",
+			"Do you currently run Fisheye over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"fisheye.apacheProxyPort",
+"Please enter the port number that Apache currently serves Fisheye on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
 
 	$serverSetEnvFile =
 	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
@@ -12599,6 +12680,33 @@ sub getExistingJiraConfig {
 		""
 	);
 
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"jira.apacheProxyHost",
+"Please enter the base URL JIRA currently runs on (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "jira.apacheProxySSL",
+			"Do you currently run JIRA over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"jira.apacheProxyPort",
+"Please enter the port number that Apache currently serves JIRA on (80 for HTTP, 443 for HTTPS in standard situations).",
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
+
 	$serverSetEnvFile =
 	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
@@ -13486,6 +13594,34 @@ sub getExistingStashConfig {
 		"",
 		""
 	);
+
+	if (   $cfg->param("general.apacheProxy") eq "TRUE"
+		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+	{
+		genConfigItem(
+			$mode,
+			$cfg,
+			"stash.apacheProxyHost",
+"Please enter the base URL Stash currently runs on (i.e. the proxyName such as yourdomain.com).",
+			"",
+			'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+		);
+
+		genBooleanConfigItem( $mode, $cfg, "stash.apacheProxySSL",
+			"Do you currently run Stash over SSL.", "no" );
+
+		genConfigItem(
+			$mode,
+			$cfg,
+			"stash.apacheProxyPort",
+"Please enter the port number that Apache currently serves Stash on (80 for HTTP, 443 for HTTPS in standard situations)."
+			,
+			"80",
+			'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+		);
+	}
 
 	$serverSetEnvFile =
 	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
