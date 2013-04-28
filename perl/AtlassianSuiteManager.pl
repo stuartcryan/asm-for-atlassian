@@ -2574,7 +2574,7 @@ sub getEnvironmentDebugInfo {
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END JAVA VERSION OUTPUT");
 		$log->debug(
-			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN DF -H OUTPUT" );
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN DF -H OUTPUT");
 		system("df -h >> $logFile 2>&1");
 		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - END DF -H OUTPUT");
 		$log->debug(
@@ -2582,8 +2582,7 @@ sub getEnvironmentDebugInfo {
 		);
 		system("perl -v >> $logFile 2>&1");
 		$log->debug(
-			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL VERSION OUTPUT")
-		  ;
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL VERSION OUTPUT");
 	}
 }
 
@@ -7553,10 +7552,8 @@ sub displayMainMenu {
       1) Install a new application
       2) Upgrade an existing application
       3) Uninstall an application
-      4) Recover backup for failed upgrade
-      D) Download the full latest version of the Atlassian Suite (Testing & Debugging)
+      4) Recover backup after failed upgrade
       G) Generate Suite Config
-      T) Testing Function (varies)
       Q) Quit
 
 END_TXT
@@ -11537,7 +11534,7 @@ sub getExistingFisheyeConfig {
 			$cfg,
 			"$lcApplication.dataDir",
 "Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
-			  . "'s data is *currently* stored in.",
+			  . "'s data is *currently* stored in. Please note if this is in the install folder (i.e. no separate directory) please just enter the same folder name here.",
 			"",
 			'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
@@ -12363,6 +12360,48 @@ sub upgradeFisheye {
 		}
 	}
 
+   #Separate data directory out in case it still exists in the install directory
+	if ( $globalConfig->param("$lcApplication.installDir") eq
+		$globalConfig->param("$lcApplication.dataDir") )
+	{
+
+		#Data directory is still in the install directory. Lets move it out.
+		$log->info(
+"$subname: It appears Fisheye data still exists in the install dir. Separating this out."
+		);
+		print
+"It appears the Fisheye directory still exists in the install directory. Separating this out...\n\n";
+		createAndChownDirectory(
+			$globalConfig->param("general.rootDataDir") . "/fisheye",
+			$globalConfig->param("$lcApplication.osUser")
+		);
+		copyFile(
+			$globalConfig->param("$lcApplication.installDir") . "/config.xml",
+			$globalConfig->param("general.rootDataDir") . "/fisheye/config.xml"
+		);
+		copyDirectory(
+			$globalConfig->param("$lcApplication.installDir") . "/var",
+			$globalConfig->param("general.rootDataDir") . "/fisheye/var"
+		);
+		copyDirectory(
+			$globalConfig->param("$lcApplication.installDir") . "/cache",
+			$globalConfig->param("general.rootDataDir") . "/fisheye/cache"
+		);
+
+		$globalConfig->param( "$lcApplication.dataDir",
+			$globalConfig->param("general.rootDataDir") . "/fisheye" );
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+
+		$log->info( "$subname: Fisheye data directory created in "
+			  . $globalConfig->param("general.rootDataDir")
+			  . "/fisheye. Config updated and now ready to upgrade." );
+		print "Fisheye data directory created in "
+		  . $globalConfig->param("general.rootDataDir")
+		  . "/fisheye Config updated and now ready to upgrade.\n\n";
+	}
+
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -12411,7 +12450,6 @@ sub upgradeFisheye {
 			"FISHEYE_OPTS",
 			$globalConfig->param( $lcApplication . ".javaParams" )
 		);
-
 	}
 
 	print "Configuration settings have been applied successfully.\n\n";
