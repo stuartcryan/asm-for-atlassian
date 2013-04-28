@@ -2026,7 +2026,7 @@ sub genConfigItem {
 	if ( $mode eq "UPDATE" ) {
 
 		#Check if the current value is defined
-		if ( defined( $cfg->param($configParam) ) & !( $#parameterNull == -1 ) )
+		if ( defined( $cfg->param($configParam) ) && !( $#parameterNull == -1 ) )
 		{
 			$defaultValue = $cfg->param($configParam);
 			dumpSingleVarToLog( "$subname" . "_defaultValue", $defaultValue );
@@ -2047,7 +2047,7 @@ sub genConfigItem {
 		print "\n";
 
 #If default option is selected (i.e. just a return), use default value, otherwise use input
-		if ( $input eq "default" && $defaultInputValue ne "" ) {
+		if ( $input eq "default" && $defaultValue ne "" ) {
 			$cfg->param( $configParam, $defaultValue );
 			$log->debug(
 "$subname: default selected, setting $configParam to $defaultValue"
