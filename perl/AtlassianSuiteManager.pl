@@ -949,7 +949,6 @@ sub dirSize {
 	my ($size) = 0;
 	my ($fd);
 	my $subname = ( caller(0) )[3];
-	$log->info("BEGIN: $subname");
 
 	opendir( $fd, $dir )
 	  or $log->logdie(
@@ -969,8 +968,6 @@ sub dirSize {
 	}
 
 	closedir($fd);
-
-	$log->info("Total directory size for $dir is $size bytes.");
 
 	return ($size);
 }
