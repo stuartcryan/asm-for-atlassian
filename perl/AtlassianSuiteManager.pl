@@ -14497,7 +14497,7 @@ sub upgradeStash {
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
-		  . $javaMemParameterFile );
+		  . $initPropertiesFile );
 	updateLineInFile(
 		$initPropertiesFile,
 		"JVM_MINIMUM_MEMORY",
