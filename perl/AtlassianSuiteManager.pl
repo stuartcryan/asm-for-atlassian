@@ -453,6 +453,7 @@ sub checkCrowdConfig {
 				print
 "$application has been configured for Crowd integration using an external Crowd instance. However we do not appear to have this configuration available in settings.cfg. Please re-run the suite config (option G on the main menu) and then try this $mode again. Press enter to continue. \n\n";
 				my $input = <STDIN>;
+				exit -1;
 				return "FAIL";
 			}
 			else {
@@ -2208,6 +2209,7 @@ sub generateSuiteConfig {
 			print "\n";
 			generateCrowdConfig( $mode, $cfg );
 		}
+		$cfg->param("general.externalCrowdInstance","FALSE");
 	}
 	else {
 		genBooleanConfigItem(
@@ -2434,7 +2436,12 @@ sub generateSuiteConfig {
 		}
 	}
 
-	@parameterNull = $oldConfig->param("general.targetDBType");
+	if ( defined($oldConfig) ) {
+		@parameterNull = $oldConfig->param("general.targetDBType");
+	}
+	else {
+		@parameterNull = -1;
+	}
 
 	if ( defined($oldConfig) && !( $#parameterNull == -1 ) ) {
 		if ( $cfg->param("general.targetDBType") ne
@@ -3549,12 +3556,6 @@ sub installGeneric {
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
-	}
-
-	if ( checkCrowdConfig( $application, "install" ) eq "FAIL" ) {
-
-  #Crowd setup is not ready, user already notified. Return as we cannot continue
-		return;
 	}
 
 	#set up the tomcat and webapp parameters as sometimes they are null
@@ -7654,8 +7655,7 @@ sub displayRestoreMenu {
 	@parameterNull =
 	  $globalConfig->param("bamboo.latestInstallDirBackupLocation");
 	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("bamboo.latestInstallDirBackupLocation") eq
-		"" )
+		|| $globalConfig->param("bamboo.latestInstallDirBackupLocation") eq "" )
 	{
 		$isBambooBackedUp     = "FALSE";
 		$bambooAdditionalText = " (Disabled - No Backup Available)";
@@ -14496,8 +14496,8 @@ sub upgradeStash {
 
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
-	$log->info( "$subname: Applying Java memory parameters to "
-		  . $initPropertiesFile );
+	$log->info(
+		"$subname: Applying Java memory parameters to " . $initPropertiesFile );
 	updateLineInFile(
 		$initPropertiesFile,
 		"JVM_MINIMUM_MEMORY",
