@@ -66,7 +66,7 @@ Log::Log4perl->init("log4j.conf");
 my $globalConfig;
 my $scriptVersion = "0.1";
 my $supportedVersionsConfig;
-my $configFile = "settings.cfg";
+my $configFile                  = "settings.cfg";
 my $supportedVersionsConfigFile = "supportedVersions.cfg";
 my $distro;
 my $silent                  = '';    #global flag for command line paramaters
@@ -4230,12 +4230,18 @@ sub isSupportedVersion {
 	dumpSingleVarToLog( "$subname" . "_version",     $version );
 
 	#Set up maximum supported versions
-	my $jiraSupportedVerHigh       = $supportedVersionConfig->param("$scriptVersion.jira");
-	my $confluenceSupportedVerHigh = $supportedVersionConfig->param("$scriptVersion.confluence");;
-	my $crowdSupportedVerHigh      = $supportedVersionConfig->param("$scriptVersion.crowd");;
-	my $fisheyeSupportedVerHigh    = $supportedVersionConfig->param("$scriptVersion.fisheye");;
-	my $bambooSupportedVerHigh     = $supportedVersionConfig->param("$scriptVersion.bamboo");;
-	my $stashSupportedVerHigh      = $supportedVersionConfig->param("$scriptVersion.stash");;
+	my $jiraSupportedVerHigh =
+	  $supportedVersionsConfig->param("$scriptVersion.jira");
+	my $confluenceSupportedVerHigh =
+	  $supportedVersionsConfig->param("$scriptVersion.confluence");
+	my $crowdSupportedVerHigh =
+	  $supportedVersionsConfig->param("$scriptVersion.crowd");
+	my $fisheyeSupportedVerHigh =
+	  $supportedVersionsConfig->param("$scriptVersion.fisheye");
+	my $bambooSupportedVerHigh =
+	  $supportedVersionsConfig->param("$scriptVersion.bamboo");
+	my $stashSupportedVerHigh =
+	  $supportedVersionsConfig->param("$scriptVersion.stash");
 
 	#Set up supported version for each product
 	if ( $lcApplication eq "confluence" ) {
@@ -4288,10 +4294,11 @@ sub loadSuiteConfig {
 	if ( -e $configFile ) {
 		$globalConfig = new Config::Simple($configFile);
 	}
-	
+
 	#Test if config file exists, if so load it
 	if ( -e $supportedVersionsConfigFile ) {
-		$supportedVersionsConfig = new Config::Simple($supportedVersionsConfigFile);
+		$supportedVersionsConfig =
+		  new Config::Simple($supportedVersionsConfigFile);
 	}
 }
 
@@ -9164,7 +9171,8 @@ sub upgradeBamboo {
 		"bamboo.runAsService",            "bamboo.osUser",
 		"bamboo.connectorPort",           "bamboo.javaMinMemory",
 		"bamboo.javaMaxMemory",           "bamboo.javaMaxPermSize",
-		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2"
+		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2",
+		"bamboo.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -10139,7 +10147,8 @@ sub installConfluence {
 		"confluence.javaMaxMemory",
 		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
-		"confluence.processSearchParameter2"
+		"confluence.processSearchParameter2",
+		"confluence.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -10221,7 +10230,8 @@ sub upgradeConfluence {
 		"confluence.javaMaxMemory",
 		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
-		"confluence.processSearchParameter2"
+		"confluence.processSearchParameter2",
+		"confluence.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -11343,6 +11353,7 @@ sub getExistingFisheyeConfig {
 	my $subname       = ( caller(0) )[3];
 	my $serverConfigFile;
 	my $serverSetEnvFile;
+	my @parameterNull;
 	my $input;
 	my $LOOP = 0;
 	my $returnValue;
@@ -11421,6 +11432,32 @@ sub getExistingFisheyeConfig {
 "Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
 		"yes"
 	);
+
+	#GetCrowdConfig
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"fisheye.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Fisheye? yes/no.",
+			"yes"
+		);
+	}
+	else {
+		$cfg->param( "fisheye.crowdIntegration", "FALSE" );
+		$cfg->param( "fisheye.crowdSSO",         "FALSE" );
+	}
 
 	print
 "Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
@@ -11968,6 +12005,32 @@ sub generateFisheyeConfig {
 	genBooleanConfigItem( $mode, $cfg, "fisheye.runAsService",
 		"Would you like to run Fisheye as a service? yes/no.", "yes" );
 
+	#GetCrowdConfig
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"fisheye.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Fisheye? yes/no.",
+			"yes"
+		);
+	}
+	else {
+		$cfg->param( "fisheye.crowdIntegration", "FALSE" );
+		$cfg->param( "fisheye.crowdSSO",         "FALSE" );
+	}
+
 	#Set up some defaults for Fisheye
 	$cfg->param( "fisheye.tomcatDir", "" )
 	  ;    #we leave these blank deliberately due to the way Fishey works
@@ -12003,13 +12066,13 @@ sub installFisheye {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"fisheye.appContext",      "fisheye.enable",
-		"fisheye.dataDir",         "fisheye.installDir",
-		"fisheye.runAsService",    "fisheye.osUser",
-		"fisheye.serverPort",      "fisheye.connectorPort",
-		"fisheye.javaMinMemory",   "fisheye.javaMaxMemory",
-		"fisheye.javaMaxPermSize", "fisheye.processSearchParameter1",
-		"fisheye.processSearchParameter2"
+		"fisheye.appContext",              "fisheye.enable",
+		"fisheye.dataDir",                 "fisheye.installDir",
+		"fisheye.runAsService",            "fisheye.osUser",
+		"fisheye.serverPort",              "fisheye.connectorPort",
+		"fisheye.javaMinMemory",           "fisheye.javaMaxMemory",
+		"fisheye.javaMaxPermSize",         "fisheye.processSearchParameter1",
+		"fisheye.processSearchParameter2", "fisheye.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -12219,13 +12282,13 @@ sub upgradeFisheye {
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
 	@requiredConfigItems = (
-		"fisheye.appContext",      "fisheye.enable",
-		"fisheye.dataDir",         "fisheye.installDir",
-		"fisheye.runAsService",    "fisheye.osUser",
-		"fisheye.serverPort",      "fisheye.connectorPort",
-		"fisheye.javaMinMemory",   "fisheye.javaMaxMemory",
-		"fisheye.javaMaxPermSize", "fisheye.processSearchParameter1",
-		"fisheye.processSearchParameter2"
+		"fisheye.appContext",              "fisheye.enable",
+		"fisheye.dataDir",                 "fisheye.installDir",
+		"fisheye.runAsService",            "fisheye.osUser",
+		"fisheye.serverPort",              "fisheye.connectorPort",
+		"fisheye.javaMinMemory",           "fisheye.javaMaxMemory",
+		"fisheye.javaMaxPermSize",         "fisheye.processSearchParameter1",
+		"fisheye.processSearchParameter2", "fisheye.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -13068,7 +13131,8 @@ sub installJira {
 		"jira.runAsService",            "jira.serverPort",
 		"jira.connectorPort",           "jira.javaMinMemory",
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
-		"jira.processSearchParameter1", "jira.processSearchParameter2"
+		"jira.processSearchParameter1", "jira.processSearchParameter2",
+		"jira.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -13161,7 +13225,8 @@ sub upgradeJira {
 		"jira.runAsService",            "jira.serverPort",
 		"jira.connectorPort",           "jira.javaMinMemory",
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
-		"jira.processSearchParameter1", "jira.processSearchParameter2"
+		"jira.processSearchParameter1", "jira.processSearchParameter2",
+		"jira.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -13318,6 +13383,32 @@ sub getExistingStashConfig {
 "Does your $application instance run as a service (i.e. runs on boot)? yes/no.",
 		"yes"
 	);
+
+	#GetCrowdConfig
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"stash.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Stash? yes/no.",
+			"yes"
+		);
+	}
+	else {
+		$cfg->param( "stash.crowdIntegration", "FALSE" );
+		$cfg->param( "stash.crowdSSO",         "FALSE" );
+	}
 
 	print
 "Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
@@ -13864,6 +13955,32 @@ sub generateStashConfig {
 	genBooleanConfigItem( $mode, $cfg, "stash.runAsService",
 		"Would you like to run Stash as a service? yes/no.", "yes" );
 
+	#GetCrowdConfig
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"stash.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Stash? yes/no.",
+			"yes"
+		);
+	}
+	else {
+		$cfg->param( "stash.crowdIntegration", "FALSE" );
+		$cfg->param( "stash.crowdSSO",         "FALSE" );
+	}
+
 	#Set up some defaults for Stash
 	$cfg->param( "stash.tomcatDir",               "" );
 	$cfg->param( "stash.webappDir",               "/atlassian-stash" );
@@ -13902,7 +14019,8 @@ sub installStash {
 		"stash.connectorPort",           "stash.osUser",
 		"stash.webappDir",               "stash.javaMinMemory",
 		"stash.javaMaxMemory",           "stash.javaMaxPermSize",
-		"stash.processSearchParameter1", "stash.processSearchParameter2"
+		"stash.processSearchParameter1", "stash.processSearchParameter2",
+		"stash.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -14116,7 +14234,8 @@ sub upgradeStash {
 		"stash.connectorPort",           "stash.osUser",
 		"stash.webappDir",               "stash.javaMinMemory",
 		"stash.javaMaxMemory",           "stash.javaMaxPermSize",
-		"stash.processSearchParameter1", "stash.processSearchParameter2"
+		"stash.processSearchParameter1", "stash.processSearchParameter2",
+		"stash.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
