@@ -2435,7 +2435,10 @@ sub generateSuiteConfig {
 			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n\n";
 		}
 	}
-	if ( defined($oldConfig) ) {
+	
+	@parameterNull = $oldConfig->param("general.targetDBType");
+	
+	if ( defined($oldConfig) && !( $#parameterNull == -1 )) {
 		if ( $cfg->param("general.targetDBType") ne
 			$oldConfig->param("general.targetDBType") )
 		{
