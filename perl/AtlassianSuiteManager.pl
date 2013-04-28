@@ -390,6 +390,74 @@ sub checkConfiguredPort {
 }
 
 ########################################
+#CheckCrowdConfig                      #
+########################################
+sub checkCrowdConfig {
+	my $application;
+	my $mode;
+	my $lcApplication;
+	my @requiredCrowdConfigItems;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application = $_[0];
+	$mode        = $_[1];
+
+	$lcApplication = lc($application);
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_mode",        $mode );
+
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		if ( $globalConfig->param("general.externalCrowdInstance") eq "FALSE" )
+		{
+			if ( $globalConfig->param("crowd.enable") eq "TRUE" ) {
+				@requiredCrowdConfigItems = ("crowd.installedVersion");
+
+#Iterate through required config items, if any are missing, install cannot continue so return
+				if ( checkRequiredConfigItems(@requiredCrowdConfigItems) eq
+					"FAIL" )
+				{
+					$log->info(
+"$subname: $application has been configured for Crowd integration but Crowd does not appear to be installed yet. Cancelling $mode of $application."
+					);
+					print
+"$application has been configured for Crowd integration but Crowd does not appear to be installed yet. Therefore the $application $mode cannot continue, please $mode Crowd and then try again. Press enter to continue. \n\n";
+					my $input = <STDIN>;
+					return "FAIL";
+				}
+				else {
+					return "SUCCESS";
+				}
+			}
+		}
+		else {
+			@requiredCrowdConfigItems = (
+				"general.externalCrowdHostname",
+				"general.externalCrowdPort", "general.ExternalCrowdContext"
+			);
+
+#Iterate through required config items, if any are missing install cannot continue and user will have to re-run config generation.
+			if ( checkRequiredConfigItems(@requiredCrowdConfigItems) eq "FAIL" )
+			{
+				$log->info(
+"$subname: $application has been configured for Crowd integration with an external Crowd instance. However external Crowd instance parameters have not been defined in our config. Cancelling $mode of $application."
+				);
+				print
+"$application has been configured for Crowd integration using an external Crowd instance. However we do not appear to have this configuration available in settings.cfg. Please re-run the suite config (option G on the main menu) and then try this $mode again. Press enter to continue. \n\n";
+				my $input = <STDIN>;
+				return "FAIL";
+			}
+			else {
+				return "SUCCESS";
+			}
+		}
+	}
+}
+
+########################################
 #CheckRequiredConfigItems              #
 ########################################
 sub checkRequiredConfigItems {
@@ -1592,6 +1660,68 @@ sub generateApplicationConfig {
 }
 
 ########################################
+#Generate crowd.properties file        #
+########################################
+sub generateCrowdPropertiesFile {
+	my $filename;    #Must contain absolute path
+	my $application;
+	my $lcApplication;
+	my $protocol;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$filename      = $_[0];
+	$application   = $_[1];
+	$lcApplication = lc($application);
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_filename",    $filename );
+	dumpSingleVarToLog( "$subname" . "_application", $application );
+
+	open FH, ">$filename"
+	  or $log->logdie("Unable to open $filename for writing.");
+	print FH "session.lastvalidation		session.lastvalidation\n";
+	print FH "session.isauthenticated		session.isauthenticated\n";
+	print FH "application.password		"
+	  . $globalConfig->param("$lcApplication.crowdApplicationPassword") . "\n";
+	print FH "application.name		"
+	  . $globalConfig->param("$lcApplication.crowdApplicationName") . "\n";
+	print FH "session.validationinterval		10\n";
+	print FH "session.tokenkey		session.tokenkey\n";
+
+	if ( $globalConfig->param("general.externalCrowdPort") eq "443" ) {
+		$protocol = "https";
+	}
+	else {
+		$protocol = "http";
+	}
+	if ( $globalConfig->param("general.externalCrowdInstance") eq "TRUE" ) {
+		print FH "crowd.server.url		$protocol\://"
+		  . $globalConfig->param("general.externalCrowdHostname") . ":"
+		  . $globalConfig->param("general.externalCrowdPort")
+		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
+		  . "/services/\n";
+		print FH "application.login.url		$protocol\://"
+		  . $globalConfig->param("general.externalCrowdHostname") . ":"
+		  . $globalConfig->param("general.externalCrowdPort")
+		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
+		  . "/services/\n";
+	}
+	else {
+		print FH "crowd.server.url		http://localhost:"
+		  . $globalConfig->param("crowd.connectorPort")
+		  . getConfigItem( "crowd.appContext", $globalConfig )
+		  . "/services/\n";
+		print FH "application.login.url		http://localhost:"
+		  . $globalConfig->param("crowd.connectorPort")
+		  . getConfigItem( "crowd.appContext", $globalConfig ) . "/\n";
+
+	}
+	close FH;
+}
+
+########################################
 #Generate Generic Kickstart File       #
 ########################################
 sub generateGenericKickstart {
@@ -2062,6 +2192,64 @@ sub generateSuiteConfig {
 		}
 	}
 
+	#Get Crowd configuration
+	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
+		"Do you wish to install/manage Crowd? yes/no ", "yes" );
+
+	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
+
+		$input = getBooleanInput(
+			"Do you wish to set up/update the Crowd configuration now? [no]: ");
+
+		if ( $input eq "yes" ) {
+			print "\n";
+			generateCrowdConfig( $mode, $cfg );
+		}
+	}
+	else {
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"general.externalCrowdInstance",
+"Will you be using an external Crowd instance (i.e. not installed on this host) for Authentication/SSO? yes/no ",
+			"yes"
+		);
+		if ( $cfg->param("general.externalCrowdInstance") eq "TRUE" ) {
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.externalCrowdHostname",
+"Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
+			);
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.externalCrowdPort",
+"Please enter the port that the external Crowd instance runs on. (eg 80/443/8095)",
+				"8095",
+				'^([0-9]*)$',
+"The input you entered was not in a valid numerical format, please try again.\n\n"
+			);
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.externalCrowdContext",
+"Enter the context that the external Crowd instance should runs under (i.e. /crowd or /login). Write NULL to blank out the context.",
+				"/crowd",
+				'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+				  . "leading '/' and NO trailing '/'.\n\n"
+			);
+
+		}
+	}
+
 	#Get Bamboo configuration
 	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
 		"Do you wish to install/manage Bamboo? yes/no ", "yes" );
@@ -2091,21 +2279,6 @@ sub generateSuiteConfig {
 		if ( $input eq "yes" ) {
 			print "\n";
 			generateConfluenceConfig( $mode, $cfg );
-		}
-	}
-
-	#Get Crowd configuration
-	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
-		"Do you wish to install/manage Crowd? yes/no ", "yes" );
-
-	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
-
-		$input = getBooleanInput(
-			"Do you wish to set up/update the Crowd configuration now? [no]: ");
-
-		if ( $input eq "yes" ) {
-			print "\n";
-			generateCrowdConfig( $mode, $cfg );
 		}
 	}
 
@@ -2146,7 +2319,8 @@ sub generateSuiteConfig {
 
 	if ( $cfg->param("stash.enable") eq "TRUE" ) {
 		$input = getBooleanInput(
-			"Do you wish to set up/update the Stash configuration now? [no]: ");
+			"Do you wish to set up/update the Stash configuration now? [no]: "
+		);
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -2509,6 +2683,56 @@ sub getExistingSuiteConfig {
 		}
 	}
 
+	#Get Crowd configuration
+	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
+		"Do you currently run Crowd on this server? yes/no ", "yes" );
+
+	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
+		getExistingCrowdConfig($cfg);
+	}
+	else {
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"general.externalCrowdInstance",
+"Do you currently use an external Crowd instance (i.e. not installed on this host) for Authentication/SSO? yes/no ",
+			"yes"
+		);
+		if ( $cfg->param("general.externalCrowdInstance") eq "TRUE" ) {
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.externalCrowdHostname",
+"Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
+				"",
+				'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
+			);
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.externalCrowdPort",
+"Please enter the port that the external Crowd instance runs on. (eg 80/443/8095)",
+				"8095",
+				'^([0-9]*)$',
+"The input you entered was not in a valid numerical format, please try again.\n\n"
+			);
+
+			genConfigItem(
+				$mode,
+				$cfg,
+				"general.externalCrowdContext",
+"Enter the context that the external Crowd instance should runs under (i.e. /crowd or /login). Write NULL to blank out the context.",
+				"/crowd",
+				'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+				  . "leading '/' and NO trailing '/'.\n\n"
+			);
+		}
+	}
+
 	#Get Bamboo configuration
 	genBooleanConfigItem( $mode, $cfg, "bamboo.enable",
 		"Do you currently run Bamboo on this server? yes/no ", "yes" );
@@ -2523,14 +2747,6 @@ sub getExistingSuiteConfig {
 
 	if ( $cfg->param("confluence.enable") eq "TRUE" ) {
 		getExistingConfluenceConfig($cfg);
-	}
-
-	#Get Crowd configuration
-	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
-		"Do you currently run Crowd on this server? yes/no ", "yes" );
-
-	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
-		getExistingCrowdConfig($cfg);
 	}
 
 	#Get Fisheye configuration
@@ -2879,7 +3095,8 @@ sub getLineFromFile {
 	close(FILE);
 
 	#Search for reference line
-	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+	my ($index1) =
+	  grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
@@ -2941,7 +3158,8 @@ sub getLineFromBambooWrapperConf {
 	close(FILE);
 
 	#Search for reference line
-	($index1) = grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
+	($index1) =
+	  grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
 	if ( !defined($index1) ) {
 		$log->info(
 "$subname: Line with $parameterReference not found. Returning NOTFOUND."
@@ -3042,7 +3260,8 @@ sub getUserCreatedByInstaller {
 
 	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
 
-	open( FILE, $fileName ) or $log->logdie("Unable to open file: $fileName.");
+	open( FILE, $fileName )
+	  or $log->logdie("Unable to open file: $fileName.");
 
 	# read file into an array
 	@data = <FILE>;
@@ -3050,7 +3269,8 @@ sub getUserCreatedByInstaller {
 	close(FILE);
 
 	#Search for reference line
-	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+	my ($index1) =
+	  grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
 
 	if ( !defined($index1) ) {
 		return "NOTFOUND";
@@ -3273,6 +3493,12 @@ sub installGeneric {
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
+	}
+
+	if ( checkCrowdConfig( $application, "install" ) eq "FAIL" ) {
+
+  #Crowd setup is not ready, user already notified. Return as we cannot continue
+		return;
 	}
 
 	#set up the tomcat and webapp parameters as sometimes they are null
@@ -4216,6 +4442,18 @@ sub postInstallGeneric {
 			  . $globalConfig->param("$lcApplication.connectorPort")
 			  . getConfigItem( "$lcApplication.appContext", $globalConfig )
 			  . ".\n\n";
+
+			if ( $globalConfig->param("$lcApplication.crowdIntegration") eq
+				"TRUE" )
+			{
+				generateCrowdPropertiesFile(
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+					  )
+					  . "/conf/wrapper.conf",
+					$application
+				);
+			}
 		}
 		else {
 			print
@@ -4419,12 +4657,11 @@ sub setCustomCrowdContext {
 			""
 		);
 
-		system(
-			"cd "
-			  . escapeFilePath(
-				$globalConfig->param("crowd.installDir") )
-			  . " && " . $globalConfig->param("crowd.installDir") . "/build.sh"
-		);
+		system( "cd "
+			  . escapeFilePath( $globalConfig->param("crowd.installDir") )
+			  . " && "
+			  . $globalConfig->param("crowd.installDir")
+			  . "/build.sh" );
 		if ( $? == -1 ) {
 			$log->logdie(
 "Crowd: unable to run the build script to complete the custom context. $!\n"
@@ -4443,7 +4680,8 @@ sub setCustomCrowdContext {
 			  . getConfigItem( "crowd.appContext", $globalConfig )
 			  . '" docBase="../../crowd-webapp" debug="0">' . "\n"
 			  . '                 <Manager pathname="'
-			  . getConfigItem( "crowd.appContext", $globalConfig ) . '" />' . "\n"
+			  . getConfigItem( "crowd.appContext", $globalConfig ) . '" />'
+			  . "\n"
 			  . '           </Context>' . "\n"
 			  . '     </Host>' . "\n",
 			""
@@ -4696,7 +4934,8 @@ sub stopService {
 								}
 							}
 						}
-						elsif ( ( lc $input ) eq "try" || ( lc $input ) eq "t" )
+						elsif (( lc $input ) eq "try"
+							|| ( lc $input ) eq "t" )
 						{
 							$LOOP2 = 0
 							  ; #break this inner loop to return to the outer loop
@@ -5179,7 +5418,8 @@ sub updateLineInBambooWrapperConf {
 	close(FILE);
 
 	#Search for reference line
-	($index1) = grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
+	($index1) =
+	  grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
 	if ( !defined($index1) ) {
 		$log->info(
 "$subname: Line with $parameterReference not found. Going to add it."
@@ -5279,7 +5519,8 @@ sub updateLineInFile {
 	close(FILE);
 
 	#Search for reference line
-	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+	my ($index1) =
+	  grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
@@ -5317,7 +5558,122 @@ sub updateLineInFile {
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 	print FILE @data;
 	close FILE;
+}
 
+########################################
+#updateSeraphConfig                    #
+########################################
+sub updateSeraphConfig {
+	my $inputFile;    #Must Be Absolute Path
+	my $newLine;
+	my $lineReference;
+	my $searchFor;
+	my $lineReference2;
+	my $leadingSpace;
+	my $line;
+	my $trailingSpace;
+	my $application;
+	my $lcApplication;
+	my @data;
+	my $index1;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application    = $_[0];
+	$inputFile      = $_[1];
+	$lineReference  = $_[2];    #lineToBeUncommented
+	$lineReference2 = $_[3];    #lineToBeCommentedOut
+
+	#SuggestedExample --> ^(.*)<!--\s*?(.*)(\s*?)-->.*$
+	#SuggestedExample2 --> ^(\s*?)(.*ConfluenceAuthenticator.*)(\s*?)$
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_application",    $application );
+	dumpSingleVarToLog( "$subname" . "_inputFile",      $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
+	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
+
+	$lcApplication = lc($application);
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Remove windows newlines to get around Bamboo config file funnies
+	s/\r\n/\n/g for (@data);
+
+	#Search for reference line
+	if ( $lcApplication eq "confluence" || $lcApplication eq "bamboo" ) {
+		my ($index3) =
+		  grep { $data[$_] =~ /^(.*)<!--\s*?(.*$lineReference.*)(\s*?)-->.*/ }
+		  0 .. $#data;
+		$index1 = $index3;
+	}
+	elsif ( $lcApplication eq "jira" ) {
+		my ($index3) =
+		  grep { $data[$_] =~ /^(.*)\s*?(.*$lineReference.*)(\s*?).*/ }
+		  0 .. $#data;
+
+		$index1 = $index3;
+	}
+
+	my ($index2) =
+	  grep { $data[$_] =~ /^(\s*?)(.*$lineReference2.*)(\s*?)/ } 0 .. $#data;
+
+ #If you cant find the first reference and the second reference output an error.
+	if ( !defined($index1) || !defined($index2) ) {
+		$log->info(
+"$subname: Unable to find both lines to update Seraph config, you may need to update these manually."
+		);
+		$log->debug(
+			"$subname: SeraphLine1Index: $index1, SeraphLine2Index: $index2.");
+		print
+"We were unable to find both the lines expected to be able to update the Seraph Config for SSO please make sure you check this file manually.\n";
+		print
+		  "The file is located at: $inputFile. Please press enter to continue.";
+		my $input = <STDIN>;
+
+	}
+	else {
+
+		#do Line 2 first as it may be further down
+		$log->info("$subname: CommentingOut '$data[$index2]'.");
+		if ( $data[$index2] =~ /^(\s*?)(<.*$lineReference2.*)(\s*?)/ ) {
+			$leadingSpace  = $1;
+			$line          = $2;
+			$trailingSpace = $3;
+			chomp $trailingSpace;
+		}
+		$data[$index2] =
+		  $leadingSpace . "<!-- " . $line . " -->" . $trailingSpace . "\n";
+
+		$log->info("$subname: Uncommenting '$data[$index1]'.");
+		if ( $lcApplication eq "confluence" || $lcApplication eq "bamboo" ) {
+			if ( $data[$index1] =~
+				/^(.*)<!--\s*?(.*$lineReference.*)(\s*?)-->.*/ )
+			{
+				$leadingSpace  = $1;
+				$line          = $2;
+				$trailingSpace = $3;
+				chomp $trailingSpace;
+			}
+			$data[$index1] = $leadingSpace . $line . $trailingSpace . "\n";
+		}
+		elsif ( $lcApplication eq "jira" ) {
+			splice( @data, $index1 + 1, 1 );
+			splice( @data, $index1 - 1, 1 );
+		}
+	}
+
+	#Write out the updated file
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+	print FILE @data;
+	close FILE;
 }
 
 ########################################
@@ -5990,6 +6346,26 @@ sub upgradeGenericAtlassianBinary {
 		loadSuiteConfig();
 	}
 
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( $lcApplication eq "jira" ) {
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		elsif ( $lcApplication eq "confluence" ) {
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+	}
+
 	#We are upgrading, get the latest version
 	$input = getBooleanInput(
 		"Would you like to upgrade to the latest version? yes/no [yes]: ");
@@ -6206,6 +6582,97 @@ sub upgradeGenericAtlassianBinary {
 		);
 	}
 
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if ( $lcApplication eq "jira" ) {
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		elsif ( $lcApplication eq "confluence" ) {
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+	}
+
+	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+		if ( $lcApplication eq "jira" ) {
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+				),
+				$osUser
+			);
+			updateSeraphConfig(
+				$application,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+				),
+				"com.atlassian.jira.security.login.SSOSeraphAuthenticator",
+				"com.atlassian.jira.security.login.JiraSeraphAuthenticator"
+			);
+		}
+		elsif ( $lcApplication eq "confluence" ) {
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/seraph-config.xml"
+				),
+				$osUser
+			);
+			updateSeraphConfig(
+				$application,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/seraph-config.xml"
+				),
+				"com.atlassian.confluence.user.ConfluenceCrowdSSOAuthenticator",
+				"com.atlassian.confluence.user.ConfluenceAuthenticator"
+			);
+		}
+	}
+
 #If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
@@ -6350,6 +6817,9 @@ sub bootStrapper {
 "This operating system is currently unsupported. Only Redhat (and derivatives) and Debian (and derivatives) currently supported.\n\n"
 		);
 	}
+
+	#Create working directory if it doesn't already exist
+	createDirectory("$Bin/working");
 
 	#Try to load configuration file
 	loadSuiteConfig();
@@ -6971,8 +7441,12 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			testXMLAttribute(
-				"/opt/atlassian/bamboo/webapp/WEB-INF/classes/jetty.xml");
+			updateSeraphConfig(
+				"Bamboo",
+"/opt/atlassian/bamboo/webapp/WEB-INF/classes/seraph-config.xml",
+				"com.atlassian.crowd.integration.seraph.*BambooAuthenticator",
+				"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
+			);
 			my $test = <STDIN>;
 		}
 	}
@@ -7494,6 +7968,8 @@ sub getExistingBambooConfig {
 	my $subname       = ( caller(0) )[3];
 	my $serverConfigFile;
 	my $input;
+	my @parameterNull;
+	my $externalCrowdInstance;
 	my $LOOP = 0;
 	my $returnValue;
 
@@ -7595,6 +8071,37 @@ sub getExistingBambooConfig {
 		"yes"
 	);
 
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Bamboo? yes/no.",
+			"yes"
+		);
+
+		if ( $cfg->param("bamboo.crowdIntegration") eq "TRUE" ) {
+			genBooleanConfigItem( $mode, $cfg, "bamboo.crowdSSO",
+				"Will you be using Crowd for Single Sign On (SSO)? yes/no.",
+				"yes" );
+		}
+	}
+	else {
+		$cfg->param( "bamboo.crowdIntegration", "FALSE" );
+		$cfg->param( "bamboo.crowdSSO",         "FALSE" );
+	}
+
 	print
 "Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
 	$log->info(
@@ -7629,7 +8136,8 @@ sub getExistingBambooConfig {
 		print
 "$application data directory has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application data directory found and added to config.");
+			"$subname: $application data directory found and added to config."
+		);
 	}
 
 	#getContextFromFile
@@ -7866,6 +8374,8 @@ sub generateBambooConfig {
 	my $cfg;
 	my $mode;
 	my $defaultValue;
+	my @parameterNull;
+	my $externalCrowdInstance;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -7998,6 +8508,37 @@ sub generateBambooConfig {
 	genBooleanConfigItem( $mode, $cfg, "bamboo.runAsService",
 		"Would you like to run Bamboo as a service? yes/no.", "yes" );
 
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"bamboo.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Bamboo? yes/no.",
+			"yes"
+		);
+
+		if ( $cfg->param("bamboo.crowdIntegration") eq "TRUE" ) {
+			genBooleanConfigItem( $mode, $cfg, "bamboo.crowdSSO",
+				"Will you be using Crowd for Single Sign On (SSO)? yes/no.",
+				"yes" );
+		}
+	}
+	else {
+		$cfg->param( "bamboo.crowdIntegration", "FALSE" );
+		$cfg->param( "bamboo.crowdSSO",         "FALSE" );
+	}
+
 	#Set up some defaults for Bamboo
 	$cfg->param( "bamboo.tomcatDir", "" )
 	  ;    #we leave these blank deliberately due to the way Bamboo works
@@ -8027,6 +8568,7 @@ sub installBamboo {
 	  "http://www.atlassian.com/software/bamboo/download-archives";
 	my $configFile;
 	my @requiredConfigItems;
+	my @requiredCrowdConfigItems;
 	my @parameterNull;
 	my $javaOptsValue;
 	my $WrapperDownloadFile;
@@ -8044,7 +8586,8 @@ sub installBamboo {
 		"bamboo.runAsService",            "bamboo.osUser",
 		"bamboo.connectorPort",           "bamboo.javaMinMemory",
 		"bamboo.javaMaxMemory",           "bamboo.javaMaxPermSize",
-		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2"
+		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2",
+		"bamboo.crowdIntegration"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -8434,6 +8977,46 @@ sub upgradeBamboo {
 		);
 	}
 
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		backupFile(
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/webapp/WEB-INF/classes/atlassian-user.xml"
+			),
+			$osUser
+		);
+		updateSeraphConfig(
+			"Bamboo",
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/webapp/WEB-INF/classes/atlassian-user.xml"
+			),
+			"key=\"crowd\"",
+			"key=\"hibernateRepository\""
+		);
+		if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/seraph-config.xml"
+				),
+				$osUser
+			);
+			updateSeraphConfig(
+				"Bamboo",
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/seraph-config.xml"
+				),
+				"com.atlassian.crowd.integration.seraph.*BambooAuthenticator",
+				"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
+			);
+		}
+	}
+
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
@@ -8497,9 +9080,11 @@ sub getExistingConfluenceConfig {
 	my $subname       = ( caller(0) )[3];
 	my $serverConfigFile;
 	my $serverSetEnvFile;
+	my $externalCrowdInstance;
 	my $input;
 	my $LOOP  = 0;
 	my $LOOP2 = 0;
+	my @parameterNull;
 	my $returnValue;
 
 	$log->info("BEGIN: $subname");
@@ -8583,6 +9168,37 @@ sub getExistingConfluenceConfig {
 "$subname: Attempting to get $application data directory from config file $serverConfigFile."
 	);
 
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"confluence.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Confluence? yes/no.",
+			"yes"
+		);
+
+		if ( $cfg->param("confluence.crowdIntegration") eq "TRUE" ) {
+			genBooleanConfigItem( $mode, $cfg, "confluence.crowdSSO",
+				"Will you be using Crowd for Single Sign On (SSO)? yes/no.",
+				"yes" );
+		}
+	}
+	else {
+		$cfg->param( "confluence.crowdIntegration", "FALSE" );
+		$cfg->param( "confluence.crowdSSO",         "FALSE" );
+	}
+
 	#get data/home directory
 	$returnValue = getLineFromFile(
 		escapeFilePath( $cfg->param("$lcApplication.installDir") )
@@ -8611,7 +9227,8 @@ sub getExistingConfluenceConfig {
 		print
 "$application data directory has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application data directory found and added to config.");
+			"$subname: $application data directory found and added to config."
+		);
 	}
 
 	#getContextFromFile
@@ -8979,6 +9596,8 @@ sub generateConfluenceConfig {
 	my $cfg;
 	my $mode;
 	my $defaultValue;
+	my @parameterNull;
+	my $externalCrowdInstance;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -9111,6 +9730,37 @@ sub generateConfluenceConfig {
 
 	genBooleanConfigItem( $mode, $cfg, "confluence.runAsService",
 		"Would you like to run Confluence as a service? yes/no.", "yes" );
+
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"confluence.crowdIntegration",
+"Will you be using Crowd as the authentication backend for Confluence? yes/no.",
+			"yes"
+		);
+
+		if ( $cfg->param("confluence.crowdIntegration") eq "TRUE" ) {
+			genBooleanConfigItem( $mode, $cfg, "confluence.crowdSSO",
+				"Will you be using Crowd for Single Sign On (SSO)? yes/no.",
+				"yes" );
+		}
+	}
+	else {
+		$cfg->param( "confluence.crowdIntegration", "FALSE" );
+		$cfg->param( "confluence.crowdSSO",         "FALSE" );
+	}
 
 	#Set up some defaults for Confluence
 	$cfg->param( "confluence.processSearchParameter1", "java" );
@@ -9406,7 +10056,8 @@ sub getExistingCrowdConfig {
 		print
 "$application data directory has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application data directory found and added to config.");
+			"$subname: $application data directory found and added to config."
+		);
 	}
 
 	#getContextFromFile
@@ -10202,7 +10853,7 @@ sub upgradeCrowd {
 	backupFile( $initPropertiesFile, $osUser );
 
 	backupFile( $javaMemParameterFile, $osUser );
-	
+
 	print "Applying custom context to $application...\n\n";
 	setCustomCrowdContext();
 
@@ -11363,6 +12014,8 @@ sub getExistingJiraConfig {
 	my $subname       = ( caller(0) )[3];
 	my $serverConfigFile;
 	my $serverSetEnvFile;
+	my $externalCrowdInstance;
+	my @parameterNull;
 	my $input;
 	my $LOOP = 0;
 	my $returnValue;
@@ -11447,6 +12100,37 @@ sub getExistingJiraConfig {
 	$log->info(
 "$subname: Attempting to get $application data directory from config file $serverConfigFile."
 	);
+
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"jira.crowdIntegration",
+"Will you be using Crowd as the authentication backend for JIRA? yes/no.",
+			"yes"
+		);
+
+		if ( $cfg->param("jira.crowdIntegration") eq "TRUE" ) {
+			genBooleanConfigItem( $mode, $cfg, "jira.crowdSSO",
+				"Will you be using Crowd for Single Sign On (SSO)? yes/no.",
+				"yes" );
+		}
+	}
+	else {
+		$cfg->param( "jira.crowdIntegration", "FALSE" );
+		$cfg->param( "jira.crowdSSO",         "FALSE" );
+	}
 
 	#get data/home directory
 	$returnValue = getLineFromFile(
@@ -11845,6 +12529,8 @@ sub generateJiraConfig {
 	my $cfg;
 	my $mode;
 	my $defaultValue;
+	my $externalCrowdInstance;
+	my @parameterNull;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -11976,6 +12662,37 @@ sub generateJiraConfig {
 			'^([0-9]*)$',
 "The input you entered was not a valid port number, please try again.\n\n"
 		);
+	}
+
+	@parameterNull = $cfg->param("general.externalCrowdInstance");
+
+	if ( $#parameterNull == -1 ) {
+		$externalCrowdInstance = "FALSE";
+	}
+	else {
+		$externalCrowdInstance = $cfg->param("general.externalCrowdInstance");
+	}
+
+	if (   $externalCrowdInstance eq "TRUE"
+		|| $cfg->param("crowd.enable") eq "TRUE" )
+	{
+		genBooleanConfigItem(
+			$mode,
+			$cfg,
+			"jira.crowdIntegration",
+"Will you be using Crowd as the authentication backend for JIRA? yes/no.",
+			"yes"
+		);
+
+		if ( $cfg->param("jira.crowdIntegration") eq "TRUE" ) {
+			genBooleanConfigItem( $mode, $cfg, "jira.crowdSSO",
+				"Will you be using Crowd for Single Sign On (SSO)? yes/no.",
+				"yes" );
+		}
+	}
+	else {
+		$cfg->param( "jira.crowdIntegration", "FALSE" );
+		$cfg->param( "jira.crowdSSO",         "FALSE" );
 	}
 
 	genBooleanConfigItem( $mode, $cfg, "jira.runAsService",
