@@ -64,7 +64,8 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-1"; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
+my $scriptVersion = "0-1"
+  ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
 my $supportedVersionsConfigFile = "supportedVersions.cfg";
@@ -77,6 +78,7 @@ my $disable_config_checks   = '';    #global flag for command line paramaters
 my $verbose                 = '';    #global flag for command line paramaters
 my $autoMode                = '';    #global flag for command line paramaters
 my $globalArch;
+my $logFile;
 my @suiteApplications =
   ( "Bamboo", "Confluence", "Crowd", "Fisheye", "JIRA", "Stash" );
 my $log = Log::Log4perl->get_logger("");
@@ -2531,6 +2533,57 @@ sub getConfigItem {
 	}
 	else {
 		return $cfg->param($configItem);
+	}
+}
+
+########################################
+#getEnvironmentDebugInfo               #
+########################################
+sub getEnvironmentDebugInfo {
+	if ( $log->is_debug() ) {
+		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS UNAME CONFIG");
+		system("uname -a >> $logFile");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END OS UNAME CONFIG");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN MEMINFO CONFIG");
+		system("cat /proc/meminfo >> $logFile");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END MEMINFO CONFIG");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN CPUINFO CONFIG");
+		system("cat /proc/cpuinfo >> $logFile");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END CPUINFO CONFIG");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX ENV VARIABLES");
+		system("env >> $logFile");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END LINUX ENV VARIABLES");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX PS OUTPUT");
+		system("ps -ef >> $logFile");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END LINUX PS OUTPUT");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN JAVA VERSION OUTPUT"
+		);
+		system("java -version >> $logFile 2>&1");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END JAVA VERSION OUTPUT");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN DF -H OUTPUT" );
+		system("df -h >> $logFile 2>&1");
+		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - END DF -H OUTPUT");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN PERL VERSION OUTPUT"
+		);
+		system("perl -v >> $logFile 2>&1");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL VERSION OUTPUT")
+		  ;
 	}
 }
 
@@ -6914,8 +6967,18 @@ sub bootStrapper {
 		);
 	}
 
+	#load logger file name
+	my $conf = Log::Log4perl::Config::PropertyConfigurator->new();
+	$conf->file("log4j.conf");
+	$conf->parse();    # will die() on error
+
+	$logFile = $conf->value("log4perl.appender.LOGFILE.filename");
+
 	#Create working directory if it doesn't already exist
 	createDirectory("$Bin/working");
+
+	#get environment details if we are in debug mode.
+	getEnvironmentDebugInfo();
 
 	#Try to load configuration file
 	loadSuiteConfig();
@@ -7542,7 +7605,8 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			isSupportedVersion("jira","5.0.0");
+
+			print $logFile;
 			my $test = <STDIN>;
 		}
 	}
