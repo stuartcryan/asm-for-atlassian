@@ -2023,7 +2023,8 @@ sub genConfigItem {
 	if ( $mode eq "UPDATE" ) {
 
 		#Check if the current value is defined
-		if ( defined( $cfg->param($configParam) ) && !( $#parameterNull == -1 ) )
+		if ( defined( $cfg->param($configParam) )
+			&& !( $#parameterNull == -1 ) )
 		{
 			$defaultValue = $cfg->param($configParam);
 			dumpSingleVarToLog( "$subname" . "_defaultValue", $defaultValue );
@@ -2432,10 +2433,10 @@ sub generateSuiteConfig {
 			  . "'was not recognised. Please try again and enter either 1, 2, 3, 4 or 5. \n\n";
 		}
 	}
-	
+
 	@parameterNull = $oldConfig->param("general.targetDBType");
-	
-	if ( defined($oldConfig) && !( $#parameterNull == -1 )) {
+
+	if ( defined($oldConfig) && !( $#parameterNull == -1 ) ) {
 		if ( $cfg->param("general.targetDBType") ne
 			$oldConfig->param("general.targetDBType") )
 		{
@@ -6735,13 +6736,21 @@ sub upgradeGenericAtlassianBinary {
 		$log->info("$subname: Restoring Crowd configuration files.");
 		print "Restoring the Crowd configuration files...\n\n";
 		if ( $lcApplication eq "jira" ) {
-			backupFile(
-				escapeFilePath(
+			if (
+				-e escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
 					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-				),
-				$osUser
-			);
+				)
+			  )
+			{
+				backupFile(
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+					),
+					$osUser
+				);
+			}
 			copyFile(
 				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
 				escapeFilePath(
@@ -6758,13 +6767,21 @@ sub upgradeGenericAtlassianBinary {
 			);
 		}
 		elsif ( $lcApplication eq "confluence" ) {
-			backupFile(
-				escapeFilePath(
+			if (
+				-e escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
 					  . "/confluence/WEB-INF/classes/crowd.properties"
-				),
-				$osUser
-			);
+				)
+			  )
+			{
+				backupFile(
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/confluence/WEB-INF/classes/crowd.properties"
+					),
+					$osUser
+				);
+			}
 			copyFile(
 				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
 				escapeFilePath(
