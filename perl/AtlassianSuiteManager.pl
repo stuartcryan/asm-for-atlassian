@@ -3,9 +3,9 @@
 #
 #    Copyright 2012-2013 Stuart Ryan
 #
-#    Application Name: AtlassianSuiteManager
-#    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Atlassian+Suite+Manager+Script+Home
-#    Version: 0.1
+#    Application Name: ASM Script for Atlassian(R)
+#    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
+#    Version: 0.1.1
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -64,7 +64,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-1"
+my $scriptVersion = "0-1-1"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -7219,9 +7219,9 @@ sub displayInitialConfigMenu {
 		# define the main menu as a multiline string
 		$menuText = <<'END_TXT';
 
-      Welcome to the Atlassian Suite Manager Script
+      Welcome to the ASM Script for Atlassian(R)
 
-      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2013  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
@@ -7367,9 +7367,9 @@ sub displayInstallMenu {
 		# define the main menu as a multiline string
 		$menuText = <<'END_TXT';
 
-      Welcome to the Atlassian Suite Manager Script
+      Welcome to the ASM Script for Atlassian(R)
 
-      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2013  Stuart Ryan
       
       ###########################################################################################
       I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
@@ -7544,9 +7544,9 @@ sub displayMainMenu {
 		# define the main menu as a multiline string
 		$main_menu = <<'END_TXT';
 
-      Welcome to the Atlassian Suite Manager Script
+      Welcome to the ASM Script for Atlassian(R)
 
-      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2013  Stuart Ryan
       ###########################################################################################
       I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
       CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
@@ -7732,9 +7732,9 @@ sub displayRestoreMenu {
 		# define the main menu as a multiline string
 		$menuText = <<'END_TXT';
 
-      Welcome to the Atlassian Suite Manager Script
+      Welcome to the ASM Script for Atlassian(R)
 
-      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2013  Stuart Ryan
       
       ###########################################################################################
       I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
@@ -7969,9 +7969,9 @@ sub displayUninstallMenu {
 		# define the main menu as a multiline string
 		$menuText = <<'END_TXT';
 
-      Welcome to the Atlassian Suite Manager Script
+      Welcome to the ASM Script for Atlassian(R)
 
-      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2013  Stuart Ryan
       
       ###########################################################################################
       I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
@@ -8228,9 +8228,9 @@ sub displayUpgradeMenu {
 		# define the main menu as a multiline string
 		$menuText = <<'END_TXT';
 
-      Welcome to the Atlassian Suite Manager Script
+      Welcome to the ASM Script for Atlassian(R)
 
-      AtlassianSuiteManager Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2013  Stuart Ryan
       
       ###########################################################################################
       I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
