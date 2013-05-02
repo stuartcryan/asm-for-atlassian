@@ -14417,9 +14417,9 @@ sub installStash {
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
-		  . $javaMemParameterFile );
+		  . $initPropertiesFile );
 	updateLineInFile(
-		$javaMemParameterFile,
+		$initPropertiesFile,
 		"JVM_MINIMUM_MEMORY",
 		"JVM_MINIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMinMemory"),
@@ -14427,7 +14427,7 @@ sub installStash {
 	);
 
 	updateLineInFile(
-		$javaMemParameterFile,
+		$initPropertiesFile,
 		"JVM_MAXIMUM_MEMORY",
 		"JVM_MAXIMUM_MEMORY="
 		  . $globalConfig->param("$lcApplication.javaMaxMemory"),
@@ -14435,7 +14435,7 @@ sub installStash {
 	);
 
 	updateLineInFile(
-		$javaMemParameterFile,
+		$initPropertiesFile,
 		"STASH_MAX_PERM_SIZE",
 		"STASH_MAX_PERM_SIZE="
 		  . $globalConfig->param("$lcApplication.javaMaxPermSize"),
