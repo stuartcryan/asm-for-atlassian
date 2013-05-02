@@ -14112,7 +14112,7 @@ sub generateStashConfig {
 		$cfg,
 		"stash.connectorPort",
 "Please enter the Connector port Stash will run on (note this is the port you will access in the browser).",
-		"8085",
+		"7990",
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
