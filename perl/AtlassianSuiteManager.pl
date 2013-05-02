@@ -6486,18 +6486,41 @@ sub upgradeGenericAtlassianBinary {
 		$log->info("$subname: Backing up Crowd configuration files.");
 		print "Backing up the Crowd configuration files...\n\n";
 		if ( $lcApplication eq "jira" ) {
-			copyFile(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
-				"$Bin/working/crowd.properties.$lcApplication"
-			);
+			if ( -e $globalConfig->param("$lcApplication.installDir")
+				. "/atlassian-jira/WEB-INF/classes/crowd.properties" )
+			{
+				copyFile(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
+					"$Bin/working/crowd.properties.$lcApplication"
+				);
+			}
+			else {
+				print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+				$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+				);
+			}
+
 		}
 		elsif ( $lcApplication eq "confluence" ) {
-			copyFile(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/confluence/WEB-INF/classes/crowd.properties",
-				"$Bin/working/crowd.properties.$lcApplication"
-			);
+			if ( -e $globalConfig->param("$lcApplication.installDir")
+				. "/confluence/WEB-INF/classes/crowd.properties" )
+			{
+				copyFile(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties",
+					"$Bin/working/crowd.properties.$lcApplication"
+				);
+			}
+			else {
+				print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+				$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+				);
+			}
 		}
 	}
 
@@ -6740,20 +6763,34 @@ sub upgradeGenericAtlassianBinary {
 					$osUser
 				);
 			}
-			copyFile(
-				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-				)
-			);
-			chownFile(
-				$osUser,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-				)
-			);
+			if (
+				-e escapeFilePath(
+					"$Bin/working/crowd.properties.$lcApplication") )
+			{
+				copyFile(
+					escapeFilePath(
+						"$Bin/working/crowd.properties.$lcApplication"),
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+					)
+				);
+
+				chownFile(
+					$osUser,
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+					)
+				);
+			}
+			else {
+				print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+				$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+				);
+			}
 		}
 		elsif ( $lcApplication eq "confluence" ) {
 			if (
@@ -6771,20 +6808,33 @@ sub upgradeGenericAtlassianBinary {
 					$osUser
 				);
 			}
-			copyFile(
-				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/crowd.properties"
-				)
-			);
-			chownFile(
-				$osUser,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/crowd.properties"
-				)
-			);
+			if (
+				-e escapeFilePath(
+					"$Bin/working/crowd.properties.$lcApplication") )
+			{
+				copyFile(
+					escapeFilePath(
+						"$Bin/working/crowd.properties.$lcApplication"),
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/confluence/WEB-INF/classes/crowd.properties"
+					)
+				);
+				chownFile(
+					$osUser,
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/confluence/WEB-INF/classes/crowd.properties"
+					)
+				);
+			}
+			else {
+				print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+				$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+				);
+			}
 		}
 	}
 
@@ -13603,8 +13653,7 @@ sub getExistingStashConfig {
 			$mode,
 			$cfg,
 			"stash.apacheProxyPort",
-"Please enter the port number that Apache currently serves Stash on (80 for HTTP, 443 for HTTPS in standard situations)."
-			,
+"Please enter the port number that Apache currently serves Stash on (80 for HTTP, 443 for HTTPS in standard situations).",
 			"80",
 			'^([0-9]*)$',
 "The input you entered was not a valid port number, please try again.\n\n"
@@ -14404,8 +14453,8 @@ sub installStash {
 
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
-	$log->info( "$subname: Applying Java memory parameters to "
-		  . $initPropertiesFile );
+	$log->info(
+		"$subname: Applying Java memory parameters to " . $initPropertiesFile );
 	updateLineInFile(
 		$initPropertiesFile,
 		"JVM_MINIMUM_MEMORY",
