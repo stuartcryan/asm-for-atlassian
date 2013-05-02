@@ -4511,18 +4511,6 @@ sub postInstallGeneric {
 			  . $globalConfig->param("$lcApplication.connectorPort")
 			  . getConfigItem( "$lcApplication.appContext", $globalConfig )
 			  . ".\n\n";
-
-			if ( $globalConfig->param("$lcApplication.crowdIntegration") eq
-				"TRUE" )
-			{
-				generateCrowdPropertiesFile(
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-					  )
-					  . "/conf/wrapper.conf",
-					$application
-				);
-			}
 		}
 		else {
 			print
