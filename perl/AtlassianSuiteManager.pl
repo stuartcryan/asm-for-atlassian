@@ -2046,7 +2046,7 @@ sub genConfigItem {
 		print "\n";
 
 #If default option is selected (i.e. just a return), use default value, otherwise use input
-		if ( $input eq "default" && $defaultValue ne "" ) {
+		if ( $input eq "default" ) {
 			$cfg->param( $configParam, $defaultValue );
 			$log->debug(
 "$subname: default selected, setting $configParam to $defaultValue"
