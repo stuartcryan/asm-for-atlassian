@@ -77,6 +77,7 @@ my $ignore_version_warnings = '';    #global flag for command line paramaters
 my $disable_config_checks   = '';    #global flag for command line paramaters
 my $verbose                 = '';    #global flag for command line paramaters
 my $autoMode                = '';    #global flag for command line paramaters
+my $enableEAPDownloads      = '';    #global flag for command line paramaters
 my $globalArch;
 my $logFile;
 my @suiteApplications =
@@ -7139,6 +7140,7 @@ sub bootStrapper {
 		'upgrade-fisheye+'    => \$upgrade_fisheye,
 		'upgrade-bamboo+'     => \$upgrade_bamboo,
 		'upgrade-stash+'      => \$upgrade_stash,
+		'enable-eap+'         => \$enableEAPDownloads
 
 		#Below to be added in future versions
 		#		'tar-crowd-logs+'            => \$tar_crowd_logs,
