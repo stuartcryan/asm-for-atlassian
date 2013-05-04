@@ -1024,25 +1024,28 @@ sub downloadAtlassianInstaller {
 		$downloadDetails[1] );
 
 	#Check if we are trying to download a supported version
-	if ( isSupportedVersion( $lcApplication, $downloadDetails[1] ) eq "no" ) {
-		$log->warn(
+	if ( $enableEAPDownloads != 1 ) {
+		if ( isSupportedVersion( $lcApplication, $downloadDetails[1] ) eq "no" )
+		{
+			$log->warn(
 "$subname: Version $version of $application is has not been fully tested with this script."
-		);
+			);
 
-		$input = getBooleanInput(
+			$input = getBooleanInput(
 "This version of $application ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]"
-		);
-		dumpSingleVarToLog( "$subname" . "_input", $input );
-		print "\n";
-		if ( $input eq "no" ) {
-			$log->logdie(
+			);
+			dumpSingleVarToLog( "$subname" . "_input", $input );
+			print "\n";
+			if ( $input eq "no" ) {
+				$log->logdie(
 "User opted not to continue as the version is not supported, please try again with a specific version which is supported, or check for an update to this script."
-			);
-		}
-		else {
-			$log->info(
+				);
+			}
+			else {
+				$log->info(
 "$subname: User has opted to download $version of $application even though it has not been tested with this script."
-			);
+				);
+			}
 		}
 	}
 
@@ -1066,7 +1069,8 @@ sub downloadAtlassianInstaller {
 #Check if local file already exists and if it does, provide the option to skip downloading
 	if ( -e $absoluteFilePath ) {
 		$log->debug(
-			"$subname: The install file $absoluteFilePath already exists.");
+			"$subname: The install file $absoluteFilePath already exists."
+		);
 
 		$input =
 		  getBooleanInput( "The local install file "
@@ -6214,7 +6218,7 @@ sub upgradeGeneric {
 		}
 
 	}
-	elsif ( $mode eq "SPECIFIC" ) {
+	elsif ( $mode eq "SPECIFIC" && ( $enableEAPDownloads != 1 ) ) {
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"), $version );
 		if ( $versionSupported eq "GREATER" ) {
@@ -6599,8 +6603,7 @@ sub upgradeGenericAtlassianBinary {
 			);
 		}
 	}
-	elsif ( $mode eq "SPECIFIC" ) {
-		$log->info("$subname: Downloading version $version of $application");
+	elsif ( $mode eq "SPECIFIC" && ( $enableEAPDownloads != 1 ) ) {
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"), $version );
 		if ( $versionSupported eq "GREATER" ) {
@@ -7140,26 +7143,26 @@ sub bootStrapper {
 		'upgrade-fisheye+'    => \$upgrade_fisheye,
 		'upgrade-bamboo+'     => \$upgrade_bamboo,
 		'upgrade-stash+'      => \$upgrade_stash,
-		'enable-eap+'         => \$enableEAPDownloads
+		'enable-eap'          => \$enableEAPDownloads
 
-		#Below to be added in future versions
-		#		'tar-crowd-logs+'            => \$tar_crowd_logs,
-		#		'tar-confluence-logs+'       => \$tar_confluence_logs,
-		#		'tar-jira-logs+'             => \$tar_jira_logs,
-		#		'tar-fisheye-logs+'          => \$tar_fisheye_logs,
-		#		'tar-bamboo-logs+'           => \$tar_bamboo_logs,
-		#		'tar-stash-logs+'            => \$tar_stash_logs,
-		#		'disable-service=s'          => \$disable_service,
-		#		'enable-service=s'           => \$enable_service,
-		#		'check-service=s'            => \$check_service,
-		#		'update-sh-script+'          => \$update_sh_script,
-		#		'verify-config+'             => \$verify_config,
-		#		'silent|s+'                  => \$silent,
-		#		'debug|d+'                   => \$debug,
-		#		'unsupported|u+'             => \$unsupported,
-		#		'ignore-version-warnings|i+' => \$ignore_version_warnings,
-		#		'disable-config-checks|c+'   => \$disable_config_checks,
-		#		'verbose|v+'                 => \$verbose
+		  #Below to be added in future versions
+		  #		'tar-crowd-logs+'            => \$tar_crowd_logs,
+		  #		'tar-confluence-logs+'       => \$tar_confluence_logs,
+		  #		'tar-jira-logs+'             => \$tar_jira_logs,
+		  #		'tar-fisheye-logs+'          => \$tar_fisheye_logs,
+		  #		'tar-bamboo-logs+'           => \$tar_bamboo_logs,
+		  #		'tar-stash-logs+'            => \$tar_stash_logs,
+		  #		'disable-service=s'          => \$disable_service,
+		  #		'enable-service=s'           => \$enable_service,
+		  #		'check-service=s'            => \$check_service,
+		  #		'update-sh-script+'          => \$update_sh_script,
+		  #		'verify-config+'             => \$verify_config,
+		  #		'silent|s+'                  => \$silent,
+		  #		'debug|d+'                   => \$debug,
+		  #		'unsupported|u+'             => \$unsupported,
+		  #		'ignore-version-warnings|i+' => \$ignore_version_warnings,
+		  #		'disable-config-checks|c+'   => \$disable_config_checks,
+		  #		'verbose|v+'                 => \$verbose
 	);
 
 	my $options_count = 0;

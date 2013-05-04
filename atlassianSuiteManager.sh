@@ -530,6 +530,6 @@ checkPerlModules
 
 #run the perl script
 cd $INSTALLDIR
-perl perl/AtlassianSuiteManager.pl $ARGS
+perl perl/AtlassianSuiteManager.pl $@
 
 exit 0
