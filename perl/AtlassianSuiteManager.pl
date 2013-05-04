@@ -77,7 +77,7 @@ my $ignore_version_warnings = '';    #global flag for command line paramaters
 my $disable_config_checks   = '';    #global flag for command line paramaters
 my $verbose                 = '';    #global flag for command line paramaters
 my $autoMode                = '';    #global flag for command line paramaters
-my $enableEAPDownloads      = '';    #global flag for command line paramaters
+my $enableEAPDownloads      = '0';    #global flag for command line paramaters
 my $globalArch;
 my $logFile;
 my @suiteApplications =
@@ -1069,7 +1069,7 @@ sub downloadAtlassianInstaller {
 #Check if local file already exists and if it does, provide the option to skip downloading
 	if ( -e $absoluteFilePath ) {
 		$log->debug(
-			"$subname: The install file $absoluteFilePath already exists." );
+			"$subname: The install file $absoluteFilePath already exists.");
 
 		$input =
 		  getBooleanInput( "The local install file "
@@ -6415,6 +6415,7 @@ sub upgradeGenericAtlassianBinary {
 	my $lcApplication;
 	my $serverXMLFile;
 	my $subname = ( caller(0) )[3];
+	my $processReturnCode;
 
 	$log->info("BEGIN: $subname");
 
@@ -9324,6 +9325,28 @@ sub upgradeBamboo {
 		}
 	}
 
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/webapp/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/webapp/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
+
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -9467,6 +9490,52 @@ sub upgradeBamboo {
 	#Restore the Crowd configuration files
 	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
 		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/webapp/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
+	}
+
+	#Restore the Crowd Seraph configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd Seraph configuration.");
 		print "Restoring the Crowd configuration files...\n\n";
 		backupFile(
 			escapeFilePath(
