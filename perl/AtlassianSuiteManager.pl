@@ -1069,8 +1069,7 @@ sub downloadAtlassianInstaller {
 #Check if local file already exists and if it does, provide the option to skip downloading
 	if ( -e $absoluteFilePath ) {
 		$log->debug(
-			"$subname: The install file $absoluteFilePath already exists."
-		);
+			"$subname: The install file $absoluteFilePath already exists." );
 
 		$input =
 		  getBooleanInput( "The local install file "
@@ -6529,9 +6528,6 @@ sub upgradeGenericAtlassianBinary {
 		}
 	}
 
-	#Backup the existing install
-	backupApplication($application);
-
 	#We are upgrading, get the latest version
 	$input = getBooleanInput(
 		"Would you like to upgrade to the latest version? yes/no [yes]: ");
@@ -6630,6 +6626,33 @@ sub upgradeGenericAtlassianBinary {
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			$globalArch );
 	}
+
+	#Prompt user to stop existing service
+	$log->info("$subname: Stopping existing $application service...");
+	print
+"We will now stop the existing $application service, please press enter to continue...";
+	$input = <STDIN>;
+	print "\n";
+	$processReturnCode = stopService(
+		$application,
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter1" )
+		  . "\"",
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter2" )
+		  . "\""
+	);
+
+	if ( $processReturnCode eq "FAIL" ) {
+		print
+"We were unable to stop the $application process therefore the upgrade cannot go ahead, please try stopping manually and trying again.\n\n";
+		$log->logdie(
+"$subname: We were unable to stop the process therefore the upgrade for $application cannot succeed."
+		);
+	}
+
+	#Backup the existing install
+	backupApplication($application);
 
 	#chmod the file to be executable
 	$log->info("$subname: Making $downloadDetails[2] excecutable ");
