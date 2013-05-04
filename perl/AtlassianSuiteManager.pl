@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.3
+#    Version: 0.1.4
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -64,7 +64,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-1-3"
+my $scriptVersion = "0-1-4"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -77,6 +77,7 @@ my $ignore_version_warnings = '';    #global flag for command line paramaters
 my $disable_config_checks   = '';    #global flag for command line paramaters
 my $verbose                 = '';    #global flag for command line paramaters
 my $autoMode                = '';    #global flag for command line paramaters
+my $enableEAPDownloads      = '0';    #global flag for command line paramaters
 my $globalArch;
 my $logFile;
 my @suiteApplications =
@@ -1023,25 +1024,28 @@ sub downloadAtlassianInstaller {
 		$downloadDetails[1] );
 
 	#Check if we are trying to download a supported version
-	if ( isSupportedVersion( $lcApplication, $downloadDetails[1] ) eq "no" ) {
-		$log->warn(
+	if ( $enableEAPDownloads != 1 ) {
+		if ( isSupportedVersion( $lcApplication, $downloadDetails[1] ) eq "no" )
+		{
+			$log->warn(
 "$subname: Version $version of $application is has not been fully tested with this script."
-		);
+			);
 
-		$input = getBooleanInput(
+			$input = getBooleanInput(
 "This version of $application ($downloadDetails[1]) has not been fully tested with this script. Do you wish to continue?: [yes]"
-		);
-		dumpSingleVarToLog( "$subname" . "_input", $input );
-		print "\n";
-		if ( $input eq "no" ) {
-			$log->logdie(
+			);
+			dumpSingleVarToLog( "$subname" . "_input", $input );
+			print "\n";
+			if ( $input eq "no" ) {
+				$log->logdie(
 "User opted not to continue as the version is not supported, please try again with a specific version which is supported, or check for an update to this script."
-			);
-		}
-		else {
-			$log->info(
+				);
+			}
+			else {
+				$log->info(
 "$subname: User has opted to download $version of $application even though it has not been tested with this script."
-			);
+				);
+			}
 		}
 	}
 
@@ -6213,7 +6217,7 @@ sub upgradeGeneric {
 		}
 
 	}
-	elsif ( $mode eq "SPECIFIC" ) {
+	elsif ( $mode eq "SPECIFIC" && ( $enableEAPDownloads != 1 ) ) {
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"), $version );
 		if ( $versionSupported eq "GREATER" ) {
@@ -6411,6 +6415,7 @@ sub upgradeGenericAtlassianBinary {
 	my $lcApplication;
 	my $serverXMLFile;
 	my $subname = ( caller(0) )[3];
+	my $processReturnCode;
 
 	$log->info("BEGIN: $subname");
 
@@ -6524,9 +6529,6 @@ sub upgradeGenericAtlassianBinary {
 		}
 	}
 
-	#Backup the existing install
-	backupApplication($application);
-
 	#We are upgrading, get the latest version
 	$input = getBooleanInput(
 		"Would you like to upgrade to the latest version? yes/no [yes]: ");
@@ -6598,8 +6600,7 @@ sub upgradeGenericAtlassianBinary {
 			);
 		}
 	}
-	elsif ( $mode eq "SPECIFIC" ) {
-		$log->info("$subname: Downloading version $version of $application");
+	elsif ( $mode eq "SPECIFIC" && ( $enableEAPDownloads != 1 ) ) {
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"), $version );
 		if ( $versionSupported eq "GREATER" ) {
@@ -6626,6 +6627,33 @@ sub upgradeGenericAtlassianBinary {
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			$globalArch );
 	}
+
+	#Prompt user to stop existing service
+	$log->info("$subname: Stopping existing $application service...");
+	print
+"We will now stop the existing $application service, please press enter to continue...";
+	$input = <STDIN>;
+	print "\n";
+	$processReturnCode = stopService(
+		$application,
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter1" )
+		  . "\"",
+		"\""
+		  . $globalConfig->param( $lcApplication . ".processSearchParameter2" )
+		  . "\""
+	);
+
+	if ( $processReturnCode eq "FAIL" ) {
+		print
+"We were unable to stop the $application process therefore the upgrade cannot go ahead, please try stopping manually and trying again.\n\n";
+		$log->logdie(
+"$subname: We were unable to stop the process therefore the upgrade for $application cannot succeed."
+		);
+	}
+
+	#Backup the existing install
+	backupApplication($application);
 
 	#chmod the file to be executable
 	$log->info("$subname: Making $downloadDetails[2] excecutable ");
@@ -7139,25 +7167,26 @@ sub bootStrapper {
 		'upgrade-fisheye+'    => \$upgrade_fisheye,
 		'upgrade-bamboo+'     => \$upgrade_bamboo,
 		'upgrade-stash+'      => \$upgrade_stash,
+		'enable-eap'          => \$enableEAPDownloads
 
-		#Below to be added in future versions
-		#		'tar-crowd-logs+'            => \$tar_crowd_logs,
-		#		'tar-confluence-logs+'       => \$tar_confluence_logs,
-		#		'tar-jira-logs+'             => \$tar_jira_logs,
-		#		'tar-fisheye-logs+'          => \$tar_fisheye_logs,
-		#		'tar-bamboo-logs+'           => \$tar_bamboo_logs,
-		#		'tar-stash-logs+'            => \$tar_stash_logs,
-		#		'disable-service=s'          => \$disable_service,
-		#		'enable-service=s'           => \$enable_service,
-		#		'check-service=s'            => \$check_service,
-		#		'update-sh-script+'          => \$update_sh_script,
-		#		'verify-config+'             => \$verify_config,
-		#		'silent|s+'                  => \$silent,
-		#		'debug|d+'                   => \$debug,
-		#		'unsupported|u+'             => \$unsupported,
-		#		'ignore-version-warnings|i+' => \$ignore_version_warnings,
-		#		'disable-config-checks|c+'   => \$disable_config_checks,
-		#		'verbose|v+'                 => \$verbose
+		  #Below to be added in future versions
+		  #		'tar-crowd-logs+'            => \$tar_crowd_logs,
+		  #		'tar-confluence-logs+'       => \$tar_confluence_logs,
+		  #		'tar-jira-logs+'             => \$tar_jira_logs,
+		  #		'tar-fisheye-logs+'          => \$tar_fisheye_logs,
+		  #		'tar-bamboo-logs+'           => \$tar_bamboo_logs,
+		  #		'tar-stash-logs+'            => \$tar_stash_logs,
+		  #		'disable-service=s'          => \$disable_service,
+		  #		'enable-service=s'           => \$enable_service,
+		  #		'check-service=s'            => \$check_service,
+		  #		'update-sh-script+'          => \$update_sh_script,
+		  #		'verify-config+'             => \$verify_config,
+		  #		'silent|s+'                  => \$silent,
+		  #		'debug|d+'                   => \$debug,
+		  #		'unsupported|u+'             => \$unsupported,
+		  #		'ignore-version-warnings|i+' => \$ignore_version_warnings,
+		  #		'disable-config-checks|c+'   => \$disable_config_checks,
+		  #		'verbose|v+'                 => \$verbose
 	);
 
 	my $options_count = 0;
@@ -9296,6 +9325,28 @@ sub upgradeBamboo {
 		}
 	}
 
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/webapp/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/webapp/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
+
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -9439,6 +9490,52 @@ sub upgradeBamboo {
 	#Restore the Crowd configuration files
 	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
 		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/webapp/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
+	}
+
+	#Restore the Crowd Seraph configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd Seraph configuration.");
 		print "Restoring the Crowd configuration files...\n\n";
 		backupFile(
 			escapeFilePath(

@@ -1,7 +1,7 @@
 <atlassian-plugin key="com.stuartryan.atlassian.asm" name="ASM Script for Atlassian" plugins-version="2">
     <plugin-info>
         <description>A management script to assist in standardising and automating installation, upgrades and uninstalls of the Atlassian Suite</description>
-        <version>0.1.3</version>
+        <version>0.1.4</version>
         <vendor name="Stuart Ryan" url="http://stuartryan.com" />
     </plugin-info>
 </atlassian-plugin>

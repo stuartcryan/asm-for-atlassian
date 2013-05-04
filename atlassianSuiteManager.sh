@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.3
+#    Version: 0.1.4
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.1.3"
+SCRIPTVERSION="0.1.4"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
@@ -318,6 +318,14 @@ processLatestVersionFile(){
 	source LATEST
 	#assume no update is needed until we know better 
 	ISUPDATENEEDED="FALSE"
+	PERLVERSION=`grep "my \\$scriptVersion =" $INSTALLDIR/perl/AtlassianSuiteManager.pl`
+	if [[ $PERLVERSION =~ ^.*\"([0-9]*)-([0-9]*)-?([0-9]*?)\".*?$ ]]; then
+		if [[ ${BASH_REMATCH[3]} == "" ]]; then
+			PERLVERSION=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}
+		else
+			PERLVERSION=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}
+		fi
+	fi
 	
 	for i in "${downloadURL[@]}"
 	do
@@ -331,7 +339,11 @@ processLatestVersionFile(){
     		fi
     		#Null out VERSIONCOMPARISON
     		VERSIONCOMPARISON=""
-    		compareTwoVersions $SCRIPTVERSION $LASTUPDATEDINVER
+    		if [[ $FILENAME == "atlassianSuiteManager.sh" ]]; then
+    			compareTwoVersions $SCRIPTVERSION $LASTUPDATEDINVER
+    		elif [[ $FILENAME == "AtlassianSuiteManager.pl" ]]; then
+    			compareTwoVersions $PERLVERSION $LASTUPDATEDINVER
+    		fi
     	
     		if [[("$VERSIONCOMPARISON" == "LESS")]]; then
     				ISUPDATENEEDED="TRUE"
@@ -530,6 +542,6 @@ checkPerlModules
 
 #run the perl script
 cd $INSTALLDIR
-perl perl/AtlassianSuiteManager.pl $ARGS
+perl perl/AtlassianSuiteManager.pl $@
 
 exit 0
