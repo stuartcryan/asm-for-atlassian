@@ -3,8 +3,8 @@
 #
 #    Copyright 2012-2013 Stuart Ryan
 
-LATESTAVAILABLEVER=0.1.1
+LATESTAVAILABLEVER=0.1.2
 
 #downloadURL in the format URL|destinationPath|lastUpdatedInVer
-downloadURL[0]="http://technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.1.1"
-downloadURL[1]="http://technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.1.1"
+downloadURL[0]="http://technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.1.2"
+downloadURL[1]="http://technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.1.2"

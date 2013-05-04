@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.1"
+SCRIPTVERSION="0.1.2"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
