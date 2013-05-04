@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.1
+#    Version: 0.1.3
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.1.2"
+SCRIPTVERSION="0.1.3"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
@@ -268,21 +268,21 @@ compareTwoVersions(){
     	MIDVERSIONSTATUS="GREATER"
     fi
     	
-    if [[(-z "$CURRMINORVERSION" && -z "$NEWMINORVERSION")]]; then
+    if [[(-n "$CURRMINORVERSION" && -n "$NEWMINORVERSION")]]; then
     	if [[("$CURRMINORVERSION" -lt "$NEWMINORVERSION")]]; then
    	 		MINORVERSIONSTATUS="LESS"	
-    	elif [[("$CURRMIDVERSION" -eq "$NEWMIDVERSION")]]; then
+    	elif [[("$CURRMINORVERSION" -eq "$NEWMINORVERSION")]]; then
     		MINORVERSIONSTATUS="EQUAL"
-    	elif [[("$CURRMIDVERSION" -gt "$NEWMIDVERSION")]]; then
+    	elif [[("$CURRMINORVERSION" -gt "$NEWMINORVERSION")]]; then
     		MINORVERSIONSTATUS="GREATER"
     	fi
 	fi
     	
-    if [[( -z "$CURRMINORVERSION" && (! -z "$NEWMINORVERSION"))]]; then
+    if [[( -n "$CURRMINORVERSION" && ( -z "$NEWMINORVERSION"))]]; then
     	MINORVERSIONSTATUS="NEWERNULL"
-	elif [[( (! -z "$CURRMINORVERSION") && -z "$NEWMINORVERSION")]]; then
+	elif [[( ( -z "$CURRMINORVERSION") && -n "$NEWMINORVERSION")]]; then
 		MINORVERSIONSTATUS="CURRENTNULL"
-	elif [[( (! -z "$CURRMINORVERSION") && ( ! -z "$NEWMINORVERSION"))]]; then
+	elif [[( ( -z "$CURRMINORVERSION") && (  -z "$NEWMINORVERSION"))]]; then
 		MINORVERSIONSTATUS="BOTHNULL"
 	fi
 		
@@ -294,19 +294,19 @@ compareTwoVersions(){
 		VERSIONCOMPARISON="LESS"
 	elif [[("$MAJORVERSIONTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "GREATER")]]; then
 		VERSIONCOMPARISON="GREATER"
-	elif [[( (! -z "$CURRMINORVERSION" ) && (! -z "$NEWMINORVERSION"))]]; then
+	elif [[( ( -z "$CURRMINORVERSION" ) && ( -z "$NEWMINORVERSION"))]]; then
 		VERSIONCOMPARISON="EQUAL"
-	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "LESS")]]; then
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINORVERSIONSTATUS" == "LESS")]]; then
 		VERSIONCOMPARISON="LESS"
-	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "GREATER")]]; then
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINORVERSIONSTATUS" == "GREATER")]]; then
 		VERSIONCOMPARISON="GREATER"
-	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "EQUAL")]]; then
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINORVERSIONSTATUS" == "EQUAL")]]; then
 		VERSIONCOMPARISON="EQUAL"
-	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "NEWERNULL")]]; then
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINORVERSIONSTATUS" == "NEWERNULL")]]; then
 		VERSIONCOMPARISON="GREATER"
-	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "CURRENTNULL")]]; then
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINORVERSIONSTATUS" == "CURRENTNULL")]]; then
 		VERSIONCOMPARISON="LESS"
-	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINVERSIONSTATUS" == "BOTHNULL")]]; then
+	elif [[( "$MAJORVERSIONSTATUS" == "EQUAL" && "$MIDVERSIONSTATUS" == "EQUAL" && "$MINORVERSIONSTATUS" == "BOTHNULL")]]; then
 		VERSIONCOMPARISON="EQUAL"
 	fi	
 }
