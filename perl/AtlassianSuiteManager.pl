@@ -2555,6 +2555,11 @@ sub getEnvironmentDebugInfo {
 	if ( $log->is_debug() ) {
 		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
 		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
+		system("cat /etc/issue >> $logFile");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END OS VERSION");
+		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS UNAME CONFIG");
 		system("uname -a >> $logFile");
 		$log->debug(
