@@ -36,6 +36,32 @@ EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
 clear
 INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
+type yum >/dev/null 2>&1 || YUM="FALSE"
+type apt-get >/dev/null 2>&1 || APTGET="FALSE"
+
+if [[ $APTGET != "FALSE" ]]; then
+	type -P lsb_release &>/dev/null  || { $LSB_RELEASE="FALSE"; }
+	if [[ $LSB_RELEASE == "FALSE" ]]; then
+		apt-get -y install lsb-release || { echo "apt-get Was unable to install lsb-release. You will need to install this manually and fix before proceeding. This script will now exit"; exit 1; }
+	fi
+fi
+
+
+if [[ $APTGET != "FALSE" ]]; then
+	LSBRELEASEOUT=`lsb_release -i`
+	if [[ "$LSBRELEASEOUT" == *Debian* ]]; then
+		OPERATING_SYSTEM="DEBIAN";
+	elif [[ "$LSBRELEASEOUT" == *Ubuntu* ]]; then
+		OPERATING_SYSTEM="UBUNTU";
+	else
+		OPERATING_SYSTEM="OTHER"
+	fi
+elif [[ -e "/etc/redhat-release" ]]; then
+	OPERATING_SYSTEM="REDHAT"
+else
+	OPERATING_SYSTEM="OTHER"
+fi
+
 ########################################
 #Test system for required Binaries     #
 ########################################
@@ -50,6 +76,8 @@ BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
 BINARIESCHECK=""
 MISSINGBINARIES=""
 
+
+
 for i in $BINARIES
 do
    type -P $i &>/dev/null  || { echo "'$i' binary not found."; BINARIESCHECK="FAIL"; }
@@ -59,7 +87,11 @@ if [[ ! -e "/usr/include/openssl/ssl.h" ]]; then
 	BINARIESCHECK="FAIL"
 	#add openssl-devel to the required binaries
 	BINARIESREDHAT="$BINARIESREDHAT openssl-devel"
-	BINARIESDEBIAN="$BINARIESDEBIAN libssl-dev"
+	if [[ $OPERATING_SYSTEM == "UBUNTU" ]]; then
+		BINARIESDEBIAN="$BINARIESDEBIAN libssl-dev openssl"
+	elif [[ $OPERATING_SYSTEM == "DEBIAN" ]]; then
+		BINARIESDEBIAN="$BINARIESDEBIAN libssl-dev openssl"
+	fi
 	echo "'openssl-devel/libssl-dev' libraries not found.";
 fi
 
@@ -87,13 +119,11 @@ echo -n "Some required binary components are missing therefore this script canno
 			fi
 		done
 		
-		if [[($USERWANTSPREREQS == "TRUE")]]; then
-			type yum >/dev/null 2>&1 || YUM="FALSE"
-			type apt-get >/dev/null 2>&1 || APTGET="FALSE"
+		if [[ ($USERWANTSPREREQS == "TRUE") ]]; then
 			
-			if [[($YUM != "FALSE")]]; then
+			if [[ ($YUM != "FALSE") ]]; then
 				yum -y install $BINARIESREDHAT || { echo "YUM Was unable to install all the required binaries. You will need to check this manually and fix before proceeding. This script will now exit"; exit 1; }
-			elif [[($APTGET != "FALSE")]]; then
+			elif [[ ($APTGET != "FALSE") ]]; then
 				apt-get -y install $BINARIESDEBIAN || { echo "apt-get Was unable to install all the required binaries. You will need to check this manually and fix before proceeding. This script will now exit"; exit 1; }
 			else
 			echo "It appears we are unable to find either yum (Redhat/CentOS) or apt-get (Debian/Ubuntu). Therefore you will have to install missing binaries manually. Please install the missing binaries and start the script again."
