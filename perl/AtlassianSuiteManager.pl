@@ -975,6 +975,94 @@ sub dirSize {
 }
 
 ########################################
+#displayQuickConfig                    #
+########################################
+sub displayQuickConfig {
+
+	my $subname = ( caller(0) )[3];
+	my $application;
+	print "QUICK INSTALL DETAILS MENU\n\n";
+
+	foreach $application (@suiteApplications) {
+		my $lcApplication = lc($application);
+		my @parameterNull =
+		  $globalConfig->param("$lcApplication.installedVersion");
+		my $url;
+		if (
+			defined( $globalConfig->param("$lcApplication.installedVersion") ) &
+			!( $#parameterNull == -1 ) )
+		{
+			print "$application Config\n";
+			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+					"TRUE" )
+				{
+					if ( $globalConfig->param("general.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						    "https://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						    "http://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				else {
+					if (
+						$globalConfig->param("$lcApplication.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						  "https://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						  "http://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+			}
+			else {
+				$url =
+				    "http://localhost:"
+				  . $globalConfig->param("$lcApplication.connectorPort")
+				  . getConfigItem( "$lcApplication.appContext", $globalConfig );
+			}
+
+			print "URL: $url\n\n";
+			print "----------------------------------------\n\n";
+		}
+	}
+
+	print "Please press enter to return to the main menu..";
+	my $input = <STDIN>;
+}
+
+########################################
 #Download Atlassian Installer          #
 ########################################
 sub downloadAtlassianInstaller {
@@ -2554,17 +2642,17 @@ sub getConfigItem {
 sub getEnvironmentDebugInfo {
 	if ( $log->is_debug() ) {
 		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
-		$log->debug(
-			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
-		if (-e "/etc/redhat-release"){
+		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
+		if ( -e "/etc/redhat-release" ) {
 			system("cat /etc/redhat-release >> $logFile");
-		} elsif (-e "/usr/bin/lsb_release"){
+		}
+		elsif ( -e "/usr/bin/lsb_release" ) {
 			system("lsb_release -a >> $logFile");
-		} else {
+		}
+		else {
 			system("cat /etc/issue >> $logFile");
 		}
-		$log->debug(
-			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END OS VERSION");
+		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - END OS VERSION");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS UNAME CONFIG");
 		system("uname -a >> $logFile");
@@ -4575,8 +4663,7 @@ sub postInstallGeneric {
 					}
 				}
 				print "\n"
-				  . "$application can now be accessed on $url"
-				  . ".\n\n";
+				  . "$application can now be accessed on $url" . ".\n\n";
 			}
 			else {
 				print "\n"
@@ -7950,6 +8037,7 @@ sub displayMainMenu {
       2) Upgrade an existing application
       3) Uninstall an application
       4) Recover backup after failed upgrade
+      U) Display URLs for each installed application (incl ports)
       G) Generate Suite Config
       Q) Quit
 
@@ -7988,6 +8076,10 @@ END_TXT
 		elsif ( lc($choice) eq "4\n" ) {
 			system 'clear';
 			displayRestoreMenu();
+		}
+		elsif ( lc($choice) eq "u\n" ) {
+			system 'clear';
+			displayQuickConfig();
 		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
