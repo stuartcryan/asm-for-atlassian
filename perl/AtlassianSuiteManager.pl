@@ -981,7 +981,27 @@ sub displayQuickConfig {
 
 	my $subname = ( caller(0) )[3];
 	my $application;
-	print "QUICK INSTALL DETAILS MENU\n\n";
+	my $menu;
+
+	# define the main menu as a multiline string
+	$menu = <<'END_TXT';
+
+      Welcome to the ASM Script for Atlassian(R)
+
+      Copyright (C) 2012-2013  Stuart Ryan
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ******************
+      * Quick URL Menu *
+      ******************
+
+END_TXT
+
+	# print the main menu
+	print $menu;
 
 	foreach $application (@suiteApplications) {
 		my $lcApplication = lc($application);
@@ -992,7 +1012,7 @@ sub displayQuickConfig {
 			defined( $globalConfig->param("$lcApplication.installedVersion") ) &
 			!( $#parameterNull == -1 ) )
 		{
-			print "$application Config\n";
+			print "      $application Config\n";
 			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
 					"TRUE" )
@@ -1053,8 +1073,8 @@ sub displayQuickConfig {
 				  . getConfigItem( "$lcApplication.appContext", $globalConfig );
 			}
 
-			print "URL: $url\n\n";
-			print "----------------------------------------\n\n";
+			print "      URL: $url\n\n";
+			print "      ----------------------------------------\n\n";
 		}
 	}
 
@@ -8037,7 +8057,7 @@ sub displayMainMenu {
       2) Upgrade an existing application
       3) Uninstall an application
       4) Recover backup after failed upgrade
-      U) Display URLs for each installed application (incl ports)
+      U) Display URLs for each installed application (inc. ports)
       G) Generate Suite Config
       Q) Quit
 
