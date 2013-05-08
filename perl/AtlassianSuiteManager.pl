@@ -2556,7 +2556,13 @@ sub getEnvironmentDebugInfo {
 		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
-		system("cat /etc/issue >> $logFile");
+		if (-e "/etc/redhat-release"){
+			system("cat /etc/redhat-release >> $logFile");
+		} elsif (-e "/usr/bin/lsb_release"){
+			system("lsb_release -a >> $logFile");
+		} else {
+			system("cat /etc/issue >> $logFile");
+		}
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END OS VERSION");
 		$log->debug(
