@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.4
+#    Version: 0.1.5
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -64,19 +64,19 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-1-4"
+my $scriptVersion = "0-1-5"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
 my $supportedVersionsConfigFile = "supportedVersions.cfg";
 my $distro;
-my $silent                  = '';    #global flag for command line paramaters
-my $debug                   = '';    #global flag for command line paramaters
-my $unsupported             = '';    #global flag for command line paramaters
-my $ignore_version_warnings = '';    #global flag for command line paramaters
-my $disable_config_checks   = '';    #global flag for command line paramaters
-my $verbose                 = '';    #global flag for command line paramaters
-my $autoMode                = '';    #global flag for command line paramaters
+my $silent                  = '';     #global flag for command line paramaters
+my $debug                   = '';     #global flag for command line paramaters
+my $unsupported             = '';     #global flag for command line paramaters
+my $ignore_version_warnings = '';     #global flag for command line paramaters
+my $disable_config_checks   = '';     #global flag for command line paramaters
+my $verbose                 = '';     #global flag for command line paramaters
+my $autoMode                = '';     #global flag for command line paramaters
 my $enableEAPDownloads      = '0';    #global flag for command line paramaters
 my $globalArch;
 my $logFile;
@@ -972,6 +972,114 @@ sub dirSize {
 	closedir($fd);
 
 	return ($size);
+}
+
+########################################
+#displayQuickConfig                    #
+########################################
+sub displayQuickConfig {
+
+	my $subname = ( caller(0) )[3];
+	my $application;
+	my $menu;
+
+	# define the main menu as a multiline string
+	$menu = <<'END_TXT';
+
+      Welcome to the ASM Script for Atlassian(R)
+
+      Copyright (C) 2012-2013  Stuart Ryan
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      ******************
+      * Quick URL Menu *
+      ******************
+
+END_TXT
+
+	# print the main menu
+	print $menu;
+
+	foreach $application (@suiteApplications) {
+		my $lcApplication = lc($application);
+		my @parameterNull =
+		  $globalConfig->param("$lcApplication.installedVersion");
+		my $url;
+		if (
+			defined( $globalConfig->param("$lcApplication.installedVersion") ) &
+			!( $#parameterNull == -1 ) )
+		{
+			print "      $application Config\n";
+			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+					"TRUE" )
+				{
+					if ( $globalConfig->param("general.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						    "https://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						    "http://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				else {
+					if (
+						$globalConfig->param("$lcApplication.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						  "https://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						  "http://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+			}
+			else {
+				$url =
+				    "http://localhost:"
+				  . $globalConfig->param("$lcApplication.connectorPort")
+				  . getConfigItem( "$lcApplication.appContext", $globalConfig );
+			}
+
+			print "      URL: $url\n\n";
+			print "      ----------------------------------------\n\n";
+		}
+	}
+
+	print "Please press enter to return to the main menu..";
+	my $input = <STDIN>;
 }
 
 ########################################
@@ -2554,6 +2662,17 @@ sub getConfigItem {
 sub getEnvironmentDebugInfo {
 	if ( $log->is_debug() ) {
 		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
+		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
+		if ( -e "/etc/redhat-release" ) {
+			system("cat /etc/redhat-release >> $logFile");
+		}
+		elsif ( -e "/usr/bin/lsb_release" ) {
+			system("lsb_release -a >> $logFile");
+		}
+		else {
+			system("cat /etc/issue >> $logFile");
+		}
+		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - END OS VERSION");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS UNAME CONFIG");
 		system("uname -a >> $logFile");
@@ -3310,6 +3429,8 @@ sub getUserCreatedByInstaller {
 	my $fileName;
 	my $userName;
 	my $cfg;
+	my $input;
+	my $LOOP;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3345,7 +3466,54 @@ sub getUserCreatedByInstaller {
 	else {
 		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
 			my $result1 = $1;
-			return $result1;
+
+			if ( $result1 eq "" or !defined($1) ) {
+				print
+"We were unable to locate the user created by the installer. Please enter the user that we will run under: ";
+				$LOOP = 1;
+				while ( $LOOP == 1 ) {
+					$input = getGenericInput();
+					print "\n";
+					$log->info("$subname: Generic input entered was: $input");
+					if ( $input eq "default" ) {
+						$log->info("$subname null input entered.");
+						print
+"You did not enter anything, please enter a valid username: ";
+					}
+					else {
+						$log->info(
+							"Username entered - $subname" . "_input: $input" );
+						$LOOP = 0;
+						chomp $input;
+						return $input;
+					}
+				}
+			}
+			else {
+				return $result1;
+			}
+		}
+		else {
+			print
+"We were unable to locate the user created by the installer. Please enter the user that we will run under: ";
+			$LOOP = 1;
+			while ( $LOOP == 1 ) {
+				$input = getGenericInput();
+				print "\n";
+				$log->info("$subname: Generic input entered was: $input");
+				if ( $input eq "default" ) {
+					$log->info("$subname null input entered.");
+					print
+"You did not enter anything, please enter a valid username: ";
+				}
+				else {
+					$log->info(
+						"Username entered - $subname" . "_input: $input" );
+					$LOOP = 0;
+					chomp $input;
+					return $input;
+				}
+			}
 		}
 	}
 }
@@ -4471,6 +4639,7 @@ sub postInstallGeneric {
 	my $lcApplication;
 	my $input;
 	my $osUser;
+	my $url;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4510,11 +4679,68 @@ sub postInstallGeneric {
 			  . "\""
 		);
 		if ( $processReturnCode eq "SUCCESS" ) {
-			print "\n"
-			  . "$application can now be accessed on http://localhost:"
-			  . $globalConfig->param("$lcApplication.connectorPort")
-			  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-			  . ".\n\n";
+			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+					"TRUE" )
+				{
+					if ( $globalConfig->param("general.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						    "https://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						    "http://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				else {
+					if (
+						$globalConfig->param("$lcApplication.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						  "https://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						  "http://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				print "\n"
+				  . "$application can now be accessed on $url" . ".\n\n";
+			}
+			else {
+				print "\n"
+				  . "$application can now be accessed on http://localhost:"
+				  . $globalConfig->param("$lcApplication.connectorPort")
+				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+				  . ".\n\n";
+			}
 		}
 		else {
 			print
@@ -4523,7 +4749,7 @@ sub postInstallGeneric {
 	}
 
 	print
-"The $application install has completed. Please press enter to return to the main menu.";
+"The $application install has completed. Please visit the web interface and follow the steps to complete the web install wizard. When you have completed this please press enter to continue...";
 	$input = <STDIN>;
 }
 
@@ -4534,6 +4760,7 @@ sub postInstallGenericAtlassianBinary {
 	my $application;
 	my $lcApplication;
 	my $input;
+	my $url;
 	my $subname = ( caller(0) )[3];
 
 	$application   = $_[0];
@@ -4562,12 +4789,195 @@ sub postInstallGenericAtlassianBinary {
 		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
 			warn
 "Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
+			print "\n\n";
 		}
-		print "\n\n";
+
+		if ( $processReturnCode eq "SUCCESS" ) {
+			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+					"TRUE" )
+				{
+					if ( $globalConfig->param("general.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						    "https://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						    "http://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				else {
+					if (
+						$globalConfig->param("$lcApplication.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						  "https://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						  "http://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				print "\n"
+				  . "$application can now be accessed on $url" . ".\n\n";
+			}
+			else {
+				print "\n"
+				  . "$application can now be accessed on http://localhost:"
+				  . $globalConfig->param("$lcApplication.connectorPort")
+				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+				  . ".\n\n";
+			}
+		}
+		else {
+			print
+"\n The service could not be started correctly please ensure you do this manually.\n\n";
+		}
 	}
 
 	print
-"The $application install has completed. Please press enter to return to the main menu";
+"The $application install has completed. Please visit the web interface and follow the steps to complete the web install wizard. When you have completed this please press enter to continue...";
+	$input = <STDIN>;
+}
+
+########################################
+#PostUpgradeGenericAtlassianBinary     #
+########################################
+sub postUpgradeGenericAtlassianBinary {
+	my $application;
+	my $lcApplication;
+	my $input;
+	my $url;
+	my $subname = ( caller(0) )[3];
+
+	$application   = $_[0];
+	$lcApplication = lc($application);
+
+	print "Configuration settings have been applied successfully.\n\n";
+
+	$input = getBooleanInput(
+		"Do you wish to start the $application service? yes/no [yes]: ");
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$log->info("$subname: User opted to start application service.");
+		my $processReturnCode = startService(
+			$application,
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter1"
+			  )
+			  . "\"",
+			"\""
+			  . $globalConfig->param(
+				$lcApplication . ".processSearchParameter2"
+			  )
+			  . "\""
+		);
+		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
+			warn
+"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
+			print "\n\n";
+		}
+
+		if ( $processReturnCode eq "SUCCESS" ) {
+			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+					"TRUE" )
+				{
+					if ( $globalConfig->param("general.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						    "https://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						    "http://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				else {
+					if (
+						$globalConfig->param("$lcApplication.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						  "https://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						  "http://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				print "\n"
+				  . "$application can now be accessed on $url" . ".\n\n";
+			}
+			else {
+				print "\n"
+				  . "$application can now be accessed on http://localhost:"
+				  . $globalConfig->param("$lcApplication.connectorPort")
+				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+				  . ".\n\n";
+			}
+		}
+		else {
+			print
+"\n The service could not be started correctly please ensure you do this manually.\n\n";
+		}
+	}
+
+	print
+"The $application upgrade has completed successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
 }
 
@@ -4579,6 +4989,7 @@ sub postUpgradeGeneric {
 	my $lcApplication;
 	my $input;
 	my $osUser;
+	my $url;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4618,11 +5029,68 @@ sub postUpgradeGeneric {
 			  . "\""
 		);
 		if ( $processReturnCode eq "SUCCESS" ) {
-			print "\n"
-			  . "$application can now be accessed on http://localhost:"
-			  . $globalConfig->param("$lcApplication.connectorPort")
-			  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-			  . ".\n\n";
+			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+					"TRUE" )
+				{
+					if ( $globalConfig->param("general.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						    "https://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						    "http://"
+						  . $globalConfig->param("general.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param("general.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				else {
+					if (
+						$globalConfig->param("$lcApplication.apacheProxySSL") eq
+						"TRUE" )
+					{
+						$url =
+						  "https://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+					else {
+						$url =
+						  "http://"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyHost")
+						  . ":"
+						  . $globalConfig->param(
+							"$lcApplication.apacheProxyPort")
+						  . getConfigItem( "$lcApplication.appContext",
+							$globalConfig );
+					}
+				}
+				print "\n"
+				  . "$application can now be accessed on $url" . ".\n\n";
+			}
+			else {
+				print "\n"
+				  . "$application can now be accessed on http://localhost:"
+				  . $globalConfig->param("$lcApplication.connectorPort")
+				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
+				  . ".\n\n";
+			}
 		}
 		else {
 			print
@@ -4631,7 +5099,7 @@ sub postUpgradeGeneric {
 	}
 
 	print
-"The $application upgrade has completed. Please press enter to return to the main menu.";
+"The $application upgrade has completed successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
 }
 
@@ -7638,6 +8106,7 @@ sub displayMainMenu {
       2) Upgrade an existing application
       3) Uninstall an application
       4) Recover backup after failed upgrade
+      U) Display URLs for each installed application (inc. ports)
       G) Generate Suite Config
       Q) Quit
 
@@ -7677,6 +8146,10 @@ END_TXT
 			system 'clear';
 			displayRestoreMenu();
 		}
+		elsif ( lc($choice) eq "u\n" ) {
+			system 'clear';
+			displayQuickConfig();
+		}
 		elsif ( lc($choice) eq "g\n" ) {
 			system 'clear';
 			generateSuiteConfig();
@@ -7687,8 +8160,10 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-
-			print $logFile;
+			my $result =
+			  getUserCreatedByInstaller( "jira.installDir", "JIRA_USER",
+				$globalConfig );
+			print $result;
 			my $test = <STDIN>;
 		}
 	}
@@ -10505,7 +10980,7 @@ sub upgradeConfluence {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	postInstallGenericAtlassianBinary($application);
+	postUpgradeGenericAtlassianBinary($application);
 }
 
 #######################################################################
@@ -13642,7 +14117,7 @@ sub upgradeJira {
 		"#JIRA_MAX_PERM_SIZE="
 	);
 
-	postInstallGenericAtlassianBinary($application);
+	postUpgradeGenericAtlassianBinary($application);
 }
 
 #######################################################################
