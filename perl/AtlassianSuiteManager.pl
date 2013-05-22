@@ -11659,10 +11659,11 @@ sub generateCrowdConfig {
 	$cfg->param( "crowd.tomcatDir",               "/apache-tomcat" );
 	$cfg->param( "crowd.webappDir",               "/crowd-webapp" );
 	$cfg->param( "crowd.processSearchParameter1", "java" );
-	$cfg->param( "crowd.processSearchParameter2",
-		    "Dcatalina.base="
-		  . $cfg->param("crowd.installDir")
-		  . $cfg->param("crowd.tomcatDir") );
+	$cfg->param(
+		"crowd.processSearchParameter2",
+		$cfg->param("crowd.installDir")
+		  . $cfg->param("crowd.tomcatDir") . "/bin/bootstrap.jar"
+	);
 
 	$cfg->param( "crowd.enable", "TRUE" );
 }
