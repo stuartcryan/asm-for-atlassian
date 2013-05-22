@@ -3538,7 +3538,9 @@ sub getUserUidGid {
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 
 	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
-	  or $log->logdie("$osUser not in passwd file");
+	  or $log->logdie(
+"$osUser not in passwd file. This is not good and is kinda fatal. Please contact support with a copy of your logs."
+	  );
 
 	@return = ( $uid, $gid );
 	dumpSingleVarToLog( "$subname" . "_uid", $uid );
