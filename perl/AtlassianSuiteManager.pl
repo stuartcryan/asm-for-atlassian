@@ -11659,11 +11659,10 @@ sub generateCrowdConfig {
 	$cfg->param( "crowd.tomcatDir",               "/apache-tomcat" );
 	$cfg->param( "crowd.webappDir",               "/crowd-webapp" );
 	$cfg->param( "crowd.processSearchParameter1", "java" );
-	$cfg->param(
-		"crowd.processSearchParameter2",
-		$cfg->param("crowd.installDir")
-		  . $cfg->param("crowd.tomcatDir") . "/bin/bootstrap.jar"
-	);
+	$cfg->param( "crowd.processSearchParameter2",
+		    $cfg->param("crowd.installDir")
+		  . $cfg->param("crowd.tomcatDir")
+		  . "/bin/bootstrap.jar" );
 
 	$cfg->param( "crowd.enable", "TRUE" );
 }
@@ -11708,6 +11707,20 @@ sub installCrowd {
 			push( @requiredConfigItems, "crowd.apacheProxySSL" );
 			push( @requiredConfigItems, "crowd.apacheProxyHost" );
 		}
+	}
+
+	#bugFix for versions prior to v0.1.6 see [#ATLASMGR-265]
+	if ( $globalConfig->param("crowd.processSearchParameter2") eq
+		"Dcatalina.base=/drive2/opt/crowd/apache-tomcat" )
+	{
+
+		#force the value to NULL so that config will need to be regenerated.
+		$globalConfig->param( "crowd.processSearchParameter2", "" );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 	}
 
 	#Run generic installer steps
@@ -11912,6 +11925,20 @@ sub upgradeCrowd {
 			push( @requiredConfigItems, "crowd.apacheProxySSL" );
 			push( @requiredConfigItems, "crowd.apacheProxyHost" );
 		}
+	}
+	
+	#bugFix for versions prior to v0.1.6 see [#ATLASMGR-265]
+	if ( $globalConfig->param("crowd.processSearchParameter2") eq
+		"Dcatalina.base=/drive2/opt/crowd/apache-tomcat" )
+	{
+
+		#force the value to NULL so that config will need to be regenerated.
+		$globalConfig->param( "crowd.processSearchParameter2", "" );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 	}
 
 	#Run generic upgrader steps
