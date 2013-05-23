@@ -54,6 +54,7 @@ use Errno qw( EADDRINUSE );
 use Getopt::Long;
 use Log::Log4perl;
 use Filesys::DfPortable;
+use ExtUtils::Installed;
 use strict;      # Good practice
 use warnings;    # Good practice
 
@@ -2668,8 +2669,14 @@ sub getConfigItem {
 #getEnvironmentDebugInfo               #
 ########################################
 sub getEnvironmentDebugInfo {
+
+	my @modules;
+	my $installedModules;
+
 	if ( $log->is_debug() ) {
-		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO FOR SCRIPT VERSION $scriptVersion");
+		$log->debug(
+"BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO FOR SCRIPT VERSION $scriptVersion"
+		);
 		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
 		if ( -e "/etc/redhat-release" ) {
 			system("cat /etc/redhat-release >> $logFile");
@@ -2722,6 +2729,25 @@ sub getEnvironmentDebugInfo {
 		system("perl -v >> $logFile 2>&1");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL VERSION OUTPUT");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN PERL MODULES OUTPUT"
+		);
+		$installedModules = ExtUtils::Installed->new();
+
+		if ( scalar(@ARGV) > 0 ) {
+			@modules = @ARGV;
+		}
+		else {
+			@modules = $installedModules->modules();
+		}
+
+		$log->debug( sprintf "%-30s %-20s", "Module", "Version" );
+		foreach (@modules) {
+			$log->debug( sprintf "%-30s %-20s",
+				$_, $installedModules->version($_) );
+		}
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL MODULES OUTPUT");
 	}
 }
 
