@@ -9166,6 +9166,9 @@ sub getExistingBambooConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -10352,6 +10355,9 @@ sub getExistingConfluenceConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -11102,6 +11108,17 @@ sub getExistingCrowdConfig {
 		""
 	);
 
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.appContext",
+"Enter the context that Crowd currently runs under (i.e. /crowd or /login). Write NULL to blank out the context.",
+		"/crowd",
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
+	);
+
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
 	{
@@ -11183,39 +11200,6 @@ sub getExistingCrowdConfig {
 		);
 	}
 
-	#getContextFromFile
-	$returnValue = "";
-
-	print
-"Please wait, attempting to get the $application context from it's config files...\n\n";
-	$log->info(
-"$subname: Attempting to get $application context from config file $serverConfigFile."
-	);
-	$returnValue =
-	  getXMLAttribute( $serverConfigFile, "//////Context", "path" );
-
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
-"$subname: Unable to locate $application context. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.appContext",
-"Unable to find the context in the expected location in the $application config. Please enter the context that $application currently runs under (i.e. /confluence or /wiki). Write NULL to blank out the context.",
-			"/jira",
-			'(?!^.*/$)^(/.*)',
-"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
-			  . "leading '/' and NO trailing '/'.\n\n"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.appContext", $returnValue );
-		print
-"$application context has been found successfully and added to the config file...\n\n";
-		$log->info("$subname: $application context found and added to config.");
-	}
-
 	$returnValue = "";
 
 	print
@@ -11226,7 +11210,6 @@ sub getExistingCrowdConfig {
 
 	#Get connector port from file
 	$returnValue = getXMLAttribute( $serverConfigFile, "///Connector", "port" );
-
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application connectorPort. Asking user for input."
@@ -12349,6 +12332,9 @@ sub getExistingFisheyeConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -13493,6 +13479,9 @@ sub getExistingJiraConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -14403,6 +14392,9 @@ sub getExistingStashConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
