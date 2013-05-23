@@ -2669,7 +2669,7 @@ sub getConfigItem {
 ########################################
 sub getEnvironmentDebugInfo {
 	if ( $log->is_debug() ) {
-		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
+		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO FOR SCRIPT VERSION $scriptVersion");
 		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
 		if ( -e "/etc/redhat-release" ) {
 			system("cat /etc/redhat-release >> $logFile");
