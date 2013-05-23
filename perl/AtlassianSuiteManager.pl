@@ -891,7 +891,7 @@ sub createOrUpdateLineInFile {
 			#Otherwise add the new line after the found line
 			else {
 				$log->info(
-					"$subname: Replacing '$data[$index1]' with $newLine.");
+					"$subname: Adding '$newLine' after $data[$index1]'.");
 				splice( @data, $index1 + 1, 0, $newLine );
 			}
 		}
@@ -915,7 +915,64 @@ sub createOrUpdateLineInFile {
 }
 
 ########################################
-#CreateOSUser                           #
+#createOrUpdateLineInXML               #
+#                                      #
+########################################
+sub createOrUpdateLineInXML {
+	my $inputFile;    #Must Be Absolute Path
+	my $newLine;
+	my $lineReference;
+	my $searchFor;
+	my $lineReference2;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile     = $_[0];
+	$lineReference = $_[1];    #the line we are looking for
+	$newLine       = $_[2];    #the line we want to add
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",     $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
+	dumpSingleVarToLog( "$subname" . "_newLine",       $newLine );
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+	my ($index2) = grep { $data[$_] =~ /^$newLine.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		$log->info("$subname: First search term $lineReference not found.");
+		$log->logdie(
+			"No line containing \"$lineReference\" found in file $inputFile\n\n"
+		);
+	}
+	else {
+		if ( !defined($index2) ) {
+			$log->info("$subname: Adding '$newLine' after $data[$index1]'.");
+			splice( @data, $index1 + 1, 0, $newLine );
+		}
+	}
+
+	#Write out the updated file
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+	print FILE @data;
+	close FILE;
+
+}
+
+########################################
+#CreateOSUser                          #
 ########################################
 sub createOSUser {
 	my $osUser;
@@ -2324,7 +2381,8 @@ sub generateSuiteConfig {
 	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
 
 		$input = getBooleanInput(
-			"Do you wish to set up/update the Crowd configuration now? [no]: ");
+			"Do you wish to set up/update the Crowd configuration now? [no]: "
+		);
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -2704,7 +2762,8 @@ sub getEnvironmentDebugInfo {
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END CPUINFO CONFIG");
 		$log->debug(
-			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX ENV VARIABLES");
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX ENV VARIABLES"
+		);
 		system("env >> $logFile");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END LINUX ENV VARIABLES");
@@ -8196,10 +8255,11 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			my $result =
-			  getUserCreatedByInstaller( "jira.installDir", "JIRA_USER",
-				$globalConfig );
-			print $result;
+			createOrUpdateLineInXML(
+				"/opt/atlassian/bamboo/webapp/WEB-INF/classes/jetty.xml",
+				".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+				"                <Set name=\"forwarded\">true</Set>\n"
+			);
 			my $test = <STDIN>;
 		}
 	}
@@ -9702,6 +9762,12 @@ sub installBamboo {
 			$globalConfig->param("$lcApplication.appContext")
 		);
 
+		createOrUpdateLineInXML(
+			$serverJettyConfigFile,
+			".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+			"                <Set name=\"forwarded\">true</Set>\n"
+		);
+
 	}
 
 	print "Applying Java memory configuration to install...\n\n";
@@ -9946,6 +10012,12 @@ sub upgradeBamboo {
 			$serverJettyConfigFile,
 "/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
 			$globalConfig->param("$lcApplication.appContext")
+		);
+
+		createOrUpdateLineInXML(
+			$serverJettyConfigFile,
+			".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+			"                <Set name=\"forwarded\">true</Set>\n"
 		);
 	}
 
