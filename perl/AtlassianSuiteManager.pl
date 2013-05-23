@@ -2056,6 +2056,12 @@ sub genBooleanConfigItem {
 "$subname: Current parameter $configParam is FALSE, returning 'no'"
 				);
 			}
+			elsif ( $cfg->param($configParam) eq "" ) {
+				$defaultValue = $defaultInputValue;
+				$log->debug(
+"$subname: Current parameter $configParam is NULL, returning '$defaultInputValue'"
+				);
+			}
 		}
 		else {
 			$log->debug(
@@ -2065,6 +2071,8 @@ sub genBooleanConfigItem {
 		}
 	}
 	else {
+
+		#if we are not in update mode we expect this to be null
 		$log->debug(
 "$subname: Current parameter $configParam is undefined, returning '$defaultInputValue'"
 		);
@@ -11926,7 +11934,7 @@ sub upgradeCrowd {
 			push( @requiredConfigItems, "crowd.apacheProxyHost" );
 		}
 	}
-	
+
 	#bugFix for versions prior to v0.1.6 see [#ATLASMGR-265]
 	if ( $globalConfig->param("crowd.processSearchParameter2") eq
 		"Dcatalina.base=/drive2/opt/crowd/apache-tomcat" )
