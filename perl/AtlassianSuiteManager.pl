@@ -2574,6 +2574,9 @@ sub generateSuiteConfig {
 			$log->info("$subname: Database arch selected is Oracle");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "Oracle" );
+			print
+"You have selected to use the Oracle database. Some of the Atlassian products no longer include the JDBC driver due to licensing. If you would like to automagically copy the JDBC driver over please download it manually and update the settings.cfg file to add general.dbJDBCJar=/path/to/ojdbc6.jar under the general config section. Please press enter to continue...\n";
+			$input = <STDIN>;
 		}
 		elsif (( lc $input ) eq "4"
 			|| ( lc $input ) eq "microsoft sql server"
@@ -4089,6 +4092,8 @@ sub installGenericAtlassianBinary {
 	my @parameterNull;
 	my $javaOptsValue;
 	my $serverXMLFile;
+	my $needJDBC;
+	my $jdbcJAR;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4419,6 +4424,91 @@ Therefore script is terminating, please ensure port configuration is correct and
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/lib/" );
 
+	}
+
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n"
+			  ;
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
 	}
 
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -6977,6 +7067,8 @@ sub upgradeGenericAtlassianBinary {
 	my $configUser;
 	my $lcApplication;
 	my $serverXMLFile;
+	my $needJDBC;
+	my $jdbcJAR;
 	my $subname = ( caller(0) )[3];
 	my $processReturnCode;
 
@@ -7508,6 +7600,90 @@ sub upgradeGenericAtlassianBinary {
 	$log->info( "$subname: Applying application context to "
 		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/conf/server.xml" );
+
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
+	}
 
 	#Update the server config with reverse proxy configuration
 	$serverXMLFile =
