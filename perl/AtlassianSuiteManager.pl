@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.5
+#    Version: 0.1.6
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -54,6 +54,7 @@ use Errno qw( EADDRINUSE );
 use Getopt::Long;
 use Log::Log4perl;
 use Filesys::DfPortable;
+use ExtUtils::Installed;
 use strict;      # Good practice
 use warnings;    # Good practice
 
@@ -64,7 +65,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-1-5"
+my $scriptVersion = "0-1-6"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -890,7 +891,7 @@ sub createOrUpdateLineInFile {
 			#Otherwise add the new line after the found line
 			else {
 				$log->info(
-					"$subname: Replacing '$data[$index1]' with $newLine.");
+					"$subname: Adding '$newLine' after $data[$index1]'.");
 				splice( @data, $index1 + 1, 0, $newLine );
 			}
 		}
@@ -914,7 +915,64 @@ sub createOrUpdateLineInFile {
 }
 
 ########################################
-#CreateOSUser                           #
+#createOrUpdateLineInXML               #
+#                                      #
+########################################
+sub createOrUpdateLineInXML {
+	my $inputFile;    #Must Be Absolute Path
+	my $newLine;
+	my $lineReference;
+	my $searchFor;
+	my $lineReference2;
+	my @data;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$inputFile     = $_[0];
+	$lineReference = $_[1];    #the line we are looking for
+	$newLine       = $_[2];    #the line we want to add
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",     $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
+	dumpSingleVarToLog( "$subname" . "_newLine",       $newLine );
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+	my ($index2) = grep { $data[$_] =~ /^$newLine.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		$log->info("$subname: First search term $lineReference not found.");
+		$log->logdie(
+			"No line containing \"$lineReference\" found in file $inputFile\n\n"
+		);
+	}
+	else {
+		if ( !defined($index2) ) {
+			$log->info("$subname: Adding '$newLine' after $data[$index1]'.");
+			splice( @data, $index1 + 1, 0, $newLine );
+		}
+	}
+
+	#Write out the updated file
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+	print FILE @data;
+	close FILE;
+
+}
+
+########################################
+#CreateOSUser                          #
 ########################################
 sub createOSUser {
 	my $osUser;
@@ -2056,6 +2114,12 @@ sub genBooleanConfigItem {
 "$subname: Current parameter $configParam is FALSE, returning 'no'"
 				);
 			}
+			elsif ( $cfg->param($configParam) eq "" ) {
+				$defaultValue = $defaultInputValue;
+				$log->debug(
+"$subname: Current parameter $configParam is NULL, returning '$defaultInputValue'"
+				);
+			}
 		}
 		else {
 			$log->debug(
@@ -2065,6 +2129,8 @@ sub genBooleanConfigItem {
 		}
 	}
 	else {
+
+		#if we are not in update mode we expect this to be null
 		$log->debug(
 "$subname: Current parameter $configParam is undefined, returning '$defaultInputValue'"
 		);
@@ -2315,7 +2381,8 @@ sub generateSuiteConfig {
 	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
 
 		$input = getBooleanInput(
-			"Do you wish to set up/update the Crowd configuration now? [no]: ");
+			"Do you wish to set up/update the Crowd configuration now? [no]: "
+		);
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -2507,6 +2574,9 @@ sub generateSuiteConfig {
 			$log->info("$subname: Database arch selected is Oracle");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "Oracle" );
+			print
+"You have selected to use the Oracle database. Some of the Atlassian products no longer include the JDBC driver due to licensing. If you would like to automagically copy the JDBC driver over please download it manually and update the settings.cfg file to add general.dbJDBCJar=/path/to/ojdbc6.jar under the general config section. Please press enter to continue...\n";
+			$input = <STDIN>;
 		}
 		elsif (( lc $input ) eq "4"
 			|| ( lc $input ) eq "microsoft sql server"
@@ -2660,8 +2730,14 @@ sub getConfigItem {
 #getEnvironmentDebugInfo               #
 ########################################
 sub getEnvironmentDebugInfo {
+
+	my @modules;
+	my $installedModules;
+
 	if ( $log->is_debug() ) {
-		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
+		$log->debug(
+"BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO FOR SCRIPT VERSION $scriptVersion"
+		);
 		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
 		if ( -e "/etc/redhat-release" ) {
 			system("cat /etc/redhat-release >> $logFile");
@@ -2689,7 +2765,8 @@ sub getEnvironmentDebugInfo {
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END CPUINFO CONFIG");
 		$log->debug(
-			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX ENV VARIABLES");
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX ENV VARIABLES"
+		);
 		system("env >> $logFile");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END LINUX ENV VARIABLES");
@@ -2714,6 +2791,25 @@ sub getEnvironmentDebugInfo {
 		system("perl -v >> $logFile 2>&1");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL VERSION OUTPUT");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN PERL MODULES OUTPUT"
+		);
+		$installedModules = ExtUtils::Installed->new();
+
+		if ( scalar(@ARGV) > 0 ) {
+			@modules = @ARGV;
+		}
+		else {
+			@modules = $installedModules->modules();
+		}
+
+		$log->debug( sprintf "%-30s %-20s", "Module", "Version" );
+		foreach (@modules) {
+			$log->debug( sprintf "%-30s %-20s",
+				$_, $installedModules->version($_) );
+		}
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL MODULES OUTPUT");
 	}
 }
 
@@ -3429,6 +3525,8 @@ sub getUserCreatedByInstaller {
 	my $fileName;
 	my $userName;
 	my $cfg;
+	my $input;
+	my $LOOP;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3464,7 +3562,54 @@ sub getUserCreatedByInstaller {
 	else {
 		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
 			my $result1 = $1;
-			return $result1;
+
+			if ( $result1 eq "" or !defined($1) ) {
+				print
+"We were unable to locate the user created by the installer. Please enter the user that we will run under: ";
+				$LOOP = 1;
+				while ( $LOOP == 1 ) {
+					$input = getGenericInput();
+					print "\n";
+					$log->info("$subname: Generic input entered was: $input");
+					if ( $input eq "default" ) {
+						$log->info("$subname null input entered.");
+						print
+"You did not enter anything, please enter a valid username: ";
+					}
+					else {
+						$log->info(
+							"Username entered - $subname" . "_input: $input" );
+						$LOOP = 0;
+						chomp $input;
+						return $input;
+					}
+				}
+			}
+			else {
+				return $result1;
+			}
+		}
+		else {
+			print
+"We were unable to locate the user created by the installer. Please enter the user that we will run under: ";
+			$LOOP = 1;
+			while ( $LOOP == 1 ) {
+				$input = getGenericInput();
+				print "\n";
+				$log->info("$subname: Generic input entered was: $input");
+				if ( $input eq "default" ) {
+					$log->info("$subname null input entered.");
+					print
+"You did not enter anything, please enter a valid username: ";
+				}
+				else {
+					$log->info(
+						"Username entered - $subname" . "_input: $input" );
+					$LOOP = 0;
+					chomp $input;
+					return $input;
+				}
+			}
 		}
 	}
 }
@@ -3489,7 +3634,9 @@ sub getUserUidGid {
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 
 	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
-	  or $log->logdie("$osUser not in passwd file");
+	  or $log->logdie(
+"$osUser not in passwd file. This is not good and is kinda fatal. Please contact support with a copy of your logs."
+	  );
 
 	@return = ( $uid, $gid );
 	dumpSingleVarToLog( "$subname" . "_uid", $uid );
@@ -3945,6 +4092,8 @@ sub installGenericAtlassianBinary {
 	my @parameterNull;
 	my $javaOptsValue;
 	my $serverXMLFile;
+	my $needJDBC;
+	my $jdbcJAR;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4275,6 +4424,91 @@ Therefore script is terminating, please ensure port configuration is correct and
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/lib/" );
 
+	}
+
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n"
+			  ;
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
 	}
 
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -6833,6 +7067,8 @@ sub upgradeGenericAtlassianBinary {
 	my $configUser;
 	my $lcApplication;
 	my $serverXMLFile;
+	my $needJDBC;
+	my $jdbcJAR;
 	my $subname = ( caller(0) )[3];
 	my $processReturnCode;
 
@@ -7364,6 +7600,90 @@ sub upgradeGenericAtlassianBinary {
 	$log->info( "$subname: Applying application context to "
 		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/conf/server.xml" );
+
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
+	}
 
 	#Update the server config with reverse proxy configuration
 	$serverXMLFile =
@@ -8111,8 +8431,11 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-
-			print $logFile;
+			createOrUpdateLineInXML(
+				"/opt/atlassian/bamboo/webapp/WEB-INF/classes/jetty.xml",
+				".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+				"                <Set name=\"forwarded\">true</Set>\n"
+			);
 			my $test = <STDIN>;
 		}
 	}
@@ -9079,6 +9402,9 @@ sub getExistingBambooConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -9612,6 +9938,12 @@ sub installBamboo {
 			$globalConfig->param("$lcApplication.appContext")
 		);
 
+		createOrUpdateLineInXML(
+			$serverJettyConfigFile,
+			".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+			"                <Set name=\"forwarded\">true</Set>\n"
+		);
+
 	}
 
 	print "Applying Java memory configuration to install...\n\n";
@@ -9856,6 +10188,12 @@ sub upgradeBamboo {
 			$serverJettyConfigFile,
 "/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
 			$globalConfig->param("$lcApplication.appContext")
+		);
+
+		createOrUpdateLineInXML(
+			$serverJettyConfigFile,
+			".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+			"                <Set name=\"forwarded\">true</Set>\n"
 		);
 	}
 
@@ -10265,6 +10603,9 @@ sub getExistingConfluenceConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -11015,6 +11356,17 @@ sub getExistingCrowdConfig {
 		""
 	);
 
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.appContext",
+"Enter the context that Crowd currently runs under (i.e. /crowd or /login). Write NULL to blank out the context.",
+		"/crowd",
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
+	);
+
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
 	{
@@ -11096,39 +11448,6 @@ sub getExistingCrowdConfig {
 		);
 	}
 
-	#getContextFromFile
-	$returnValue = "";
-
-	print
-"Please wait, attempting to get the $application context from it's config files...\n\n";
-	$log->info(
-"$subname: Attempting to get $application context from config file $serverConfigFile."
-	);
-	$returnValue =
-	  getXMLAttribute( $serverConfigFile, "//////Context", "path" );
-
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
-"$subname: Unable to locate $application context. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.appContext",
-"Unable to find the context in the expected location in the $application config. Please enter the context that $application currently runs under (i.e. /confluence or /wiki). Write NULL to blank out the context.",
-			"/jira",
-			'(?!^.*/$)^(/.*)',
-"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
-			  . "leading '/' and NO trailing '/'.\n\n"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.appContext", $returnValue );
-		print
-"$application context has been found successfully and added to the config file...\n\n";
-		$log->info("$subname: $application context found and added to config.");
-	}
-
 	$returnValue = "";
 
 	print
@@ -11139,7 +11458,6 @@ sub getExistingCrowdConfig {
 
 	#Get connector port from file
 	$returnValue = getXMLAttribute( $serverConfigFile, "///Connector", "port" );
-
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application connectorPort. Asking user for input."
@@ -11607,9 +11925,9 @@ sub generateCrowdConfig {
 	$cfg->param( "crowd.webappDir",               "/crowd-webapp" );
 	$cfg->param( "crowd.processSearchParameter1", "java" );
 	$cfg->param( "crowd.processSearchParameter2",
-		    "Dcatalina.base="
-		  . $cfg->param("crowd.installDir")
-		  . $cfg->param("crowd.tomcatDir") );
+		    $cfg->param("crowd.installDir")
+		  . $cfg->param("crowd.tomcatDir")
+		  . "/bin/bootstrap.jar" );
 
 	$cfg->param( "crowd.enable", "TRUE" );
 }
@@ -11654,6 +11972,20 @@ sub installCrowd {
 			push( @requiredConfigItems, "crowd.apacheProxySSL" );
 			push( @requiredConfigItems, "crowd.apacheProxyHost" );
 		}
+	}
+
+	#bugFix for versions prior to v0.1.6 see [#ATLASMGR-265]
+	if ( $globalConfig->param("crowd.processSearchParameter2") eq
+		"Dcatalina.base=/drive2/opt/crowd/apache-tomcat" )
+	{
+
+		#force the value to NULL so that config will need to be regenerated.
+		$globalConfig->param( "crowd.processSearchParameter2", "" );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 	}
 
 	#Run generic installer steps
@@ -11858,6 +12190,20 @@ sub upgradeCrowd {
 			push( @requiredConfigItems, "crowd.apacheProxySSL" );
 			push( @requiredConfigItems, "crowd.apacheProxyHost" );
 		}
+	}
+
+	#bugFix for versions prior to v0.1.6 see [#ATLASMGR-265]
+	if ( $globalConfig->param("crowd.processSearchParameter2") eq
+		"Dcatalina.base=/drive2/opt/crowd/apache-tomcat" )
+	{
+
+		#force the value to NULL so that config will need to be regenerated.
+		$globalConfig->param( "crowd.processSearchParameter2", "" );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
 	}
 
 	#Run generic upgrader steps
@@ -12234,6 +12580,9 @@ sub getExistingFisheyeConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -13378,6 +13727,9 @@ sub getExistingJiraConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -14288,6 +14640,9 @@ sub getExistingStashConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";

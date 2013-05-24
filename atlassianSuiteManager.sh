@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.5
+#    Version: 0.1.6
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.1.5"
+SCRIPTVERSION="0.1.6"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
@@ -155,7 +155,7 @@ checkJVM(){
 #Test system for required PERL Modules #
 ########################################
 checkPerlModules(){
-MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable"
+MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable ExtUtils::Installed"
 BINARIESCHECK=""
 MISSINGMODULES=""
 
