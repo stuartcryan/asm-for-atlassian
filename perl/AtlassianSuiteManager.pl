@@ -7639,6 +7639,8 @@ sub upgradeGenericAtlassianBinary {
 "$subname: JDBC does not exist in $application lib directories"
 				);
 			}
+		} else {
+			$needJDBC = "FALSE";
 		}
 
 		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
