@@ -9781,11 +9781,11 @@ sub generateBambooConfig {
 	#Set up some defaults for Bamboo
 	$cfg->param( "bamboo.tomcatDir", "" )
 	  ;    #we leave these blank deliberately due to the way Bamboo works
-	$cfg->param( "bamboo.webappDir", "" )
+	$cfg->param( "bamboo.webappDir", "/atlassian-bamboo" )
 	  ;    #we leave these blank deliberately due to the way Bamboo works
 	$cfg->param( "bamboo.processSearchParameter1", "java" );
 	$cfg->param(
-		"bamboo.processSearchParameter2",
+		"bamboo.processSearchParameter",
 		"com.atlassian.bamboo.server.Server"
 	);
 
@@ -9814,6 +9814,12 @@ sub installBamboo {
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
+	
+	#New variables for installs above Bamboo version 5.1.0
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $serverXLMLFile;
+	#End new variables
 
 	$log->info("BEGIN: $subname");
 
@@ -9826,7 +9832,7 @@ sub installBamboo {
 		"bamboo.connectorPort",           "bamboo.javaMinMemory",
 		"bamboo.javaMaxMemory",           "bamboo.javaMaxPermSize",
 		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2",
-		"bamboo.crowdIntegration"
+		"bamboo.crowdIntegration", "bamboo.webappDir"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -9847,122 +9853,291 @@ sub installBamboo {
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
-	$serverConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
+	#Check if we are installing version below 5.1.0 to maintain backwards compatibility
+	if (compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"),
+			"5.1.0") ne "GREATER") {
+		$serverConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
 
-	$serverJettyConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/webapp/WEB-INF/classes/jetty.xml";
+		$serverJettyConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/webapp/WEB-INF/classes/jetty.xml";
+
+		print "Creating backup of config files...\n\n";
+		$log->info("$subname: Backing up config files.");
+
+		backupFile( $serverConfigFile, $osUser );
+		backupFile(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			$osUser
+		);
+		$javaMemParameterFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
+		backupFile( $javaMemParameterFile, $osUser );
+
+		print "Applying port numbers to server config...\n\n";
+
+		updateLineInFile(
+			$serverConfigFile,
+			"wrapper.app.parameter.2",
+			"wrapper.app.parameter.2="
+			  . $globalConfig->param("$lcApplication.connectorPort"),
+			""
+		);
+
+		my $bambooContext;
+		if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
+			$bambooContext = "/";
+		}
+		else {
+			$bambooContext = $globalConfig->param("$lcApplication.appContext");
+		}
+
+		#Apply application context
+		updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
+			"wrapper.app.parameter.4=" . $bambooContext, "" );
+
+		#Edit Bamboo config file to reference homedir
+		$log->info( "$subname: Applying homedir in "
+			  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
+		print "Applying home directory to config...\n\n";
+		updateLineInFile(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			"bamboo.home",
+			"$lcApplication.home="
+			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+			"#bamboo.home=C:/bamboo/bamboo-home"
+		);
+
+		#Update the server config with reverse proxy configuration
+		$log->info( "$subname: Updating the reverse proxy configuration in "
+			  . $serverConfigFile );
+		print "Applying Apache proxy parameters to config...\n\n";
+		if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+			updateLineInFile(
+				$serverConfigFile,
+				"wrapper.app.parameter.2",
+				"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
+				"wrapper.app.parameter.2"
+			);
+
+			updateLineInFile(
+				$serverConfigFile,                    "wrapper.app.parameter.3",
+				"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
+			);
+
+			updateLineInFile(
+				$serverConfigFile,            "wrapper.app.parameter.4",
+				"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
+			);
+
+			updateXMLAttribute(
+				$serverJettyConfigFile,
+	"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
+				"default",
+				$globalConfig->param("$lcApplication.connectorPort")
+			);
+
+			updateXMLTextValue(
+				$serverJettyConfigFile,
+	"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
+				$globalConfig->param("$lcApplication.appContext")
+			);
+
+			createOrUpdateLineInXML(
+				$serverJettyConfigFile,
+				".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+				"                <Set name=\"forwarded\">true</Set>\n"
+			);
+
+		}
+
+		print "Applying Java memory configuration to install...\n\n";
+		$log->info( "$subname: Applying Java memory parameters to "
+			  . $javaMemParameterFile );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xms",
+			$globalConfig->param("$lcApplication.javaMinMemory") );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xmx",
+			$globalConfig->param("$lcApplication.javaMaxMemory") );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-XX:MaxPermSize=",
+			$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
+		@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.javaParams") eq ""
+			|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+		{
+			$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$javaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		#Apply the JavaOpts configuration (if any)
+		print "Applying Java_Opts configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+			updateLineInBambooWrapperConf(
+				$javaMemParameterFile,
+				"wrapper.java.additional.",
+				$globalConfig->param("$lcApplication.javaParams"),
+				$globalConfig->param("$lcApplication.javaParams")
+			);
+		}
+
+		print "Configuration settings have been applied successfully.\n\n";
+
+		#Run any additional steps
+		if ( $globalArch eq "64" ) {
+			$WrapperDownloadFile = downloadFileAndChown(
+				escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+				$WrapperDownloadUrlFor64Bit, $osUser
+			);
+
+			rmtree(
+				[
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+					  )
+					  . "/wrapper"
+				]
+			);
+
+			extractAndMoveDownload(
+				$WrapperDownloadFile,
+				escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+				  . "/wrapper",
+				$osUser,
+				""
+			);
+		}
+		
+		#Generate the init.d file
+		print
+	"Setting up initd files and run as a service (if configured) please wait...\n\n";
+		$log->info("$subname: Generating init.d file for $application.");
+
+		generateInitD(
+			$lcApplication, $osUser,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			"bamboo.sh start",
+			"bamboo.sh stop"
+		);
+
+	} else {
+		#Do Install for Bamboo Version 5.1.0 or newer
+	$serverXMLFile =
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+	$initPropertiesFile =
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . $globalConfig->param("$lcApplication.webappDir")
+	  . "/WEB-INF/classes/$lcApplication-init.properties";
+	$javaMemParameterFile =
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
 	$log->info("$subname: Backing up config files.");
 
-	backupFile( $serverConfigFile, $osUser );
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		$osUser
-	);
-	$javaMemParameterFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
 	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying custom context to $application...\n\n";
+	$log->info( "$subname: Applying application context to "
+		. escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		. "/conf/server.xml" );
+
+	updateXMLAttribute(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		. "/conf/server.xml",
+		"//////Context",
+		"path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig )
+	);
 
 	print "Applying port numbers to server config...\n\n";
 
-	updateLineInFile(
-		$serverConfigFile,
-		"wrapper.app.parameter.2",
-		"wrapper.app.parameter.2="
-		  . $globalConfig->param("$lcApplication.connectorPort"),
-		""
-	);
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
 
-	my $bambooContext;
-	if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
-		$bambooContext = "/";
-	}
-	else {
-		$bambooContext = $globalConfig->param("$lcApplication.appContext");
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
 	}
 
-	#Apply application context
-	updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
-		"wrapper.app.parameter.4=" . $bambooContext, "" );
+	print "Applying home directory location to config...\n\n";
 
 	#Edit Bamboo config file to reference homedir
-	$log->info( "$subname: Applying homedir in "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+		$initPropertiesFile,
 		"bamboo.home",
 		"$lcApplication.home="
 		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"#bamboo.home=C:/bamboo/bamboo-home"
 	);
-
-	#Update the server config with reverse proxy configuration
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverConfigFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-		updateLineInFile(
-			$serverConfigFile,
-			"wrapper.app.parameter.2",
-			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
-			"wrapper.app.parameter.2"
-		);
-
-		updateLineInFile(
-			$serverConfigFile,                    "wrapper.app.parameter.3",
-			"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
-		);
-
-		updateLineInFile(
-			$serverConfigFile,            "wrapper.app.parameter.4",
-			"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
-		);
-
-		updateXMLAttribute(
-			$serverJettyConfigFile,
-"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
-			"default",
-			$globalConfig->param("$lcApplication.connectorPort")
-		);
-
-		updateXMLTextValue(
-			$serverJettyConfigFile,
-"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
-			$globalConfig->param("$lcApplication.appContext")
-		);
-
-		createOrUpdateLineInXML(
-			$serverJettyConfigFile,
-			".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
-			"                <Set name=\"forwarded\">true</Set>\n"
-		);
-
-	}
-
-	print "Applying Java memory configuration to install...\n\n";
-	$log->info( "$subname: Applying Java memory parameters to "
-		  . $javaMemParameterFile );
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xms",
-		$globalConfig->param("$lcApplication.javaMinMemory") );
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xmx",
-		$globalConfig->param("$lcApplication.javaMaxMemory") );
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-XX:MaxPermSize=",
-		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
 	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
 	if (   ( $#parameterNull == -1 )
@@ -9978,40 +10153,45 @@ sub installBamboo {
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateLineInBambooWrapperConf(
-			$javaMemParameterFile,
-			"wrapper.java.additional.",
-			$globalConfig->param("$lcApplication.javaParams"),
-			$globalConfig->param("$lcApplication.javaParams")
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
 		);
 	}
+
+	#Update Java Memory Parameters
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+		  
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MINIMUM_MEMORY=",
+		"JVM_MINIMUM_MEMORY="
+		 . '"' . $globalConfig->param("$lcApplication.javaMinMemory") . '"',
+		"JVM_SUPPORT_RECOMMENDED_ARGS="
+	);
+
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MAXIMUM_MEMORY=",
+		"JVM_MAXIMUM_MEMORY="
+		 . '"'  . $globalConfig->param("$lcApplication.javaMaxMemory") . '"',
+		"JVM_SUPPORT_RECOMMENDED_ARGS="
+	);
+
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"BAMBOO_MAX_PERM_SIZE=",
+		"BAMBOO_MAX_PERM_SIZE="
+		  . '"' . $globalConfig->param("$lcApplication.javaMaxPermSize") . '"',
+		"JVM_SUPPORT_RECOMMENDED_ARGS="
+	);
 
 	print "Configuration settings have been applied successfully.\n\n";
-
-	#Run any additional steps
-	if ( $globalArch eq "64" ) {
-		$WrapperDownloadFile = downloadFileAndChown(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-			$WrapperDownloadUrlFor64Bit, $osUser
-		);
-
-		rmtree(
-			[
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/wrapper"
-			]
-		);
-
-		extractAndMoveDownload(
-			$WrapperDownloadFile,
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/wrapper",
-			$osUser,
-			""
-		);
-	}
 
 	#Generate the init.d file
 	print
@@ -10019,11 +10199,14 @@ sub installBamboo {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD(
-		$lcApplication, $osUser,
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"bamboo.sh start",
-		"bamboo.sh stop"
+		$lcApplication,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/bin/",
+		"start-bamboo.sh",
+		"stop-bamboo.sh"
 	);
+	}
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -10058,6 +10241,12 @@ sub upgradeBamboo {
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
+	
+	#New variables for upgrades above Bamboo version 5.1.0
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $serverXLMLFile;
+	#End new variables
 
 	$log->info("BEGIN: $subname");
 
@@ -10112,145 +10301,188 @@ sub upgradeBamboo {
 
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
+	#Check if we are installing version below 5.1.0 to maintain backwards compatibility
+	if (compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"),
+			"5.1.0") ne "GREATER") {
+		$serverConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
 
-	$serverConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
+		$serverJettyConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/webapp/WEB-INF/classes/jetty.xml";
 
-	$serverJettyConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/webapp/WEB-INF/classes/jetty.xml";
+		print "Creating backup of config files...\n\n";
+		$log->info("$subname: Backing up config files.");
 
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
+		backupFile( $serverConfigFile, $osUser );
+		backupFile(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			$osUser
+		);
+		$javaMemParameterFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
+		backupFile( $javaMemParameterFile, $osUser );
 
-	backupFile( $serverConfigFile, $osUser );
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		$osUser
-	);
-	$javaMemParameterFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
-	backupFile( $javaMemParameterFile, $osUser );
+		print "Applying port numbers to server config...\n\n";
 
-	print "Applying port numbers to server config...\n\n";
-
-	updateLineInFile(
-		$serverConfigFile,
-		"wrapper.app.parameter.2",
-		"wrapper.app.parameter.2="
-		  . $globalConfig->param("$lcApplication.connectorPort"),
-		""
-	);
-
-	my $bambooContext;
-	if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
-		$bambooContext = "/";
-	}
-	else {
-		$bambooContext = $globalConfig->param("$lcApplication.appContext");
-	}
-
-	#Apply application context
-	updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
-		"wrapper.app.parameter.4=" . $bambooContext, "" );
-
-	#Update the server config with reverse proxy configuration
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverConfigFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		updateLineInFile(
 			$serverConfigFile,
 			"wrapper.app.parameter.2",
-			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
-			"wrapper.app.parameter.2"
+			"wrapper.app.parameter.2="
+			  . $globalConfig->param("$lcApplication.connectorPort"),
+			""
 		);
 
+		my $bambooContext;
+		if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
+			$bambooContext = "/";
+		}
+		else {
+			$bambooContext = $globalConfig->param("$lcApplication.appContext");
+		}
+
+		#Apply application context
+		updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
+			"wrapper.app.parameter.4=" . $bambooContext, "" );
+
+		#Edit Bamboo config file to reference homedir
+		$log->info( "$subname: Applying homedir in "
+			  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
+		print "Applying home directory to config...\n\n";
 		updateLineInFile(
-			$serverConfigFile,                    "wrapper.app.parameter.3",
-			"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			"bamboo.home",
+			"$lcApplication.home="
+			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+			"#bamboo.home=C:/bamboo/bamboo-home"
 		);
 
-		updateLineInFile(
-			$serverConfigFile,            "wrapper.app.parameter.4",
-			"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
+		#Update the server config with reverse proxy configuration
+		$log->info( "$subname: Updating the reverse proxy configuration in "
+			  . $serverConfigFile );
+		print "Applying Apache proxy parameters to config...\n\n";
+		if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+			updateLineInFile(
+				$serverConfigFile,
+				"wrapper.app.parameter.2",
+				"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
+				"wrapper.app.parameter.2"
+			);
+
+			updateLineInFile(
+				$serverConfigFile,                    "wrapper.app.parameter.3",
+				"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
+			);
+
+			updateLineInFile(
+				$serverConfigFile,            "wrapper.app.parameter.4",
+				"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
+			);
+
+			updateXMLAttribute(
+				$serverJettyConfigFile,
+	"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
+				"default",
+				$globalConfig->param("$lcApplication.connectorPort")
+			);
+
+			updateXMLTextValue(
+				$serverJettyConfigFile,
+	"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
+				$globalConfig->param("$lcApplication.appContext")
+			);
+
+			createOrUpdateLineInXML(
+				$serverJettyConfigFile,
+				".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+				"                <Set name=\"forwarded\">true</Set>\n"
+			);
+
+		}
+
+		print "Applying Java memory configuration to install...\n\n";
+		$log->info( "$subname: Applying Java memory parameters to "
+			  . $javaMemParameterFile );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xms",
+			$globalConfig->param("$lcApplication.javaMinMemory") );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xmx",
+			$globalConfig->param("$lcApplication.javaMaxMemory") );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-XX:MaxPermSize=",
+			$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
+		@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.javaParams") eq ""
+			|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+		{
+			$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$javaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		#Apply the JavaOpts configuration (if any)
+		print "Applying Java_Opts configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+			updateLineInBambooWrapperConf(
+				$javaMemParameterFile,
+				"wrapper.java.additional.",
+				$globalConfig->param("$lcApplication.javaParams"),
+				$globalConfig->param("$lcApplication.javaParams")
+			);
+		}
+
+		print "Configuration settings have been applied successfully.\n\n";
+
+		#Run any additional steps
+		if ( $globalArch eq "64" ) {
+			$WrapperDownloadFile = downloadFileAndChown(
+				escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+				$WrapperDownloadUrlFor64Bit, $osUser
+			);
+
+			rmtree(
+				[
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+					  )
+					  . "/wrapper"
+				]
+			);
+
+			extractAndMoveDownload(
+				$WrapperDownloadFile,
+				escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+				  . "/wrapper",
+				$osUser,
+				""
+			);
+		}
+		
+		#Generate the init.d file
+		print
+	"Setting up initd files and run as a service (if configured) please wait...\n\n";
+		$log->info("$subname: Generating init.d file for $application.");
+
+		generateInitD(
+			$lcApplication, $osUser,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			"bamboo.sh start",
+			"bamboo.sh stop"
 		);
-
-		updateXMLAttribute(
-			$serverJettyConfigFile,
-"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
-			"default",
-			$globalConfig->param("$lcApplication.connectorPort")
-		);
-
-		updateXMLTextValue(
-			$serverJettyConfigFile,
-"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
-			$globalConfig->param("$lcApplication.appContext")
-		);
-
-		createOrUpdateLineInXML(
-			$serverJettyConfigFile,
-			".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
-			"                <Set name=\"forwarded\">true</Set>\n"
-		);
-	}
-
-	#Edit Bamboo config file to reference homedir
-	$log->info( "$subname: Applying homedir in "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
-	print "Applying home directory to config...\n\n";
-	updateLineInFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		"bamboo.home",
-		"$lcApplication.home="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
-		"#bamboo.home=C:/bamboo/bamboo-home"
-	);
-
-	print "Applying Java memory configuration to install...\n\n";
-	$log->info( "$subname: Applying Java memory parameters to "
-		  . $javaMemParameterFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xms",
-		$globalConfig->param("$lcApplication.javaMinMemory") );
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xmx",
-		$globalConfig->param("$lcApplication.javaMaxMemory") );
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-XX:MaxPermSize=",
-		$globalConfig->param("$lcApplication.javaMaxPermSize") );
-
-	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq "" )
-	{
-		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-	}
-	else {
-		$javaOptsValue = "CONFIGSPECIFIED";
-	}
-
-	#Apply the JavaOpts configuration (if any)
-	print "Applying Java_Opts configuration to install...\n\n";
-	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateLineInBambooWrapperConf(
-			$javaMemParameterFile,
-			"wrapper.java.additional.",
-			$globalConfig->param("$lcApplication.javaParams"),
-			$globalConfig->param("$lcApplication.javaParams")
-		);
-	}
-
+		
 	#Restore the Crowd configuration files
 	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
 		$log->info("$subname: Restoring Crowd configuration files.");
@@ -10337,32 +10569,163 @@ sub upgradeBamboo {
 		}
 	}
 
-	print "Configuration settings have been applied successfully.\n\n";
+	} else {
+		#Do Install for Bamboo Version 5.1.0 or newer
+	$serverXMLFile =
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+	$initPropertiesFile =
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . $globalConfig->param("$lcApplication.webappDir")
+	  . "/WEB-INF/classes/$lcApplication-init.properties";
+	$javaMemParameterFile =
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
 
-	#Run any additional steps
-	if ( $globalArch eq "64" ) {
-		$WrapperDownloadFile = downloadFileAndChown(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-			$WrapperDownloadUrlFor64Bit, $osUser
-		);
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
 
-		rmtree(
-			[
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/wrapper"
-			]
-		);
+	backupFile( $serverXMLFile, $osUser );
 
-		extractAndMoveDownload(
-			$WrapperDownloadFile,
+	backupFile( $initPropertiesFile, $osUser );
+
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying custom context to $application...\n\n";
+	$log->info( "$subname: Applying application context to "
+		. escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		. "/conf/server.xml" );
+
+	updateXMLAttribute(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		. "/conf/server.xml",
+		"//////Context",
+		"path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig )
+	);
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	print "Applying home directory location to config...\n\n";
+
+	#Edit Bamboo config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"bamboo.home",
+		"$lcApplication.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"#bamboo.home=C:/bamboo/bamboo-home"
+	);
+
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/wrapper",
-			$osUser,
-			""
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
 		);
 	}
+
+	#Update Java Memory Parameters
+	print "Applying Java memory configuration to install...\n\n";
+	$log->info( "$subname: Applying Java memory parameters to "
+		  . $javaMemParameterFile );
+		  
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MINIMUM_MEMORY=",
+		"JVM_MINIMUM_MEMORY="
+		 . '"' . $globalConfig->param("$lcApplication.javaMinMemory") . '"',
+		"JVM_SUPPORT_RECOMMENDED_ARGS="
+	);
+
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"JVM_MAXIMUM_MEMORY=",
+		"JVM_MAXIMUM_MEMORY="
+		 . '"'  . $globalConfig->param("$lcApplication.javaMaxMemory") . '"',
+		"JVM_SUPPORT_RECOMMENDED_ARGS="
+	);
+
+	createOrUpdateLineInFile(
+		$javaMemParameterFile,
+		"BAMBOO_MAX_PERM_SIZE=",
+		"BAMBOO_MAX_PERM_SIZE="
+		  . '"' . $globalConfig->param("$lcApplication.javaMaxPermSize") . '"',
+		"JVM_SUPPORT_RECOMMENDED_ARGS="
+	);
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Generate the init.d file
 	print
@@ -10370,11 +10733,102 @@ sub upgradeBamboo {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD(
-		$lcApplication, $osUser,
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"bamboo.sh start",
-		"bamboo.sh stop"
+		$lcApplication,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/bin/",
+		"start-bamboo.sh",
+		"stop-bamboo.sh"
 	);
+	
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir") . $globalConfig->param("$lcApplication.webappDir")
+				  . "/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir") . $globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir") . $globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
+	}
+
+	#Restore the Crowd Seraph configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd Seraph configuration.");
+		print "Restoring the Crowd configuration files...\n\n";
+		backupFile(
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir") . $globalConfig->param("$lcApplication.webappDir")
+				  . "/WEB-INF/classes/atlassian-user.xml"
+			),
+			$osUser
+		);
+		updateSeraphConfig(
+			"Bamboo",
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir") . $globalConfig->param("$lcApplication.webappDir")
+				  . "/WEB-INF/classes/atlassian-user.xml"
+			),
+			"key=\"crowd\"",
+			"key=\"hibernateRepository\""
+		);
+		if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir") . $globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/seraph-config.xml"
+				),
+				$osUser
+			);
+			updateSeraphConfig(
+				"Bamboo",
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir") . $globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/seraph-config.xml"
+				),
+				"com.atlassian.crowd.integration.seraph.*BambooAuthenticator",
+				"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
+			);
+		}
+	}
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
