@@ -95,6 +95,21 @@ if [[ ! -e "/usr/include/openssl/ssl.h" ]]; then
 	echo "'openssl-devel/libssl-dev' libraries not found.";
 fi
 
+# Adding expat and expat-devel package tests as per [#ATLASMGR-295] to fix bug on CentOS 5 machines
+rpm -q expat-devel >> /dev/null 2>&1
+if [[ $? -ne 0 ]]; then
+ 	BINARIESCHECK="FAIL"
+	#add expat-devel to the required binaries
+	BINARIESREDHAT="$BINARIESREDHAT expat-devel"
+fi
+
+rpm -q expat >> /dev/null 2>&1
+if [[ $? -ne 0 ]]; then
+	BINARIESCHECK="FAIL"
+	#add expat-devel to the required binaries
+	BINARIESREDHAT="$BINARIESREDHAT expat"
+fi
+
 if [[ $BINARIESCHECK == "FAIL" ]] ; then
    echo ""
 echo -n "Some required binary components are missing therefore this script cannot be run. Would you like the script to attempt to install them? yes/no [yes]: "
