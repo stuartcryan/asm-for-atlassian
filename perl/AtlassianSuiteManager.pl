@@ -2796,12 +2796,8 @@ sub getEnvironmentDebugInfo {
 		);
 		$installedModules = ExtUtils::Installed->new();
 
-		if ( scalar(@ARGV) > 0 ) {
-			@modules = @ARGV;
-		}
-		else {
-			@modules = $installedModules->modules();
-		}
+
+		@modules = $installedModules->modules();
 
 		$log->debug( sprintf "%-30s %-20s", "Module", "Version" );
 		foreach (@modules) {
