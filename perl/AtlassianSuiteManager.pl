@@ -9806,6 +9806,7 @@ sub installBamboo {
 	my @requiredCrowdConfigItems;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $tomcatDir;
 	my $WrapperDownloadFile;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
@@ -10145,13 +10146,22 @@ sub installBamboo {
 	else {
 		$javaOptsValue = "CONFIGSPECIFIED";
 	}
+	
+	@parameterNull = $globalConfig->param( $lcApplication . ".tomcatDir" );
+	if ( $#parameterNull == -1 )
+	{
+		$tomcatDir = "";
+	}
+	else {
+		$tomcatDir = $globalConfig->param( $lcApplication . ".tomcatDir" );
+	}
 
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 		updateJavaOpts(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . $tomcatDir
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
 			$globalConfig->param( $lcApplication . ".javaParams" )
@@ -10234,6 +10244,7 @@ sub upgradeBamboo {
 	my $WrapperDownloadFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $tomcatDir;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
@@ -10680,12 +10691,21 @@ sub upgradeBamboo {
 		$javaOptsValue = "CONFIGSPECIFIED";
 	}
 
+	@parameterNull = $globalConfig->param( $lcApplication . ".tomcatDir" );
+	if ( $#parameterNull == -1 )
+	{
+		$tomcatDir = "";
+	}
+	else {
+		$tomcatDir = $globalConfig->param( $lcApplication . ".tomcatDir" );
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 		updateJavaOpts(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . $tomcatDir
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
 			$globalConfig->param( $lcApplication . ".javaParams" )
