@@ -978,20 +978,43 @@ sub createOSUser {
 	my $osUser;
 	my $subname = ( caller(0) )[3];
 
+	#	my @chars = ("A".."Z", "a".."z", "0".."9");
+	#	my $password;
+	#	my $salt;
+	#	my $hashedPass;
+
 	$log->info("BEGIN: $subname");
 
 	$osUser = $_[0];
+
+	#	#Create random password and salt
+	#	$password .= $chars[rand @chars] for 1..16;
+	#	$salt     .= $chars[rand @chars] for 1..16;
+	#	$hashedPass = crypt("$password", "$salt");
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 
 	if ( !getpwnam($osUser) ) {
+print
+"The system account '$osUser' does not exist. Creating the account.\n\n";
 		system("useradd $osUser");
 		if ( $? == -1 ) {
 			$log->logdie("could not create system user $osUser");
 		}
 		else {
 			$log->info("System user $osUser added successfully.");
+			print
+"The system account '$osUser' has been created successfully. You must now enter a password for the new '$osUser' system account to be used if you wish to log in as it later: \n\n";
+			system("passwd $osUser");
+			if ( $? == -1 ) {
+				$log->info("Password creation failed for $osUser");
+				print
+"Password creation for '$osUser' has failed, as this is not fatal we will continue, however you will need to create a password manually later: \n\n";
+			}
+			else {
+				$log->info("Password created for $osUser successfully.");
+			}
 		}
 	}
 	else {
@@ -3665,12 +3688,6 @@ sub installGeneric {
 
 	}
 
-	#Get the user the application will run as
-	$osUser = $globalConfig->param("$lcApplication.osUser");
-
-	#Check the user exists or create if not
-	createOSUser($osUser);
-
 	$serverPortAvailCode =
 	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
 
@@ -3771,6 +3788,12 @@ is currently in use. We will continue however there is a good chance $applicatio
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			$globalArch );
 	}
+	
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	#Check the user exists or create if not
+	createOSUser($osUser);
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
@@ -5786,12 +5809,6 @@ sub upgradeGeneric {
 
 	}
 
-	#Get the user the application will run as
-	$osUser = $globalConfig->param("$lcApplication.osUser");
-
-	#Check the user exists or create if not
-	createOSUser($osUser);
-
 	$input = getBooleanInput(
 		"Would you like to upgrade to the latest version? yes/no [yes]: ");
 	print "\n";
@@ -5924,6 +5941,12 @@ sub upgradeGeneric {
 
 	#Backup the existing install
 	backupApplication($application);
+	
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	#Check the user exists or create if not
+	createOSUser($osUser);
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
