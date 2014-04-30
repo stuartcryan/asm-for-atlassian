@@ -3290,7 +3290,7 @@ sub getLatestDownloadURL {
 		$searchString = ".*TAR\.GZ.*";
 	}
 	elsif ( $lcApplication eq "jira" ) {
-		$searchString = ".*Linux.*$architecture.*";
+		$searchString = ".*TAR\.GZ.*";
 	}
 	elsif ( $lcApplication eq "stash" ) {
 		$searchString = ".*TAR.*";
@@ -3674,16 +3674,12 @@ sub getVersionDownloadURL {
 
 #For each application generate the file name based on known information and input data
 	if ( $lcApplication eq "confluence" ) {
-		$fileExt = "tar.gz";
-		$filename =
-		    "atlassian-confluence-" 
-		  . $version . "."
-		  . $fileExt;
+		$fileExt  = "tar.gz";
+		$filename = "atlassian-confluence-" . $version . "." . $fileExt;
 	}
 	elsif ( $lcApplication eq "jira" ) {
-		$fileExt = "bin";
-		$filename =
-		  "atlassian-jira-" . $version . "-x" . $architecture . "." . $fileExt;
+		$fileExt  = "tar.gz";
+		$filename = "atlassian-jira-" . $version . "." . $fileExt;
 	}
 	elsif ( $lcApplication eq "stash" ) {
 		$fileExt  = "tar.gz";
@@ -10583,57 +10579,61 @@ sub upgradeBamboo {
 		push( @requiredConfigItems,
 			"bamboo.thisConfigWillNeverExistThereforeForceConfigGeneration" );
 	}
-	
-	#Check if we are installing version below 5.1.0 to maintain backwards compatibility
+
+#Check if we are installing version below 5.1.0 to maintain backwards compatibility
 	if (
 		compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"), "5.1.0" )
 		ne "GREATER"
-	  ){
+	  )
+	{
 
-	#Back up the Crowd configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Backing up Crowd configuration files.");
-		print "Backing up the Crowd configuration files...\n\n";
-		if ( -e $globalConfig->param("$lcApplication.installDir")
-			. "/webapp/WEB-INF/classes/crowd.properties" )
+		#Back up the Crowd configuration files
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
 		{
-			copyFile(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/webapp/WEB-INF/classes/crowd.properties",
-				"$Bin/working/crowd.properties.$lcApplication"
-			);
-		}
-		else {
-			print
+			$log->info("$subname: Backing up Crowd configuration files.");
+			print "Backing up the Crowd configuration files...\n\n";
+			if ( -e $globalConfig->param("$lcApplication.installDir")
+				. "/webapp/WEB-INF/classes/crowd.properties" )
+			{
+				copyFile(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties",
+					"$Bin/working/crowd.properties.$lcApplication"
+				);
+			}
+			else {
+				print
 "No crowd.properties currently exists for $application, will not copy.\n\n";
-			$log->info(
+				$log->info(
 "$subname: No crowd.properties currently exists for $application, will not copy."
-			);
+				);
+			}
 		}
 	}
-	  } else {
-	  		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Backing up Crowd configuration files.");
-		print "Backing up the Crowd configuration files...\n\n";
-		if ( -e $globalConfig->param("$lcApplication.installDir")
-			. "/atlassian-bamboo/WEB-INF/classes/crowd.properties" )
+	else {
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
 		{
-			copyFile(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/atlassian-bamboo/WEB-INF/classes/crowd.properties",
-				"$Bin/working/crowd.properties.$lcApplication"
-			);
-		}
-		else {
-			print
+			$log->info("$subname: Backing up Crowd configuration files.");
+			print "Backing up the Crowd configuration files...\n\n";
+			if ( -e $globalConfig->param("$lcApplication.installDir")
+				. "/atlassian-bamboo/WEB-INF/classes/crowd.properties" )
+			{
+				copyFile(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-bamboo/WEB-INF/classes/crowd.properties",
+					"$Bin/working/crowd.properties.$lcApplication"
+				);
+			}
+			else {
+				print
 "No crowd.properties currently exists for $application, will not copy.\n\n";
-			$log->info(
+				$log->info(
 "$subname: No crowd.properties currently exists for $application, will not copy."
-			);
+				);
+			}
 		}
 	}
-	  }
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -11158,7 +11158,7 @@ sub upgradeBamboo {
 				chownFile(
 					$osUser,
 					escapeFilePath(
-						    $globalConfig->param("$lcApplication.installDir")
+						$globalConfig->param("$lcApplication.installDir")
 						  . "/atlassian-bamboo/WEB-INF/classes/crowd.properties"
 					)
 				);
@@ -12010,7 +12010,7 @@ sub installConfluence {
 			push( @requiredConfigItems, "confluence.apacheProxyHost" );
 		}
 	}
-	
+
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -12022,12 +12022,12 @@ sub installConfluence {
 	$serverXMLFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/conf/server.xml";
-	  
+
 	$initPropertiesFile =
-	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/confluence/WEB-INF/classes/$lcApplication-init.properties";
 	$javaMemParameterFile =
-	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
@@ -12036,7 +12036,7 @@ sub installConfluence {
 	backupFile( $serverXMLFile, $osUser );
 
 	backupFile( $initPropertiesFile, $osUser );
-	
+
 	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
@@ -12107,10 +12107,9 @@ sub installConfluence {
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
 		$initPropertiesFile,
-		"confluence.home= ",
-		"confluence.home= "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-		  ,
+		"confluence.home=",
+		"confluence.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"# confluence.home="
 	);
 
@@ -12157,9 +12156,13 @@ sub installConfluence {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$lcApplication,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-confluence.sh", "/bin/stop-confluence.sh" );
+		"/bin/start-confluence.sh",
+		"/bin/stop-confluence.sh"
+	);
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -12221,7 +12224,7 @@ sub upgradeConfluence {
 			push( @requiredConfigItems, "confluence.apacheProxyHost" );
 		}
 	}
-	
+
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -12233,12 +12236,12 @@ sub upgradeConfluence {
 	$serverXMLFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/conf/server.xml";
-	  
+
 	$initPropertiesFile =
-	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/confluence/WEB-INF/classes/$lcApplication-init.properties";
 	$javaMemParameterFile =
-	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
 
 	print "Creating backup of config files...\n\n";
@@ -12247,7 +12250,7 @@ sub upgradeConfluence {
 	backupFile( $serverXMLFile, $osUser );
 
 	backupFile( $initPropertiesFile, $osUser );
-	
+
 	backupFile( $javaMemParameterFile, $osUser );
 
 	print "Applying port numbers to server config...\n\n";
@@ -12318,10 +12321,9 @@ sub upgradeConfluence {
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
 		$initPropertiesFile,
-		"confluence.home= ",
-		"confluence.home= "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-		  ,
+		"confluence.home=",
+		"confluence.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
 		"# confluence.home="
 	);
 
@@ -12368,11 +12370,15 @@ sub upgradeConfluence {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$lcApplication,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-confluence.sh", "/bin/stop-confluence.sh" );
+		"/bin/start-confluence.sh",
+		"/bin/stop-confluence.sh"
+	);
 
-#Finally run generic post install tasks
+	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
 }
 
@@ -15352,6 +15358,10 @@ sub generateJiraConfig {
 #Install Jira                          #
 ########################################
 sub installJira {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -15385,18 +15395,130 @@ sub installJira {
 	}
 
 	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"JIRA_USER",  \@requiredConfigItems
-	);
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
 
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+
+	$initPropertiesFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/atlassian-jira/WEB-INF/classes/$lcApplication-application.properties";
 	$javaMemParameterFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
 
-#backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit JIRA config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"jira.home =",
+		"jira.home ="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"# jira.home ="
+	);
+
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -15428,7 +15550,17 @@ sub installJira {
 		"#JIRA_MAX_PERM_SIZE="
 	);
 
-	postInstallGenericAtlassianBinary($application);
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-jira.sh", "/bin/stop-jira.sh" );
+
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
 }
 
 ########################################
@@ -15439,13 +15571,17 @@ sub uninstallJira {
 	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	uninstallGenericAtlassianBinary($application);
+	uninstallGeneric($application);
 }
 
 ########################################
 #UpgradeJira                          #
 ########################################
 sub upgradeJira {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -15478,18 +15614,131 @@ sub upgradeJira {
 		}
 	}
 
-	upgradeGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"JIRA_USER",  \@requiredConfigItems
-	);
+	#Run generic installer steps
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
 
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+
+	$initPropertiesFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/atlassian-jira/WEB-INF/classes/$lcApplication-application.properties";
 	$javaMemParameterFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
 
-#backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit JIRA config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"jira.home =",
+		"jira.home ="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"# jira.home ="
+	);
+
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -15521,7 +15770,17 @@ sub upgradeJira {
 		"#JIRA_MAX_PERM_SIZE="
 	);
 
-	postUpgradeGenericAtlassianBinary($application);
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-jira.sh", "/bin/stop-jira.sh" );
+
+	#Finally run generic post install tasks
+	postUpgradeGeneric($application);
 }
 
 #######################################################################
