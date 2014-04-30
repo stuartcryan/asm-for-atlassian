@@ -1895,73 +1895,6 @@ sub generateCrowdPropertiesFile {
 }
 
 ########################################
-#Generate Generic Kickstart File       #
-########################################
-sub generateGenericKickstart {
-	my $filename;    #Must contain absolute path
-	my $mode;        #"INSTALL" or "UPGRADE"
-	my $application;
-	my $lcApplication;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$filename      = $_[0];
-	$mode          = $_[1];
-	$application   = $_[2];
-	$lcApplication = lc($application);
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_filename",      $filename );
-	dumpSingleVarToLog( "$subname" . "_mode",          $mode );
-	dumpSingleVarToLog( "$subname" . "_application",   $application );
-	dumpSingleVarToLog( "$subname" . "_lcApplication", $lcApplication );
-
-	open FH, ">$filename"
-	  or $log->logdie("Unable to open $filename for writing.");
-	print FH "#install4j response file for $application\n";
-	if ( $mode eq "UPGRADE" ) {
-		print FH 'backup' . "$application" . '$Boolean=false' . "\n";
-	}
-	if ( $mode eq "INSTALL" ) {
-		print FH 'rmiPort$Long='
-		  . $globalConfig->param( $lcApplication . ".serverPort" ) . "\n";
-		print FH "app.confHome="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-		  . "\n";
-	}
-	if ( $globalConfig->param( $lcApplication . ".runAsService" ) eq "TRUE" ) {
-		print FH 'app.install.service$Boolean=true' . "\n";
-	}
-	else {
-		print FH 'app.install.service$Boolean=false' . "\n";
-	}
-	print FH "existingInstallationDir="
-	  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "\n";
-
-	if ( $mode eq "UPGRADE" ) {
-		print FH "sys.confirmedUpdateInstallationString=true" . "\n";
-	}
-	else {
-		print FH "sys.confirmedUpdateInstallationString=false" . "\n";
-	}
-	print FH "sys.languageId=en" . "\n";
-	if ( $mode eq "INSTALL" ) {
-		print FH "sys.installationDir="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "\n";
-	}
-	print FH 'executeLauncherAction$Boolean=false' . "\n";
-	if ( $mode eq "INSTALL" ) {
-		print FH 'httpPort$Long='
-		  . $globalConfig->param( $lcApplication . ".connectorPort" ) . "\n";
-		print FH "portChoice=custom" . "\n";
-	}
-	close FH;
-}
-
-########################################
 #GenerateInitD                         #
 ########################################
 sub generateInitD {
@@ -3504,112 +3437,6 @@ sub getPIDList {
 }
 
 ########################################
-#GetUserCreatedByInstaller             #
-#The atlassian BIN installers for      #
-#Confluence and JIRA currently create  #
-#their own users, we need to get this  #
-#following installation so that we can #
-#chmod files correctly.                #
-########################################
-sub getUserCreatedByInstaller {
-	my $configParameterName
-	  ;    #the name of the config parameter the install DIR is stored in
-	my $lineReference;
-	my $searchFor;
-	my @data;
-	my $fileName;
-	my $userName;
-	my $cfg;
-	my $input;
-	my $LOOP;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$configParameterName = $_[0];
-	$lineReference       = $_[1];
-	$cfg                 = $_[2];
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_configParameterName",
-		$configParameterName );
-	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
-
-	$fileName = $cfg->param($configParameterName) . "/bin/user.sh";
-
-	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
-
-	open( FILE, $fileName )
-	  or $log->logdie("Unable to open file: $fileName.");
-
-	# read file into an array
-	@data = <FILE>;
-
-	close(FILE);
-
-	#Search for reference line
-	my ($index1) =
-	  grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
-
-	if ( !defined($index1) ) {
-		return "NOTFOUND";
-	}
-	else {
-		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
-			my $result1 = $1;
-
-			if ( $result1 eq "" or !defined($1) ) {
-				print
-"We were unable to locate the user created by the installer. Please enter the user that we will run under: ";
-				$LOOP = 1;
-				while ( $LOOP == 1 ) {
-					$input = getGenericInput();
-					print "\n";
-					$log->info("$subname: Generic input entered was: $input");
-					if ( $input eq "default" ) {
-						$log->info("$subname null input entered.");
-						print
-"You did not enter anything, please enter a valid username: ";
-					}
-					else {
-						$log->info(
-							"Username entered - $subname" . "_input: $input" );
-						$LOOP = 0;
-						chomp $input;
-						return $input;
-					}
-				}
-			}
-			else {
-				return $result1;
-			}
-		}
-		else {
-			print
-"We were unable to locate the user created by the installer. Please enter the user that we will run under: ";
-			$LOOP = 1;
-			while ( $LOOP == 1 ) {
-				$input = getGenericInput();
-				print "\n";
-				$log->info("$subname: Generic input entered was: $input");
-				if ( $input eq "default" ) {
-					$log->info("$subname null input entered.");
-					print
-"You did not enter anything, please enter a valid username: ";
-				}
-				else {
-					$log->info(
-						"Username entered - $subname" . "_input: $input" );
-					$LOOP = 0;
-					chomp $input;
-					return $input;
-				}
-			}
-		}
-	}
-}
-
-########################################
 #getUserUidGid                         #
 ########################################
 sub getUserUidGid {
@@ -4060,526 +3887,6 @@ is currently in use. We will continue however there is a good chance $applicatio
 }
 
 ########################################
-#Install Generic Atlassian Binary      #
-########################################
-sub installGenericAtlassianBinary {
-	my $input;
-	my $mode;
-	my $version;
-	my $application;
-	my $lcApplication;
-	my @downloadDetails;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my $connectorPortAvailCode;
-	my $serverPortAvailCode;
-	my $varfile;
-	my @requiredConfigItems;
-	my $downloadArchivesUrl;
-	my $configUser;
-	my @parameterNull;
-	my $javaOptsValue;
-	my $serverXMLFile;
-	my $needJDBC;
-	my $jdbcJAR;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$application         = $_[0];
-	$downloadArchivesUrl = $_[1];
-	$configUser =
-	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
-	@requiredConfigItems = @{ $_[3] };
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
-		$downloadArchivesUrl );
-	dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
-	dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
-		@requiredConfigItems );
-
-	$lcApplication = lc($application);
-	$varfile =
-	    escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
-	  . $lcApplication
-	  . "-install.varfile";
-	dumpSingleVarToLog( "$subname" . "_varfile", $varfile );
-
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info(
-"$subname: Some of the config parameters are invalid or null. Forcing generation"
-		);
-		print
-"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
-		generateApplicationConfig( $application, "UPDATE", $globalConfig );
-	}
-
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		$input = getBooleanInput(
-"Would you like to review the $application config before installing? Yes/No [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-				"$subname: User opted to update config prior to installation."
-			);
-			generateApplicationConfig( $application, "UPDATE", $globalConfig );
-		}
-	}
-
-	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param( $lcApplication . ".serverPort" ) );
-
-	$connectorPortAvailCode = isPortAvailable(
-		$globalConfig->param( $lcApplication . ".connectorPort" ) );
-
-	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-		$log->info(
-"$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0 
-is currently in use. Unfortunately with the Atlassian binary installers we cannot proceed as they will fail. 
-Therefore script is terminating, please ensure port configuration is correct and no services are actively using the ports."
-		);
-		$log->logdie(
-"One or more of the ports configured for $application are currently in use. Cannot continue installing. "
-			  . "Please ensure the ports configured are available and not in use.\n\n"
-		);
-	}
-
-	$input = getBooleanInput(
-		"Would you like to install the latest version? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info(
-			"$subname: User opted to install latest version of $application");
-		$mode = "LATEST";
-	}
-	else {
-		$log->info(
-			"$subname: User opted to install specific version of $application"
-		);
-		$mode = "SPECIFIC";
-	}
-
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
-
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
-			dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
-
-			#Check that the input version actually exists
-			print
-"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
-
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
-			$ua->show_progress(0);
-
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$VERSIONLOOP = 0;
-				$log->info(
-"$subname: User selected to install version $version of $application"
-				);
-				print "$application version $version found. Continuing...\n\n";
-			}
-			else {
-				$log->warn(
-"$subname: User selected to install version $version of $application. No such version exists, asking for input again."
-				);
-				print
-"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
-			}
-		}
-	}
-
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		$log->info("$subname: Downloading latest version of $application");
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
-		$version = $downloadDetails[1];
-	}
-
-	#Download a specific version
-	else {
-		$log->info("$subname: Downloading version $version of $application");
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			$globalArch );
-	}
-
-	#chmod the file to be executable
-	$log->info("$subname: Making $downloadDetails[2] excecutable ");
-	chmod 0755, $downloadDetails[2]
-	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
-
-	#Generate the kickstart as we have all the information necessary
-	$log->info(
-		"$subname: Generating kickstart file for $application at $varfile");
-	generateGenericKickstart( $varfile, "INSTALL", $application );
-
-	if (
-		-d escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) )
-	{
-		$input = getBooleanInput(
-			"The current installation directory ("
-			  . escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-			  )
-			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-"$subname: Current install directory for $application exists, user has selected to back this up."
-			);
-			backupDirectoryAndChown(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				),
-				"root"
-			  )
-			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
-		}
-		else {
-			$log->logdie(
-"Cannot proceed installing $application if the directory already has an install, please remove this manually and try again.\n\n"
-			);
-		}
-	}
-
-	if ( -d escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) ) {
-		$input =
-		  getBooleanInput( "The current installation directory ("
-			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
-		  );
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-"$subname: Current data directory for $application exists, user has selected to back this up."
-			);
-			backupDirectoryAndChown(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.dataDir")
-				),
-				"root"
-			  )
-			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
-		}
-		else {
-			$log->logdie(
-				"Cannot proceed installing $application if the data directory ("
-				  . escapeFilePath(
-					$globalConfig->param("$lcApplication.dataDir")
-				  )
-				  . ")already has data from a previous install, please remove this manually and try again.\n\n"
-			);
-		}
-	}
-
-	#install
-	$log->info(
-		"$subname: Running " . $downloadDetails[2] . " -q -varfile $varfile" );
-	system( $downloadDetails[2] . " -q -varfile $varfile" );
-
-	if ( $? == -1 ) {
-		$log->logdie(
-"$application install did not complete successfully. Please check the install logs and try again: $!\n"
-		);
-	}
-
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser = getUserCreatedByInstaller( $lcApplication . ".installDir",
-		$configUser, $globalConfig );
-	if ( $osUser eq "NOTFOUND" ) {
-
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
-			"",
-			'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
-	}
-	else {
-		$log->info("$subname: OS User created by installer is: $osUser");
-		$globalConfig->param( $lcApplication . ".osUser", $osUser );
-	}
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#Stop the application so we can apply additional configuration
-	print
-"Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-	sleep(60);
-	$log->info(
-"$subname: Stopping $application so that we can apply the additional configuration options."
-	);
-	if (
-		stopService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		) eq "FAIL"
-	  )
-	{
-		$log->warn(
-"$subname: Could not stop $application successfully. Please make sure you restart manually following the end of installation"
-		);
-		warn
-"Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
-	}
-
-	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-	if (   ( $#parameterNull == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq ""
-		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
-	{
-		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-	}
-	else {
-		$javaOptsValue = "CONFIGSPECIFIED";
-	}
-
-	#Apply the JavaOpts configuration (if any)
-	print "Applying Java_Opts configuration to install...\n\n";
-	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateJavaOpts(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
-		);
-	}
-
-	#Check if user wants to remove the downloaded installer
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded installer "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
-		$log->info("$subname: User opted to delete downloaded installer.");
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
-
-#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
-
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
-"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		$log->info(
-"$subname: Copying MySQL JDBC connector to $application install directory."
-		);
-		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-
-		#Chown the files again
-		$log->info(
-			"$subname: Chowning "
-			  . escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-			  )
-			  . "/lib/"
-			  . " to $osUser following MySQL JDBC install."
-		);
-		chownRecursive( $osUser,
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-
-	}
-
-#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
-
-	@parameterNull = $globalConfig->param("general.dbJDBCJar");
-	if ( ( $#parameterNull == -1 ) ) {
-		$jdbcJAR = "";
-		$log->info("$subname: JDBC undefined in settings.cnf");
-	}
-	else {
-		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
-		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
-	}
-
-	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
-		if ( $lcApplication eq "confluence" ) {
-			print
-"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
-			if (
-				-e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				)
-				. "/lib/ojdbc6.jar"
-				|| -e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				)
-				. "/confluence/WEB-INF/lib/ojdbc6.jar"
-			  )
-			{
-				$needJDBC = "FALSE";
-				$log->info(
-"$subname: JDBC already exists in $application lib directories"
-				);
-			}
-			else {
-				$needJDBC = "TRUE";
-				$log->info(
-"$subname: JDBC does not exist in $application lib directories"
-				);
-			}
-		}
-
-		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
-			$log->info(
-				"$subname: Copying Oracle JDBC to $application lib directory");
-			copyFile(
-				$globalConfig->param("general.dbJDBCJar"),
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/lib/"
-			);
-
-			#Chown the files again
-			$log->info(
-				"$subname: Chowning "
-				  . escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/lib/"
-				  . " to $osUser following Oracle JDBC install."
-			);
-			chownRecursive(
-				$osUser,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/lib/"
-			);
-
-		}
-		elsif ( $needJDBC eq "FALSE" ) {
-			$log->info(
-"$subname: $application already has ojdbc6.jar, no need to copy. "
-			);
-		}
-		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
-			$log->info(
-"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
-			);
-			print
-"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
-			$input = <STDIN>;
-		}
-	}
-
-	print "Applying configuration settings to the install, please wait...\n\n";
-
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		$osUser
-	);
-
-	print "Applying the configured application context...\n\n";
-	$log->info( "$subname: Applying application context to "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml" );
-
-	updateXMLAttribute(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig )
-	);
-
-	#Update the server config with reverse proxy configuration
-	$serverXMLFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/server.xml";
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverXMLFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
-		{
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("general.apacheProxyHost") );
-
-			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "ProxyPort",
-				$globalConfig->param("general.apacheProxyPort") );
-		}
-		else {
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("$lcApplication.apacheProxyHost") );
-
-			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
-				"TRUE" )
-			{
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
-				$globalConfig->param("$lcApplication.apacheProxyPort") );
-		}
-	}
-
-	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
-	$globalConfig->param( $lcApplication . ".installedVersion", $version );
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-}
-
-########################################
 #Check if port is available            #
 ########################################
 sub isPortAvailable {
@@ -4924,234 +4231,6 @@ sub postInstallGeneric {
 
 	print
 "The $application install has completed. Please visit the web interface and follow the steps to complete the web install wizard. When you have completed this please press enter to continue...";
-	$input = <STDIN>;
-}
-
-########################################
-#PostInstallGenericAtlassianBinary     #
-########################################
-sub postInstallGenericAtlassianBinary {
-	my $application;
-	my $lcApplication;
-	my $input;
-	my $url;
-	my $subname = ( caller(0) )[3];
-
-	$application   = $_[0];
-	$lcApplication = lc($application);
-
-	print "Configuration settings have been applied successfully.\n\n";
-
-	$input = getBooleanInput(
-		"Do you wish to start the $application service? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to start application service.");
-		my $processReturnCode = startService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		);
-		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
-			warn
-"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-			print "\n\n";
-		}
-
-		if ( $processReturnCode eq "SUCCESS" ) {
-			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
-					"TRUE" )
-				{
-					if ( $globalConfig->param("general.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						    "https://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						    "http://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				else {
-					if (
-						$globalConfig->param("$lcApplication.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						  "https://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						  "http://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				print "\n"
-				  . "$application can now be accessed on $url" . ".\n\n";
-			}
-			else {
-				print "\n"
-				  . "$application can now be accessed on http://localhost:"
-				  . $globalConfig->param("$lcApplication.connectorPort")
-				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-				  . ".\n\n";
-			}
-		}
-		else {
-			print
-"\n The service could not be started correctly please ensure you do this manually.\n\n";
-		}
-	}
-
-	print
-"The $application install has completed. Please visit the web interface and follow the steps to complete the web install wizard. When you have completed this please press enter to continue...";
-	$input = <STDIN>;
-}
-
-########################################
-#PostUpgradeGenericAtlassianBinary     #
-########################################
-sub postUpgradeGenericAtlassianBinary {
-	my $application;
-	my $lcApplication;
-	my $input;
-	my $url;
-	my $subname = ( caller(0) )[3];
-
-	$application   = $_[0];
-	$lcApplication = lc($application);
-
-	print "Configuration settings have been applied successfully.\n\n";
-
-	$input = getBooleanInput(
-		"Do you wish to start the $application service? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to start application service.");
-		my $processReturnCode = startService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		);
-		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
-			warn
-"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-			print "\n\n";
-		}
-
-		if ( $processReturnCode eq "SUCCESS" ) {
-			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
-					"TRUE" )
-				{
-					if ( $globalConfig->param("general.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						    "https://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						    "http://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				else {
-					if (
-						$globalConfig->param("$lcApplication.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						  "https://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						  "http://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				print "\n"
-				  . "$application can now be accessed on $url" . ".\n\n";
-			}
-			else {
-				print "\n"
-				  . "$application can now be accessed on http://localhost:"
-				  . $globalConfig->param("$lcApplication.connectorPort")
-				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-				  . ".\n\n";
-			}
-		}
-		else {
-			print
-"\n The service could not be started correctly please ensure you do this manually.\n\n";
-		}
-	}
-
-	print
-"The $application upgrade has completed successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
 }
 
@@ -6603,75 +5682,6 @@ sub uninstallGeneric {
 }
 
 ########################################
-#UninstallGenericAtlassianBinary       #
-########################################
-sub uninstallGenericAtlassianBinary {
-	my $application;
-	my $lcApplication;
-	my $input;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$application = $_[0];
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-
-	$lcApplication = lc($application);
-
-	print
-"This will uninstall $application using the Atlassian provided uninstall script.\n";
-	print
-"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	$input = getBooleanInput("Do you really want to continue? yes/no [no]: ");
-	print "\n";
-	if ( $input eq "yes" ) {
-
-		system(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/uninstall -q" );
-		if ( $? == -1 ) {
-			$log->logdie(
-"$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n"
-			);
-		}
-
-		#Check if you REALLY want to remove data directory
-		$input = getBooleanInput(
-"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY (REALLY) sure you want to do this? (not recommended) yes/no [no]: \n"
-		);
-		print "\n";
-		if ( $input eq "yes" ) {
-			rmtree(
-				[
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.dataDir")
-					)
-				]
-			);
-		}
-		else {
-			print
-"The data directory has not been deleted and is still available at "
-			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-			  . ".\n\n";
-		}
-
-		#Update config to reflect that no version is installed
-		$globalConfig->param( "$lcApplication.installedVersion", "" );
-		$globalConfig->param( "$lcApplication.enable",           "FALSE" );
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-
-		print
-"$application has been uninstalled successfully and the config file updated to reflect $application as disabled. Press enter to continue...\n\n";
-		$input = <STDIN>;
-	}
-}
-
-########################################
 #UpgradeGeneric                        #
 ########################################
 sub upgradeGeneric {
@@ -7031,707 +6041,6 @@ sub upgradeGeneric {
 		$osUser );
 
 	#GenericUpgradeCompleted
-}
-
-########################################
-#UpgradeGenericAtlassianBinary         #
-########################################
-sub upgradeGenericAtlassianBinary {
-	my $input;
-	my $mode;
-	my $version;
-	my $application;
-	my @downloadDetails;
-	my @downloadVersionCheck;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my @parameterNull;
-	my @parameterNull2;
-	my $javaOptsValue;
-	my $varfile;
-	my @requiredConfigItems;
-	my $downloadArchivesUrl;
-	my $configUser;
-	my $lcApplication;
-	my $serverXMLFile;
-	my $needJDBC;
-	my $jdbcJAR;
-	my $subname = ( caller(0) )[3];
-	my $processReturnCode;
-
-	$log->info("BEGIN: $subname");
-
-	$application         = $_[0];
-	$downloadArchivesUrl = $_[1];
-	$configUser =
-	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
-	@requiredConfigItems = @{ $_[3] };
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
-		$downloadArchivesUrl );
-	dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
-	dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
-		@requiredConfigItems );
-
-	$lcApplication = lc($application);
-	$varfile =
-	    escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
-	  . $lcApplication
-	  . "-install.varfile";
-	dumpSingleVarToLog( "$subname" . "_varfile", $varfile );
-
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info(
-"$subname: Some of the config parameters are invalid or null. Forcing generation"
-		);
-		print
-"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
-		generateApplicationConfig( $application, "UPDATE", $globalConfig );
-	}
-
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		$input = getBooleanInput(
-"Would you like to review the $application config before upgrading? Yes/No [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-				"$subname: User opted to update config prior to installation."
-			);
-			generateApplicationConfig( $application, "UPDATE", $globalConfig );
-		}
-	}
-
-	#Set up list of config items that are requred for this install to run
-	@requiredConfigItems = ("$lcApplication.installedVersion");
-
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->warn(
-"There is no current version of JIRA listed in the config file. Asking for input of current installed version."
-		);
-		genConfigItem(
-			"UPDATE",
-			$globalConfig,
-			"$lcApplication.installedVersion",
-"There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
-			"",
-			"",
-			""
-		);
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
-
-	#Back up the Crowd configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Backing up Crowd configuration files.");
-		print "Backing up the Crowd configuration files...\n\n";
-		if ( $lcApplication eq "jira" ) {
-			if ( -e $globalConfig->param("$lcApplication.installDir")
-				. "/atlassian-jira/WEB-INF/classes/crowd.properties" )
-			{
-				copyFile(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
-					"$Bin/working/crowd.properties.$lcApplication"
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application, will not copy.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application, will not copy."
-				);
-			}
-
-		}
-		elsif ( $lcApplication eq "confluence" ) {
-			if ( -e $globalConfig->param("$lcApplication.installDir")
-				. "/confluence/WEB-INF/classes/crowd.properties" )
-			{
-				copyFile(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/crowd.properties",
-					"$Bin/working/crowd.properties.$lcApplication"
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application, will not copy.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application, will not copy."
-				);
-			}
-		}
-	}
-
-	#We are upgrading, get the latest version
-	$input = getBooleanInput(
-		"Would you like to upgrade to the latest version? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info(
-			"$subname: User opted to install latest version of $application");
-		$mode = "LATEST";
-	}
-	else {
-		$log->info(
-			"$subname: User opted to install specific version of $application"
-		);
-		$mode = "SPECIFIC";
-	}
-
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
-
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
-			dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
-
-			#Check that the input version actually exists
-			print
-"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
-
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
-			$ua->show_progress(0);
-
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$log->info(
-"$subname: User selected to install version $version of $application"
-				);
-				$VERSIONLOOP = 0;
-				print "$application version $version found. Continuing...\n\n";
-			}
-			else {
-				$log->warn(
-"$subname: User selected to install version $version of $application. No such version exists, asking for input again."
-				);
-				print
-"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
-			}
-		}
-	}
-
-	#Get the URL for the version we want to download
-	if ( $mode eq "LATEST" ) {
-		$log->info("$subname: Downloading latest version of $application");
-		@downloadVersionCheck =
-		  getLatestDownloadURL( $lcApplication, $globalArch );
-		my $versionSupported = compareTwoVersions(
-			$globalConfig->param("$lcApplication.installedVersion"),
-			$downloadVersionCheck[1] );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded ("
-				  . $downloadVersionCheck[1]
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("$lcApplication.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-	elsif ( $mode eq "SPECIFIC" && ( $enableEAPDownloads != 1 ) ) {
-		my $versionSupported = compareTwoVersions(
-			$globalConfig->param("$lcApplication.installedVersion"), $version );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded (" 
-				  . $version
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("$lcApplication.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
-		$version = $downloadDetails[1];
-
-	}
-
-	#Download a specific version
-	else {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			$globalArch );
-	}
-
-	#Prompt user to stop existing service
-	$log->info("$subname: Stopping existing $application service...");
-	print
-"We will now stop the existing $application service, please press enter to continue...";
-	$input = <STDIN>;
-	print "\n";
-	$processReturnCode = stopService(
-		$application,
-		"\""
-		  . $globalConfig->param( $lcApplication . ".processSearchParameter1" )
-		  . "\"",
-		"\""
-		  . $globalConfig->param( $lcApplication . ".processSearchParameter2" )
-		  . "\""
-	);
-
-	if ( $processReturnCode eq "FAIL" ) {
-		print
-"We were unable to stop the $application process therefore the upgrade cannot go ahead, please try stopping manually and trying again.\n\n";
-		$log->logdie(
-"$subname: We were unable to stop the process therefore the upgrade for $application cannot succeed."
-		);
-	}
-
-	#Backup the existing install
-	backupApplication($application);
-
-	#chmod the file to be executable
-	$log->info("$subname: Making $downloadDetails[2] excecutable ");
-	chmod 0755, $downloadDetails[2]
-	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
-
-	#Generate the kickstart as we have all the information necessary
-	$log->info(
-		"$subname: Generating kickstart file for $application at $varfile");
-	generateGenericKickstart( $varfile, "UPGRADE", $application );
-
-	#upgrade
-	$log->info(
-		"$subname: Running " . $downloadDetails[2] . " -q -varfile $varfile" );
-	system( $downloadDetails[2] . " -q -varfile $varfile" );
-	if ( $? == -1 ) {
-		$log->logdie(
-"$application upgrade did not complete successfully. Please check the install logs and try again: $!\n"
-		);
-	}
-
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser,
-		$globalConfig );
-	if ( $osUser eq "NOTFOUND" ) {
-
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
-			"",
-			'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
-	}
-	else {
-		$log->info("$subname: OS User created by installer is: $osUser");
-		$globalConfig->param( $lcApplication . ".osUser", $osUser );
-	}
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#Stop the application so we can apply additional configuration
-	$log->info(
-"$subname: Stopping $application so that we can apply the additional configuration options."
-	);
-	print
-"Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-	sleep(60);
-	if (
-		my $processReturnCode = stopService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		) eq "FAIL"
-	  )
-	{
-		$log->warn(
-"$subname: Could not stop $application successfully. Please make sure you restart manually following the end of installation"
-		);
-		warn
-"Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
-	}
-
-	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
-	$globalConfig->param( "$lcApplication.installedVersion", $version );
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#Check if user wants to remove the downloaded installer
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded installer "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
-		$log->info("$subname: User opted to delete downloaded installer.");
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
-
-	@parameterNull2 = $globalConfig->param("$lcApplication.javaParams");
-	if (   ( $#parameterNull2 == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq ""
-		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
-	{
-		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-	}
-	else {
-		$javaOptsValue = "CONFIGSPECIFIED";
-	}
-
-	#Apply the JavaOpts configuration (if any)
-	print "Applying Java_Opts configuration to install...\n\n";
-	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateJavaOpts(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
-		);
-	}
-
-	#Restore the Crowd configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Restoring Crowd configuration files.");
-		print "Restoring the Crowd configuration files...\n\n";
-		if ( $lcApplication eq "jira" ) {
-			if (
-				-e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-				)
-			  )
-			{
-				backupFile(
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-					),
-					$osUser
-				);
-			}
-			if (
-				-e escapeFilePath(
-					"$Bin/working/crowd.properties.$lcApplication") )
-			{
-				copyFile(
-					escapeFilePath(
-						"$Bin/working/crowd.properties.$lcApplication"),
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-					)
-				);
-
-				chownFile(
-					$osUser,
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-					)
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
-				);
-			}
-		}
-		elsif ( $lcApplication eq "confluence" ) {
-			if (
-				-e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/crowd.properties"
-				)
-			  )
-			{
-				backupFile(
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/confluence/WEB-INF/classes/crowd.properties"
-					),
-					$osUser
-				);
-			}
-			if (
-				-e escapeFilePath(
-					"$Bin/working/crowd.properties.$lcApplication") )
-			{
-				copyFile(
-					escapeFilePath(
-						"$Bin/working/crowd.properties.$lcApplication"),
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/confluence/WEB-INF/classes/crowd.properties"
-					)
-				);
-				chownFile(
-					$osUser,
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/confluence/WEB-INF/classes/crowd.properties"
-					)
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
-				);
-			}
-		}
-	}
-
-	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
-		if ( $lcApplication eq "jira" ) {
-			backupFile(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
-				),
-				$osUser
-			);
-			updateSeraphConfig(
-				$application,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
-				),
-				"com.atlassian.jira.security.login.SSOSeraphAuthenticator",
-				"com.atlassian.jira.security.login.JiraSeraphAuthenticator"
-			);
-		}
-		elsif ( $lcApplication eq "confluence" ) {
-			backupFile(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/seraph-config.xml"
-				),
-				$osUser
-			);
-			updateSeraphConfig(
-				$application,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/seraph-config.xml"
-				),
-				"com.atlassian.confluence.user.ConfluenceCrowdSSOAuthenticator",
-				"com.atlassian.confluence.user.ConfluenceAuthenticator"
-			);
-		}
-	}
-
-#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
-
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
-"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		$log->info(
-"$subname: Copying MySQL JDBC connector to $application install directory."
-		);
-		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-
-		#Chown the files again
-		$log->info(
-			"$subname: Chowning "
-			  . escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-			  )
-			  . "/lib/"
-		);
-		chownRecursive( $osUser,
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-	}
-
-	print "Applying configuration settings to the install, please wait...\n\n";
-
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
-
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		$osUser
-	);
-
-	print "Applying the configured application context...\n\n";
-	$log->info( "$subname: Applying application context to "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml" );
-
-#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
-
-	@parameterNull = $globalConfig->param("general.dbJDBCJar");
-	if ( ( $#parameterNull == -1 ) ) {
-		$jdbcJAR = "";
-		$log->info("$subname: JDBC undefined in settings.cnf");
-	}
-	else {
-		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
-		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
-	}
-
-	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
-		if ( $lcApplication eq "confluence" ) {
-			print
-"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
-			if (
-				-e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				)
-				. "/lib/ojdbc6.jar"
-				|| -e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				)
-				. "/confluence/WEB-INF/lib/ojdbc6.jar"
-			  )
-			{
-				$needJDBC = "FALSE";
-				$log->info(
-"$subname: JDBC already exists in $application lib directories"
-				);
-			}
-			else {
-				$needJDBC = "TRUE";
-				$log->info(
-"$subname: JDBC does not exist in $application lib directories"
-				);
-			}
-		}
-		else {
-			$needJDBC = "FALSE";
-		}
-
-		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
-			$log->info(
-				"$subname: Copying Oracle JDBC to $application lib directory");
-			copyFile(
-				$globalConfig->param("general.dbJDBCJar"),
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/lib/"
-			);
-
-			#Chown the files again
-			$log->info(
-				"$subname: Chowning "
-				  . escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/lib/"
-				  . " to $osUser following Oracle JDBC install."
-			);
-			chownRecursive(
-				$osUser,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/lib/"
-			);
-
-		}
-		elsif ( $needJDBC eq "FALSE" ) {
-			$log->info(
-"$subname: $application already has ojdbc6.jar, no need to copy. "
-			);
-		}
-		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
-			$log->info(
-"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
-			);
-			print
-"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
-			$input = <STDIN>;
-		}
-	}
-
-	#Update the server config with reverse proxy configuration
-	$serverXMLFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/server.xml";
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverXMLFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
-		{
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("general.apacheProxyHost") );
-
-			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
-				$globalConfig->param("general.apacheProxyPort") );
-		}
-		else {
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("$lcApplication.apacheProxyHost") );
-
-			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
-				"TRUE" )
-			{
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
-				$globalConfig->param("$lcApplication.apacheProxyPort") );
-		}
-	}
-
-	#Update the server config with the configured connector port
-	updateXMLAttribute(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig )
-	);
 }
 
 ########################################
@@ -11977,6 +10286,9 @@ sub installConfluence {
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
 	my $osUser;
+	my $jdbcJAR;
+	my $needJDBC;
+	my $input;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -12151,6 +10463,90 @@ sub installConfluence {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
+	}
+
 	#Generate the init.d file
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
@@ -12191,6 +10587,9 @@ sub upgradeConfluence {
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
 	my $osUser;
+	my $jdbcJAR;
+	my $needJDBC;
+	my $input;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -12364,6 +10763,90 @@ sub upgradeConfluence {
 	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
+	}
 
 	#Generate the init.d file
 	print
