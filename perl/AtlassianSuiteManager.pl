@@ -2056,7 +2056,7 @@ sub generateInitD {
 		@initSpecific = (
 			"#!/bin/sh -e\n",
 			"### BEGIN INIT INFO\n",
-			"# Provides:          $lcApplication\n",
+			"# Provides:          $application\n",
 			"# Required-Start:    \n",
 			"# Required-Stop:     \n",
 			"# Default-Start:     2 3 4 5\n",
@@ -2078,14 +2078,14 @@ sub generateInitD {
 		'case "$1" in' . "\n",
 		"  # Start command\n",
 		"  start)\n",
-		'    echo "Starting $APP"' . "\n",
+		'    echo "Starting $application"' . "\n",
 		'    /bin/su -m $USER -c "$BASE/$STARTCOMMAND &> /dev/null"' . "\n",
 		"    ;;\n",
 		"  # Stop command\n",
 		"  stop)\n",
-		'    echo "Stopping $APP"' . "\n",
+		'    echo "Stopping $application"' . "\n",
 		'    /bin/su -m $USER -c "$BASE/$STOPCOMMAND &> /dev/null"' . "\n",
-		'    echo "$APP stopped successfully"' . "\n",
+		'    echo "$application stopped successfully"' . "\n",
 		"    ;;\n",
 		"   # Restart command\n",
 		"   restart)\n",
@@ -2115,6 +2115,219 @@ sub generateInitD {
 	$log->info("$subname: Chmodding init.d file for $lcApplication.");
 	chmod 0755, "/etc/init.d/$lcApplication"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
+
+	#Always call an update to the main Atlassian init.d script
+	generateInitDforSuite();
+}
+
+########################################
+#GenerateInitDForSuite                 #
+########################################
+sub generateInitDforSuite {
+	my @initGeneric;
+	my @addToInitGeneric;
+	my @initSpecific;
+	my @stopCommands;
+	my @startCommands;
+	my @addToCommands;
+	my @enabledApps;
+	my $subname = ( caller(0) )[3];
+	my $isBambooInstalled;
+	my $isCrowdInstalled;
+	my $isConfluenceInstalled;
+	my $isFisheyeInstalled;
+	my $isJiraInstalled;
+	my $isStashInstalled;
+	my @parameterNull;
+	my $lcApplication;
+	my $application;
+	my $input;
+
+	$log->info("BEGIN: $subname");
+
+	#Get current suite install status
+	@parameterNull = $globalConfig->param("bamboo.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("bamboo.installedVersion") eq "" )
+	{
+		$isBambooInstalled = "FALSE";
+	}
+	else {
+		$isBambooInstalled = "TRUE";
+		push( @enabledApps, "Bamboo" );
+	}
+
+	@parameterNull = $globalConfig->param("confluence.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("confluence.installedVersion") eq "" )
+	{
+		$isConfluenceInstalled = "FALSE";
+	}
+	else {
+		$isConfluenceInstalled = "TRUE";
+		push( @enabledApps, "Confluence" );
+	}
+
+	@parameterNull = $globalConfig->param("crowd.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("crowd.installedVersion") eq "" )
+	{
+		$isCrowdInstalled = "FALSE";
+	}
+	else {
+		$isCrowdInstalled = "TRUE";
+		push( @enabledApps, "Crowd" );
+	}
+
+	@parameterNull = $globalConfig->param("fisheye.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("fisheye.installedVersion") eq "" )
+	{
+		$isFisheyeInstalled = "FALSE";
+	}
+	else {
+		$isFisheyeInstalled = "TRUE";
+		push( @enabledApps, "Fisheye" );
+	}
+
+	@parameterNull = $globalConfig->param("jira.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("jira.installedVersion") eq "" )
+	{
+		$isJiraInstalled = "FALSE";
+	}
+	else {
+		$isJiraInstalled = "TRUE";
+		push( @enabledApps, "JIRA" );
+	}
+
+	@parameterNull = $globalConfig->param("stash.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("stash.installedVersion") eq "" )
+	{
+		$isStashInstalled = "FALSE";
+	}
+	else {
+		$isStashInstalled = "TRUE";
+		push( @enabledApps, "Stash" );
+	}
+
+	if ( $distro eq "redhat" ) {
+		@initSpecific = (
+			"#!/bin/sh -e\n",
+			"# Atlassian Suite startup script\n",
+			, "#description: Atlassian stop/start/restart script. \n"
+		);
+	}
+	elsif ( $distro eq "debian" ) {
+		@initSpecific = (
+			"#!/bin/sh -e\n",
+			"### BEGIN INIT INFO\n",
+			"# Provides:          Atlassian Suite\n",
+			"# Required-Start:    \n",
+			"# Required-Stop:     \n",
+"# Short-Description: Control all installed Atlassian Suite apps with one command.\n",
+"# Description:       Control all installed Atlassian Suite apps with one command.\n",
+			"### END INIT INFO\n"
+		);
+	}
+
+	foreach (@enabledApps) {
+		undef(@addToCommands);
+		$application   = $_;
+		$lcApplication = lc($application);
+
+		@addToCommands = (
+			"    if service $lcApplication stop ; then\n",
+			"        echo \n",
+			"    else\n",
+			'        if `ps -ef | grep -i '
+			  . $lcApplication
+			  . ' | grep -v "grep"`; then' . "\n",
+"            echo 'Unable to stop $application gracefully therefore killing it'\n",
+"            APP_PID=`ps -ef | grep confluence | awk -F ' ' '{print \$2}'`\n",
+			'            kill -9 $APP_PID' . "\n",
+			"            else\n",
+			"            echo '$application is not currently running'\n",
+			"            echo \n",
+			"        fi\n",
+			"    fi\n",
+			"\n"
+		);
+
+		push( @stopCommands, @addToCommands );
+		undef(@addToCommands);
+		@addToCommands = (
+			"    if service $lcApplication start ; then\n",
+			"        echo \n",
+			"    else\n",
+"        echo 'Unable to start $application automagically. Please try to start it up manually'\n\n",
+			"    fi\n",
+			"\n"
+		);
+
+		push( @startCommands, @addToCommands );
+		undef(@addToCommands);
+	}
+
+	@initGeneric = (
+		"\n",
+		'case "$1" in' . "\n",
+		"  # Start command\n",
+		"  start)\n", '    echo "Starting the Atlassian Suite"' . "\n"
+	);
+	push( @initGeneric, @startCommands );
+	@addToInitGeneric = (
+		'    echo "Starting the Atlassian Suite"' . "\n",
+		"    ;;\n",
+		"  # Stop command\n",
+		"  stop)\n",
+		'    echo "Stopping the Atlassian Suite"' . "\n"
+	);
+	push( @initGeneric, @addToInitGeneric );
+	push( @initGeneric, @stopCommands );
+	undef(@addToInitGeneric);
+	@addToInitGeneric = (
+		'    echo "Atlassian Suite stopped successfully"' . "\n",
+		"    ;;\n",
+		"   # Restart command\n",
+		"   restart)\n",
+		'    echo "Restarting Atlassian Suite"' . "\n"
+	);
+	push( @initGeneric, @addToInitGeneric );
+	push( @initGeneric, @stopCommands );
+	undef(@addToInitGeneric);
+	@addToInitGeneric =
+	  ( '    echo "Sleeping for 20 seconds"' . "\n", "        sleep 20\n" );
+	push( @initGeneric, @addToInitGeneric );
+	push( @initGeneric, @startCommands );
+	undef(@addToInitGeneric);
+	@addToInitGeneric = (
+		'    echo "Atlassian Suite restarted successfully"' . "\n",
+		"        ;;\n",
+		"  *)\n",
+		'    echo "Usage: /etc/init.d/atlassian {start|restart|stop}"' . "\n",
+		"    exit 1\n",
+		"    ;;\n",
+		"esac\n",
+		"\n",
+		"exit 0\n"
+	);
+
+	push( @initGeneric,  @addToInitGeneric );
+	push( @initSpecific, @initGeneric );
+
+	#Write out file to /etc/init.d
+	$log->info("$subname: Writing out init.d file for atlassian.");
+	open FILE, ">/etc/init.d/atlassian"
+	  or $log->logdie("Unable to open file /etc/init.d/atlassian: $!");
+	print FILE @initSpecific;
+	close FILE;
+
+	#Make the new init.d file executable
+	$log->info("$subname: Chmodding init.d file for atlassian.");
+	chmod 0755, "/etc/init.d/atlassian"
+	  or $log->logdie("Couldn't chmod /etc/init.d/atlassian: $!");
 }
 
 ########################################
