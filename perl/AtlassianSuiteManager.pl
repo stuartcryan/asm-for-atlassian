@@ -3287,7 +3287,7 @@ sub getLatestDownloadURL {
 
 #For each application define the file type that we are looking for in the json feed
 	if ( $lcApplication eq "confluence" ) {
-		$searchString = ".*Linux.*$architecture.*";
+		$searchString = ".*TAR\.GZ.*";
 	}
 	elsif ( $lcApplication eq "jira" ) {
 		$searchString = ".*Linux.*$architecture.*";
@@ -3674,11 +3674,10 @@ sub getVersionDownloadURL {
 
 #For each application generate the file name based on known information and input data
 	if ( $lcApplication eq "confluence" ) {
-		$fileExt = "bin";
+		$fileExt = "tar.gz";
 		$filename =
 		    "atlassian-confluence-" 
-		  . $version . "-x"
-		  . $architecture . "."
+		  . $version . "."
 		  . $fileExt;
 	}
 	elsif ( $lcApplication eq "jira" ) {
@@ -11970,6 +11969,10 @@ sub generateConfluenceConfig {
 #Install Confluence                    #
 ########################################
 sub installConfluence {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -12007,19 +12010,133 @@ sub installConfluence {
 			push( @requiredConfigItems, "confluence.apacheProxyHost" );
 		}
 	}
-
+	
 	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+	  
+	$initPropertiesFile =
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/confluence/WEB-INF/classes/$lcApplication-init.properties";
+	$javaMemParameterFile =
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+	
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit Confluence config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"confluence.home= ",
+		"confluence.home= "
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  ,
+		"# confluence.home="
 	);
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
 
-	$javaMemParameterFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/bin/setenv.sh";
-	backupFile( $javaMemParameterFile, $osUser );
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -12035,7 +12152,17 @@ sub installConfluence {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	postInstallGenericAtlassianBinary($application);
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-confluence.sh", "/bin/stop-confluence.sh" );
+
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
 }
 
 ########################################
@@ -12046,13 +12173,17 @@ sub uninstallConfluence {
 	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	uninstallGenericAtlassianBinary($application);
+	uninstallGeneric($application);
 }
 
 ########################################
 #UpgradeConfluence                     #
 ########################################
 sub upgradeConfluence {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -12090,18 +12221,133 @@ sub upgradeConfluence {
 			push( @requiredConfigItems, "confluence.apacheProxyHost" );
 		}
 	}
+	
+	#Run generic upgrader steps
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
 
-	upgradeGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+	  
+	$initPropertiesFile =
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/confluence/WEB-INF/classes/$lcApplication-init.properties";
+	$javaMemParameterFile =
+	    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/bin/setenv.sh";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+	
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit Confluence config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"confluence.home= ",
+		"confluence.home= "
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  ,
+		"# confluence.home="
 	);
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
 
-	$javaMemParameterFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/bin/setenv.sh";
-	backupFile( $javaMemParameterFile, $osUser );
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			$globalConfig->param( $lcApplication . ".javaParams" )
+		);
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -12117,7 +12363,17 @@ sub upgradeConfluence {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	postUpgradeGenericAtlassianBinary($application);
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD( $lcApplication, $osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-confluence.sh", "/bin/stop-confluence.sh" );
+
+#Finally run generic post install tasks
+	postUpgradeGeneric($application);
 }
 
 #######################################################################
