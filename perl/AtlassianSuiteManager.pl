@@ -49,6 +49,7 @@ use File::Find;
 use Archive::Extract;
 use FindBin '$Bin';
 use XML::Twig;
+use XML::Simple;
 use Socket qw( PF_INET SOCK_STREAM INADDR_ANY sockaddr_in );
 use Errno qw( EADDRINUSE );
 use Getopt::Long;
@@ -83,6 +84,7 @@ my $globalArch;
 my $logFile;
 my @suiteApplications =
   ( "Bamboo", "Confluence", "Crowd", "Fisheye", "JIRA", "Stash" );
+my @latestVersions;
 my $log = Log::Log4perl->get_logger("");
 $Archive::Extract::PREFER_BIN = 1;
 
@@ -1675,6 +1677,31 @@ sub downloadLatestAtlassianSuite {
 }
 
 ########################################
+#dumpArrayToFile                       #
+########################################
+sub dumpArrayToFile {
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Code thanks go to Kyle on http://www.perlmonks.org/?node_id=704380
+
+	my ( $fileName, $array_ref ) = @_;
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_fileName",  $fileName );
+	dumpSingleVarToLog( "$subname" . "_array_ref", $array_ref );
+
+	open my $fh, '>', $fileName
+	  or $log->logdie("Can't write to '$fileName': $!\n\n");
+	local $Data::Dumper::Terse = 1;    # no '$VAR1 = '
+	local $Data::Dumper::Useqq = 1;    # double quoted strings
+	print $fh Dumper $array_ref;
+	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
+
+}
+
+########################################
 #dumpSingleVarToLog                    #
 ########################################
 sub dumpSingleVarToLog {
@@ -2131,6 +2158,7 @@ sub generateInitDforSuite {
 	my @startCommands;
 	my @addToCommands;
 	my @enabledApps;
+
 	my $subname = ( caller(0) )[3];
 	my $isBambooInstalled;
 	my $isCrowdInstalled;
@@ -2923,6 +2951,58 @@ sub generateSuiteConfig {
 	print
 "The suite configuration has been generated successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
+}
+
+########################################
+#Get all the latest download URLs      #
+########################################
+sub getAllLatestDownloadURLs {
+	my @returnArray;
+	my @downloadArray;
+	my $application;
+	my $decoded_json;
+	my $lcApplication;
+	my $menuText;
+
+	my $subname = ( caller(0) )[3];
+
+	# define the main menu as a multiline string
+	$menuText = <<'END_TXT';
+
+      Welcome to the ASM Script for Atlassian(R)
+
+      Copyright (C) 2012-2013  Stuart Ryan
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      *****************************************************************
+      * Please Wait... Getting latest version details from Atlassian  *
+      *****************************************************************
+      
+
+END_TXT
+
+	# print the main menu
+	system 'clear';
+	print $menuText;
+
+	$log->info("BEGIN: $subname");
+
+	foreach (@suiteApplications) {
+		$application   = $_;
+		$lcApplication = lc($application);
+		@downloadArray = getLatestDownloadURL( $application, $globalArch );
+		push(
+			@latestVersions,
+			{
+				application => "$application",
+				URL         => $downloadArray[0],
+				version     => $downloadArray[1]
+			}
+		);
+	}
 }
 
 ########################################
@@ -4686,6 +4766,29 @@ sub postUpgradeGeneric {
 	print
 "The $application upgrade has completed successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
+}
+
+########################################
+#readArrayFromFile                     #
+########################################
+sub readArrayFromFile {
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Code below - thanks go to Kyle on http://www.perlmonks.org/?node_id=704380
+
+	my ($fileName) = @_;
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
+
+	open my $fh, '<', $fileName
+	  or die "Can't read '$fileName': $!";
+	local $/ = undef;    # read whole file
+	my $dumped = <$fh>;
+	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
+	return @{ eval $dumped };
 }
 
 ########################################
@@ -6498,6 +6601,8 @@ sub bootStrapper {
 	#Set the architecture once on startup
 	$globalArch = whichApplicationArchitecture();
 
+	getAllLatestDownloadURLs();
+
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
 	my $install_crowd       = 0;     #commandOption
@@ -7064,11 +7169,9 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			createOrUpdateLineInXML(
-				"/opt/atlassian/bamboo/webapp/WEB-INF/classes/jetty.xml",
-				".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
-				"                <Set name=\"forwarded\">true</Set>\n"
-			);
+			my $file = "$Bin/latestVersions.cache";
+
+			out( $file, \@latestVersions );
 			my $test = <STDIN>;
 		}
 	}
