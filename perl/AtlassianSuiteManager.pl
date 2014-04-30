@@ -976,6 +976,12 @@ sub createOrUpdateLineInXML {
 ########################################
 sub createOSUser {
 	my $osUser;
+	my @uidParameterNull;
+	my @gidParameterNull;
+	my $osUserUID;
+	my $osUserGID;
+	my $application;
+	my $lcApplication;
 	my $subname = ( caller(0) )[3];
 
 	#	my @chars = ("A".."Z", "a".."z", "0".."9");
@@ -985,7 +991,9 @@ sub createOSUser {
 
 	$log->info("BEGIN: $subname");
 
-	$osUser = $_[0];
+	$osUser        = $_[0];
+	$application   = $_[1];
+	$lcApplication = lc($application);
 
 	#	#Create random password and salt
 	#	$password .= $chars[rand @chars] for 1..16;
@@ -996,29 +1004,117 @@ sub createOSUser {
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 
 	if ( !getpwnam($osUser) ) {
-print
+		print
 "The system account '$osUser' does not exist. Creating the account.\n\n";
-		system("useradd $osUser");
-		if ( $? == -1 ) {
-			$log->logdie("could not create system user $osUser");
+
+#Check the configuration file for forced UIDs and GIDs for the system account
+#Note these can not be created via the GUI and must be added to the config file manually
+		@uidParameterNull = $globalConfig->param("$lcApplication.osUserUID");
+		@gidParameterNull = $globalConfig->param("$lcApplication.osUserGID");
+
+		if ( $#uidParameterNull == -1 ) {
+			$log->info("$subname: No GID specified in config for $osUser.");
+			$osUserUID = "";
 		}
 		else {
-			$log->info("System user $osUser added successfully.");
+			$osUserUID = $globalConfig->param("$lcApplication.osUserUID");
+			dumpSingleVarToLog( "$subname" . "_osUserUID", $osUserUID );
+
+		}
+
+		if ( $#gidParameterNull == -1 ) {
+			$log->info("$subname: No UID specified in config for $osUser.");
+			$osUserGID = "";
+		}
+		else {
+			$osUserGID = $globalConfig->param("$lcApplication.osUserGID");
+			dumpSingleVarToLog( "$subname" . "_osUserGID", $osUserGID );
+
+		}
+
+		#Check if group exists
+		system("grep $osUser /etc/group");
+		if ( $? != 0 ) {
+			$log->info(
+				"$subname: System group $osUser does not exist. Adding.");
 			print
-"The system account '$osUser' has been created successfully. You must now enter a password for the new '$osUser' system account to be used if you wish to log in as it later: \n\n";
-			system("passwd $osUser");
-			if ( $? == -1 ) {
-				$log->info("Password creation failed for $osUser");
-				print
-"Password creation for '$osUser' has failed, as this is not fatal we will continue, however you will need to create a password manually later: \n\n";
+"The system group '$osUser' does not yet exist. Creating the group now: \n\n";
+
+			#Group does not exist therefore create
+			if ( $osUserGID eq "" ) {
+
+				#No GID has been specified in config, adding with default GID
+				system("groupadd $osUser");
+				if ( $? == -1 ) {
+					$log->logdie(
+						"$subname: Could not create system group '$osUser'");
+				}
+				else {
+					$log->info(
+						"$subname: System group '$osUser' created successfully"
+					);
+				}
 			}
 			else {
-				$log->info("Password created for $osUser successfully.");
+
+				#GID has been specified in config, adding with specified GID
+				system("groupadd -g $osUserGID $osUser");
+				if ( $? == -1 ) {
+					$log->logdie(
+						"$subname: Could not create system group '$osUser'");
+				}
+				else {
+					$log->info(
+						"$subname: System group '$osUser' created successfully"
+					);
+				}
 			}
+		}
+		else {
+			$log->info("$subname: System group $osUser already exists.");
+		}
+
+		if ( $osUserUID eq "" ) {
+
+			#No UID has been specified in config, adding with default UID
+			system("useradd $osUser -g $osUser");
+			if ( $? == -1 ) {
+				$log->logdie(
+					"$subname: Could not create system user '$osUser'");
+			}
+			else {
+				$log->info(
+					"$subname: System user '$osUser' created successfully.");
+			}
+		}
+		else {
+
+			#UID has been specified in config, adding with specified UID
+			system("useradd -u $osUserUID $osUser -g $osUser");
+			if ( $? == -1 ) {
+				$log->logdie(
+					"$subname: Could not create system user '$osUser'");
+			}
+			else {
+				$log->info(
+					"$subname: System user '$osUser' created successfully.");
+			}
+		}
+
+		print
+"The system account '$osUser' has been created successfully. You must now enter a password for the new '$osUser' system account to be used if you wish to log in to it later: \n\n";
+		system("passwd $osUser");
+		if ( $? == -1 ) {
+			$log->info("$subname: Password creation failed for $osUser");
+			print
+"Password creation for '$osUser' has failed, as this is not fatal we will continue, however you will need to create a password manually later: \n\n";
+		}
+		else {
+			$log->info("$subname: Password created for $osUser successfully.");
 		}
 	}
 	else {
-		$log->info("System user $osUser already exists.");
+		$log->info("$subname: System user $osUser already exists.");
 	}
 }
 
@@ -3788,12 +3884,12 @@ is currently in use. We will continue however there is a good chance $applicatio
 		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
 			$globalArch );
 	}
-	
+
 	#Get the user the application will run as
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	#Check the user exists or create if not
-	createOSUser($osUser);
+	createOSUser( $osUser, $application );
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
@@ -5941,12 +6037,12 @@ sub upgradeGeneric {
 
 	#Backup the existing install
 	backupApplication($application);
-	
+
 	#Get the user the application will run as
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	#Check the user exists or create if not
-	createOSUser($osUser);
+	createOSUser( $osUser, $application );
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
