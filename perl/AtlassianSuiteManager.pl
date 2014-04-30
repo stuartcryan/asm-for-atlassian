@@ -85,7 +85,8 @@ my $logFile;
 my @suiteApplications =
   ( "Bamboo", "Confluence", "Crowd", "Fisheye", "JIRA", "Stash" );
 my @latestVersions;
-my $log = Log::Log4perl->get_logger("");
+my $latestVersionsCacheFile = "$Bin/working/latestVersions.cache";
+my $log                     = Log::Log4perl->get_logger("");
 $Archive::Extract::PREFER_BIN = 1;
 
 #######################################################################
@@ -2962,6 +2963,7 @@ sub getAllLatestDownloadURLs {
 	my $application;
 	my $decoded_json;
 	my $lcApplication;
+	my $refreshNeeded = "TRUE";
 	my $menuText;
 
 	my $subname = ( caller(0) )[3];
@@ -2990,18 +2992,41 @@ END_TXT
 
 	$log->info("BEGIN: $subname");
 
-	foreach (@suiteApplications) {
-		$application   = $_;
-		$lcApplication = lc($application);
-		@downloadArray = getLatestDownloadURL( $application, $globalArch );
-		push(
-			@latestVersions,
-			{
-				application => "$application",
-				URL         => $downloadArray[0],
-				version     => $downloadArray[1]
-			}
-		);
+	if ( -e $latestVersionsCacheFile ) {
+		print "cache file found";
+
+		#Has file been modified within the last 24 hours?
+		if ( 1 < -M $latestVersionsCacheFile ) {
+
+			#file is older than 24 hours, refresh needed
+			$refreshNeeded = "TRUE";
+		}
+		else {
+
+			#file has been modified within the last 24 hours - use it as a cache
+			@latestVersions = readArrayFromFile($latestVersionsCacheFile);
+			$refreshNeeded  = "FALSE";
+		}
+	}
+
+	if ( $refreshNeeded eq "TRUE" ) {
+		undef(@latestVersions);
+		foreach (@suiteApplications) {
+			$application   = $_;
+			$lcApplication = lc($application);
+			@downloadArray = getLatestDownloadURL( $application, $globalArch );
+			push(
+				@latestVersions,
+				{
+					application => "$application",
+					URL         => $downloadArray[0],
+					version     => $downloadArray[1]
+				}
+			);
+		}
+
+		#outputAsACache
+		dumpArrayToFile( $latestVersionsCacheFile, \@latestVersions );
 	}
 }
 
@@ -6748,6 +6773,92 @@ sub bootStrapper {
 }
 
 ########################################
+#Display Advanced Menu                 #
+########################################
+sub displayAdvancedMenu {
+	my $choice;
+	my $main_menu;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$main_menu = <<'END_TXT';
+
+      Welcome to the ASM Script for Atlassian(R)
+
+      Copyright (C) 2012-2013  Stuart Ryan
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with significantly discounted hosting without which I would not have been
+      able to write, and continue hosting the Atlassian Suite for my open source projects and
+      this script.
+      ###########################################################################################
+      
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+
+      **********************
+      * ASM Advanced Menu  *
+      **********************
+      
+      Please select from the following options:
+
+      1) Force refresh of latest versions cache file
+      Q) Return to Main Menu
+
+END_TXT
+
+		# print the main menu
+		system 'clear';
+		print $main_menu;
+
+		# prompt for user's choice
+		printf( "%s", "Please enter your selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+		dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
+			$LOOP = 0;
+		}
+		elsif ( lc($choice) eq "1\n" ) {
+			system 'clear';
+			if ( -e $latestVersionsCacheFile ) {
+				print "Deleting cache file...\n\n";
+				rmtree( [ escapeFilePath( $latestVersionsCacheFile ) ] );
+				print "Refreshing the cache...\n\n";
+				getAllLatestDownloadURLs();
+
+				print
+				  "Cache refresh completed. Please press enter to continue\n\n";
+				my $test = <STDIN>;
+
+			}
+			else {
+				print
+"No cache file currently exists - proceeding with refresh...\n\n";
+				getAllLatestDownloadURLs();
+				print
+				  "Cache refresh completed. Please press enter to continue\n\n";
+				my $test = <STDIN>;
+			}
+		}
+	}
+}
+
+########################################
 #Display Inital Config Menu            #
 ########################################
 sub displayInitialConfigMenu {
@@ -6799,7 +6910,6 @@ END_TXT
 		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
 			system 'clear';
 			$LOOP = 0;
-			exit 0;
 		}
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
@@ -7115,6 +7225,7 @@ sub displayMainMenu {
       2) Upgrade an existing application
       3) Uninstall an application
       4) Recover backup after failed upgrade
+      5) Display advanced settings menu 
       U) Display URLs for each installed application (inc. ports)
       G) Generate Suite Config
       Q) Quit
@@ -7155,6 +7266,10 @@ END_TXT
 			system 'clear';
 			displayRestoreMenu();
 		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			displayAdvancedMenu();
+		}
 		elsif ( lc($choice) eq "u\n" ) {
 			system 'clear';
 			displayQuickConfig();
@@ -7169,9 +7284,6 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			my $file = "$Bin/latestVersions.cache";
-
-			out( $file, \@latestVersions );
 			my $test = <STDIN>;
 		}
 	}
