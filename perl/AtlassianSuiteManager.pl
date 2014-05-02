@@ -84,7 +84,9 @@ my $globalArch;
 my $logFile;
 my @suiteApplications =
   ( "Bamboo", "Confluence", "Crowd", "Fisheye", "JIRA", "Stash" );
-my @latestVersions;
+my %latestVersions  = ();
+my %appsWithUpdates = ();
+my $availableUpdatesString;
 my $latestVersionsCacheFile = "$Bin/working/latestVersions.cache";
 my $log                     = Log::Log4perl->get_logger("");
 $Archive::Extract::PREFER_BIN = 1;
@@ -463,6 +465,67 @@ sub checkCrowdConfig {
 			}
 			else {
 				return "SUCCESS";
+			}
+		}
+	}
+}
+
+########################################
+#Check for Available Updates           #
+########################################
+sub checkForAvailableUpdates {
+	my $cfg;
+	my $configItem;
+	my $availCode;
+	my $configValue;
+	my $application;
+	my $lcApplication;
+	my $versionCompareResult;
+	my @parameterNull;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	#force a reload of the global config file
+	loadSuiteConfig();
+
+	#undefine any previous details in the hash in case we are re-running:
+	undef(%appsWithUpdates);
+
+	$log->info("BEGIN: $subname");
+	foreach (@suiteApplications) {
+
+		$application   = $_;
+		$lcApplication = lc($application);
+
+		@parameterNull =
+		  $globalConfig->param("$lcApplication.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.installedVersion") eq "" )
+		{
+			$log->debug(
+"$subname: $application is not installed therefore not checking for updates."
+			);
+		}
+		else {
+			$log->debug(
+				"$subname: $application is installed. Checking for updates.");
+			$versionCompareResult = compareTwoVersions(
+				$globalConfig->param("$lcApplication.installedVersion"),
+				$latestVersions{"$application"}->{"version"}
+			);
+			if ( $versionCompareResult eq "LESS" ) {
+				$log->debug(
+					"$subname: $application update is available installedVer: "
+					  . $globalConfig->param("$lcApplication.installedVersion")
+					  . " availableVer: "
+					  . $latestVersions{"$application"}->{"version"} );
+				$appsWithUpdates{"$application"}{"installedVersion"} =
+				  $globalConfig->param("$lcApplication.installedVersion");
+				$appsWithUpdates{"$application"}{"availableVersion"} =
+				  $latestVersions{"$application"}->{"version"};
+			}
+			else {
+				$log->debug("$subname: $application is up to date.");
 			}
 		}
 	}
@@ -1298,8 +1361,7 @@ sub downloadAtlassianInstaller {
 	#Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
 		$log->debug("$subname: Downloading latest version of $application");
-		@downloadDetails =
-		  getLatestDownloadURL( $lcApplication, $architecture );
+		@downloadDetails = ( $latestVersions{"$application"}->{"URL"}, $latestVersions{"$application"}->{"version"} );
 	}
 	else {
 		$log->debug("$subname: Downloading version $version of $application");
@@ -1678,26 +1740,26 @@ sub downloadLatestAtlassianSuite {
 }
 
 ########################################
-#dumpArrayToFile                       #
+#dumpHashToFile                        #
 ########################################
-sub dumpArrayToFile {
+sub dumpHashToFile {
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
 	#Code thanks go to Kyle on http://www.perlmonks.org/?node_id=704380
 
-	my ( $fileName, $array_ref ) = @_;
+	my ( $fileName, %hash_ref ) = @_;
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_fileName",  $fileName );
-	dumpSingleVarToLog( "$subname" . "_array_ref", $array_ref );
+	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
+	dumpSingleVarToLog( "$subname" . "_hash_ref", %hash_ref );
 
 	open my $fh, '>', $fileName
 	  or $log->logdie("Can't write to '$fileName': $!\n\n");
 	local $Data::Dumper::Terse = 1;    # no '$VAR1 = '
 	local $Data::Dumper::Useqq = 1;    # double quoted strings
-	print $fh Dumper $array_ref;
+	print $fh Dumper \%hash_ref;
 	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
 
 }
@@ -1980,6 +2042,35 @@ sub generateApplicationConfig {
 }
 
 ########################################
+#Generate Available Updates String     #
+########################################
+sub generateAvailableUpdatesString {
+	my $cfg;
+	my $configItem;
+	my $availCode;
+	my $configValue;
+	my $application;
+	my $lcApplication;
+	my $versionCompareResult;
+	my @parameterNull;
+	my $returnString;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+	$returnString =
+"      There are updates available for one or more of your installed applications:\n";
+
+	foreach my $key ( keys %appsWithUpdates ) {
+
+		$returnString .=
+"      $key: $appsWithUpdates{$key}->{installedVersion} --> $appsWithUpdates{$key}->{availableVersion}\n";
+
+	}
+	$availableUpdatesString = $returnString;
+}
+
+########################################
 #Generate crowd.properties file        #
 ########################################
 sub generateCrowdPropertiesFile {
@@ -2097,7 +2188,8 @@ sub generateInitD {
 
 	@initGeneric = (
 		"\n",
-		"APP=" . $lcApplication . "\n",
+		"APP=" . $application . "\n",
+		"LCAPP=" . $lcApplication . "\n",
 		"USER=" . $runUser . "\n",
 		"BASE=" . $baseDir . "\n",
 		"STARTCOMMAND=\"" . $startCmd . "\"\n",
@@ -2106,14 +2198,15 @@ sub generateInitD {
 		'case "$1" in' . "\n",
 		"  # Start command\n",
 		"  start)\n",
-		'    echo "Starting $application"' . "\n",
+		'    echo "Starting $APP"' . "\n",
 		'    /bin/su -m $USER -c "$BASE/$STARTCOMMAND &> /dev/null"' . "\n",
+		'    echo "$APP started successfully"' . "\n",
 		"    ;;\n",
 		"  # Stop command\n",
 		"  stop)\n",
-		'    echo "Stopping $application"' . "\n",
+		'    echo "Stopping $APP"' . "\n",
 		'    /bin/su -m $USER -c "$BASE/$STOPCOMMAND &> /dev/null"' . "\n",
-		'    echo "$application stopped successfully"' . "\n",
+		'    echo "$APP stopped successfully"' . "\n",
 		"    ;;\n",
 		"   # Restart command\n",
 		"   restart)\n",
@@ -2122,7 +2215,7 @@ sub generateInitD {
 		'        $0 start' . "\n",
 		"        ;;\n",
 		"  *)\n",
-		'    echo "Usage: /etc/init.d/$APP {start|restart|stop}"' . "\n",
+		'    echo "Usage: /etc/init.d/$LCAPP {start|restart|stop}"' . "\n",
 		"    exit 1\n",
 		"    ;;\n",
 		"esac\n",
@@ -3004,29 +3097,25 @@ END_TXT
 		else {
 
 			#file has been modified within the last 24 hours - use it as a cache
-			@latestVersions = readArrayFromFile($latestVersionsCacheFile);
+			%latestVersions = readHashFromFile($latestVersionsCacheFile);
 			$refreshNeeded  = "FALSE";
 		}
 	}
 
 	if ( $refreshNeeded eq "TRUE" ) {
-		undef(@latestVersions);
+		undef(%latestVersions);
 		foreach (@suiteApplications) {
 			$application   = $_;
 			$lcApplication = lc($application);
 			@downloadArray = getLatestDownloadURL( $application, $globalArch );
-			push(
-				@latestVersions,
-				{
-					application => "$application",
-					URL         => $downloadArray[0],
-					version     => $downloadArray[1]
-				}
-			);
+
+			$latestVersions{"$application"}{'URL'}     = $downloadArray[0];
+			$latestVersions{"$application"}{'version'} = $downloadArray[1];
+
 		}
 
 		#outputAsACache
-		dumpArrayToFile( $latestVersionsCacheFile, \@latestVersions );
+		dumpHashToFile( $latestVersionsCacheFile, %latestVersions );
 	}
 }
 
@@ -4666,6 +4755,10 @@ sub postInstallGeneric {
 		}
 	}
 
+	#refresh some details within the script
+	checkForAvailableUpdates();
+	generateAvailableUpdatesString();
+
 	print
 "The $application install has completed. Please visit the web interface and follow the steps to complete the web install wizard. When you have completed this please press enter to continue...";
 	$input = <STDIN>;
@@ -4788,15 +4881,19 @@ sub postUpgradeGeneric {
 		}
 	}
 
+	#refresh some details within the script
+	checkForAvailableUpdates();
+	generateAvailableUpdatesString();
+
 	print
 "The $application upgrade has completed successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
 }
 
 ########################################
-#readArrayFromFile                     #
+#readHashFromFile                      #
 ########################################
-sub readArrayFromFile {
+sub readHashFromFile {
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4813,7 +4910,7 @@ sub readArrayFromFile {
 	local $/ = undef;    # read whole file
 	my $dumped = <$fh>;
 	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
-	return @{ eval $dumped };
+	return %{ eval $dumped };
 }
 
 ########################################
@@ -6151,7 +6248,6 @@ sub upgradeGeneric {
 	my $application;
 	my $lcApplication;
 	my @downloadDetails;
-	my @downloadVersionCheck;
 	my $downloadArchivesUrl;
 	my @requiredConfigItems;
 	my $archiveLocation;
@@ -6304,14 +6400,12 @@ sub upgradeGeneric {
 	if ( $mode eq "LATEST" ) {
 		print
 "Checking to ensure the latest version is newer than the installed version. Please wait...\n\n";
-		@downloadVersionCheck =
-		  getLatestDownloadURL( $lcApplication, $globalArch );
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"),
-			$downloadVersionCheck[1] );
+			$latestVersions{"$application"}->{"version"} );
 		if ( $versionSupported eq "GREATER" ) {
 			$log->logdie( "The version of $application to be downloaded ("
-				  . $downloadVersionCheck[1]
+				  . $latestVersions{"$application"}->{"version"}
 				  . ") is older than the currently installed version ("
 				  . $globalConfig->param("$lcApplication.installedVersion")
 				  . "). Downgrading is not supported and this script will now exit.\n\n"
@@ -6626,7 +6720,10 @@ sub bootStrapper {
 	#Set the architecture once on startup
 	$globalArch = whichApplicationArchitecture();
 
+	#Prepare some standard details before looking at command line parameters
 	getAllLatestDownloadURLs();
+	checkForAvailableUpdates();
+	generateAvailableUpdatesString();
 
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
@@ -6811,7 +6908,7 @@ sub displayAdvancedMenu {
       
       Please select from the following options:
 
-      1) Force refresh of latest versions cache file
+      1) Force refresh of latest Atlassian suite application versions cache file
       Q) Return to Main Menu
 
 END_TXT
@@ -6837,7 +6934,7 @@ END_TXT
 			system 'clear';
 			if ( -e $latestVersionsCacheFile ) {
 				print "Deleting cache file...\n\n";
-				rmtree( [ escapeFilePath( $latestVersionsCacheFile ) ] );
+				rmtree( [ escapeFilePath($latestVersionsCacheFile) ] );
 				print "Refreshing the cache...\n\n";
 				getAllLatestDownloadURLs();
 
@@ -7214,7 +7311,7 @@ sub displayMainMenu {
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
       under certain conditions; read the COPYING file included for details.
-
+      
       ******************
       * ASM Main Menu  *
       ******************
@@ -7222,7 +7319,18 @@ sub displayMainMenu {
       Please select from the following options:
 
       1) Install a new application
-      2) Upgrade an existing application
+END_TXT
+
+		if (%appsWithUpdates) {
+
+			#if there are values in the hash list that updates are available
+			$main_menu .=
+"      2) Upgrade an existing application - *** New versions available ***\n";
+		}
+		else {
+			$main_menu .= "      2) Upgrade an existing application\n";
+		}
+		$main_menu .= <<'END_TXT';
       3) Uninstall an application
       4) Recover backup after failed upgrade
       5) Display advanced settings menu 
@@ -7817,6 +7925,11 @@ sub displayUpgradeMenu {
 
 	$log->info("BEGIN: $subname");
 
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+		
+	checkForAvailableUpdates();
+		
 	#Set up suite current install status
 	@parameterNull = $globalConfig->param("bamboo.installedVersion");
 	if ( ( $#parameterNull == -1 )
@@ -7827,6 +7940,13 @@ sub displayUpgradeMenu {
 	}
 	else {
 		$isBambooInstalled = "TRUE";
+		if ( exists $appsWithUpdates{"Bamboo"} ) {
+			$bambooAdditionalText =
+			    ": installed "
+			  . $appsWithUpdates{"Bamboo"}->{installedVersion}
+			  . " --> available "
+			  . $appsWithUpdates{"Bamboo"}->{availableVersion};
+		}
 	}
 
 	@parameterNull = $globalConfig->param("confluence.installedVersion");
@@ -7838,6 +7958,13 @@ sub displayUpgradeMenu {
 	}
 	else {
 		$isConfluenceInstalled = "TRUE";
+		if ( exists $appsWithUpdates{"Confluence"} ) {
+			$confluenceAdditionalText =
+			    ": installed "
+			  . $appsWithUpdates{"Confluence"}->{installedVersion}
+			  . " --> available "
+			  . $appsWithUpdates{"Confluence"}->{availableVersion};
+		}
 	}
 
 	@parameterNull = $globalConfig->param("crowd.installedVersion");
@@ -7849,6 +7976,13 @@ sub displayUpgradeMenu {
 	}
 	else {
 		$isCrowdInstalled = "TRUE";
+		if ( exists $appsWithUpdates{"Crowd"} ) {
+			$crowdAdditionalText =
+			    ": installed "
+			  . $appsWithUpdates{"Crowd"}->{installedVersion}
+			  . " --> available "
+			  . $appsWithUpdates{"Crowd"}->{availableVersion};
+		}
 	}
 
 	@parameterNull = $globalConfig->param("fisheye.installedVersion");
@@ -7860,6 +7994,13 @@ sub displayUpgradeMenu {
 	}
 	else {
 		$isFisheyeInstalled = "TRUE";
+		if ( exists $appsWithUpdates{"Fisheye"} ) {
+			$fisheyeAdditionalText =
+			    ": installed "
+			  . $appsWithUpdates{"Fisheye"}->{installedVersion}
+			  . " --> available "
+			  . $appsWithUpdates{"Fisheye"}->{availableVersion};
+		}
 	}
 
 	@parameterNull = $globalConfig->param("jira.installedVersion");
@@ -7871,6 +8012,13 @@ sub displayUpgradeMenu {
 	}
 	else {
 		$isJiraInstalled = "TRUE";
+		if ( exists $appsWithUpdates{"JIRA"} ) {
+			$jiraAdditionalText =
+			    ": installed "
+			  . $appsWithUpdates{"JIRA"}->{installedVersion}
+			  . " --> available "
+			  . $appsWithUpdates{"JIRA"}->{availableVersion};
+		}
 	}
 
 	@parameterNull = $globalConfig->param("stash.installedVersion");
@@ -7882,10 +8030,14 @@ sub displayUpgradeMenu {
 	}
 	else {
 		$isStashInstalled = "TRUE";
+		if ( exists $appsWithUpdates{"Stash"} ) {
+			$stashAdditionalText =
+			    ": installed "
+			  . $appsWithUpdates{"Stash"}->{installedVersion}
+			  . " --> available "
+			  . $appsWithUpdates{"Stash"}->{availableVersion};
+		}
 	}
-
-	my $LOOP = 1;
-	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
 		$menuText = <<'END_TXT';
@@ -7966,9 +8118,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeConfluence();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "3\n" ) {
@@ -7980,9 +8138,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeCrowd();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "4\n" ) {
@@ -7994,9 +8158,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeFisheye();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "5\n" ) {
@@ -8008,9 +8178,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeJira();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "6\n" ) {
@@ -8022,9 +8198,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeStash();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 	}
