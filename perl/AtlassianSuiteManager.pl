@@ -4155,10 +4155,10 @@ sub installGeneric {
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		$input = getBooleanInput(
-"Would you like to review the $application config before installing? Yes/No [yes]: "
+"Would you like to review the $application config before installing? Yes/No [no]: "
 		);
 		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
+		if ($input eq "yes" ) {
 			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
@@ -6289,10 +6289,10 @@ sub upgradeGeneric {
 	else {
 
 		$input = getBooleanInput(
-"Would you like to review the $application config before upgrading? Yes/No [yes]: "
+"Would you like to review the $application config before upgrading? Yes/No [no]: "
 		);
 		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
+		if ( $input eq "yes" ) {
 			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
