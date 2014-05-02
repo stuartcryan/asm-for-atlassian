@@ -241,15 +241,7 @@ sub backupApplication {
 	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
 		$dataDirBackupDirName );
 
-	print
-"A backup of $application has been taken. Please note, this script can only backup your application and data directories.\n"
-	  . "It is imperative that you take a backup of your database. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n"
-	  . "restore your database. This script DOES NOT BACKUP OR RESTORE YOUR DATABASE!!!\n\n";
-
-	print
-"Please press enter to confirm you have read and thorougly understand the above warning regarding database restores.";
-	my $input = <STDIN>;
-	print "\n\n";
+	print "A backup of $application has been taken successfully.\n\n";
 }
 
 ########################################
@@ -1356,12 +1348,17 @@ sub downloadAtlassianInstaller {
 	dumpSingleVarToLog( "$subname" . "_version",      $version );
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
-	print "Beginning download of $lcApplication, please wait...\n\n";
+	print "Beginning download of $application, please wait...\n\n";
 
 	#Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
-		$log->debug("$subname: Downloading latest version of $application");
-		@downloadDetails = ( $latestVersions{"$application"}->{"URL"}, $latestVersions{"$application"}->{"version"} );
+		$log->debug(
+"$subname: Grabbing latest version details for $application from cache"
+		);
+		@downloadDetails = (
+			$latestVersions{"$application"}->{"URL"},
+			$latestVersions{"$application"}->{"version"}
+		);
 	}
 	else {
 		$log->debug("$subname: Downloading version $version of $application");
@@ -4131,6 +4128,7 @@ sub installGeneric {
 	my @webappParameterNull;
 	my $tomcatDir;
 	my $webappDir;
+	my $removeDownloadedDataAnswer;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -4141,7 +4139,7 @@ sub installGeneric {
 
 	$lcApplication = lc($application);
 
-#Iterate through required config items, if an are missing force an update of configuration
+#Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		$log->info(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
@@ -4275,11 +4273,17 @@ is currently in use. We will continue however there is a good chance $applicatio
 		}
 	}
 
+	#Check if user wants to remove the downloaded archive
+	$removeDownloadedDataAnswer = getBooleanInput(
+"Do you wish to delete the downloaded archive after the installation is complete? [no]: "
+	);
+	print "\n";
+
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
+		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
 		$version = $downloadDetails[1];
 
 	}
@@ -4288,7 +4292,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 	else {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
+		  downloadAtlassianInstaller( $mode, $application, $version,
 			$globalArch );
 	}
 
@@ -4304,13 +4308,8 @@ is currently in use. We will continue however there is a good chance $applicatio
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "" );
 
-	#Check if user wants to remove the downloaded archive
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded archive "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
+	#Remove downloaded data if user opted to do so
+	if ( $removeDownloadedDataAnswer eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -6260,6 +6259,7 @@ sub upgradeGeneric {
 	my $connectorPortAvailCode;
 	my @tomcatParameterNull;
 	my @webappParameterNull;
+	my $removeDownloadedDataAnswer;
 	my $tomcatDir;
 	my $webappDir;
 	my $subname = ( caller(0) )[3];
@@ -6272,7 +6272,7 @@ sub upgradeGeneric {
 
 	$lcApplication = lc($application);
 
-#Iterate through required config items, if an are missing force an update of configuration
+#Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		$log->info(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
@@ -6402,7 +6402,8 @@ sub upgradeGeneric {
 "Checking to ensure the latest version is newer than the installed version. Please wait...\n\n";
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"),
-			$latestVersions{"$application"}->{"version"} );
+			$latestVersions{"$application"}->{"version"}
+		);
 		if ( $versionSupported eq "GREATER" ) {
 			$log->logdie( "The version of $application to be downloaded ("
 				  . $latestVersions{"$application"}->{"version"}
@@ -6430,11 +6431,37 @@ sub upgradeGeneric {
 		}
 	}
 
+	#Check if user wants to remove the downloaded archive
+	$removeDownloadedDataAnswer = getBooleanInput(
+"Do you wish to delete the downloaded archive after the upgrade is complete? [no]: "
+	);
+	print "\n";
+
+	print
+"We now have enough information to complete the upgrade. As part of the upgrade this script will only backup your application and data directories.\n"
+	  . "It is imperative that you take a backup of your database in case the upgrade fails. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n"
+	  . "restore your database. This script DOES NOT BACKUP OR RESTORE YOUR DATABASE!!!\n\n";
+
+	print
+"When you are ready to proceed with the upgrade press enter (this will stop the existing $application services). If you wish to cancel the upgrade please type 'q' and press return. ";
+	$input = <STDIN>;
+	print "\n\n";
+
+	chomp($input);
+	if ( lc($input) eq "q" ) {
+
+		#Bail out and cancel the install.
+		print "Upgrade has been cancelled, this script will now terminate.\n\n";
+		$input = <STDIN>;
+		print "\n\n";
+		exit 0;
+	}
+
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
+		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
 		$version = $downloadDetails[1];
 	}
 
@@ -6442,16 +6469,12 @@ sub upgradeGeneric {
 	else {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
+		  downloadAtlassianInstaller( $mode, $application, $version,
 			$globalArch );
 	}
 
-	#Prompt user to stop existing service
+	#Stop the existing service
 	$log->info("$subname: Stopping existing $application service...");
-	print
-"We will now stop the existing $application service, please press enter to continue...";
-	$input = <STDIN>;
-	print "\n";
 	$processReturnCode = stopService(
 		$application,
 		"\""
@@ -6485,13 +6508,8 @@ sub upgradeGeneric {
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "UPGRADE" );
 
-	#Check if user wants to remove the downloaded archive
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded archive "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
+	#Remove the download if user opted to do so
+	if ( $removeDownloadedDataAnswer eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -7927,117 +7945,117 @@ sub displayUpgradeMenu {
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
-		
-	checkForAvailableUpdates();
-		
-	#Set up suite current install status
-	@parameterNull = $globalConfig->param("bamboo.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("bamboo.installedVersion") eq "" )
-	{
-		$isBambooInstalled    = "FALSE";
-		$bambooAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isBambooInstalled = "TRUE";
-		if ( exists $appsWithUpdates{"Bamboo"} ) {
-			$bambooAdditionalText =
-			    ": installed "
-			  . $appsWithUpdates{"Bamboo"}->{installedVersion}
-			  . " --> available "
-			  . $appsWithUpdates{"Bamboo"}->{availableVersion};
-		}
-	}
 
-	@parameterNull = $globalConfig->param("confluence.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("confluence.installedVersion") eq "" )
-	{
-		$isConfluenceInstalled    = "FALSE";
-		$confluenceAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isConfluenceInstalled = "TRUE";
-		if ( exists $appsWithUpdates{"Confluence"} ) {
-			$confluenceAdditionalText =
-			    ": installed "
-			  . $appsWithUpdates{"Confluence"}->{installedVersion}
-			  . " --> available "
-			  . $appsWithUpdates{"Confluence"}->{availableVersion};
-		}
-	}
+		checkForAvailableUpdates();
 
-	@parameterNull = $globalConfig->param("crowd.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("crowd.installedVersion") eq "" )
-	{
-		$isCrowdInstalled    = "FALSE";
-		$crowdAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isCrowdInstalled = "TRUE";
-		if ( exists $appsWithUpdates{"Crowd"} ) {
-			$crowdAdditionalText =
-			    ": installed "
-			  . $appsWithUpdates{"Crowd"}->{installedVersion}
-			  . " --> available "
-			  . $appsWithUpdates{"Crowd"}->{availableVersion};
+		#Set up suite current install status
+		@parameterNull = $globalConfig->param("bamboo.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("bamboo.installedVersion") eq "" )
+		{
+			$isBambooInstalled    = "FALSE";
+			$bambooAdditionalText = " (Disabled - Not Currently Installed)";
 		}
-	}
+		else {
+			$isBambooInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Bamboo"} ) {
+				$bambooAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Bamboo"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Bamboo"}->{availableVersion};
+			}
+		}
 
-	@parameterNull = $globalConfig->param("fisheye.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("fisheye.installedVersion") eq "" )
-	{
-		$isFisheyeInstalled    = "FALSE";
-		$fisheyeAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isFisheyeInstalled = "TRUE";
-		if ( exists $appsWithUpdates{"Fisheye"} ) {
-			$fisheyeAdditionalText =
-			    ": installed "
-			  . $appsWithUpdates{"Fisheye"}->{installedVersion}
-			  . " --> available "
-			  . $appsWithUpdates{"Fisheye"}->{availableVersion};
+		@parameterNull = $globalConfig->param("confluence.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("confluence.installedVersion") eq "" )
+		{
+			$isConfluenceInstalled    = "FALSE";
+			$confluenceAdditionalText = " (Disabled - Not Currently Installed)";
 		}
-	}
+		else {
+			$isConfluenceInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Confluence"} ) {
+				$confluenceAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Confluence"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Confluence"}->{availableVersion};
+			}
+		}
 
-	@parameterNull = $globalConfig->param("jira.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("jira.installedVersion") eq "" )
-	{
-		$isJiraInstalled    = "FALSE";
-		$jiraAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isJiraInstalled = "TRUE";
-		if ( exists $appsWithUpdates{"JIRA"} ) {
-			$jiraAdditionalText =
-			    ": installed "
-			  . $appsWithUpdates{"JIRA"}->{installedVersion}
-			  . " --> available "
-			  . $appsWithUpdates{"JIRA"}->{availableVersion};
+		@parameterNull = $globalConfig->param("crowd.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("crowd.installedVersion") eq "" )
+		{
+			$isCrowdInstalled    = "FALSE";
+			$crowdAdditionalText = " (Disabled - Not Currently Installed)";
 		}
-	}
+		else {
+			$isCrowdInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Crowd"} ) {
+				$crowdAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Crowd"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Crowd"}->{availableVersion};
+			}
+		}
 
-	@parameterNull = $globalConfig->param("stash.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("stash.installedVersion") eq "" )
-	{
-		$isStashInstalled    = "FALSE";
-		$stashAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isStashInstalled = "TRUE";
-		if ( exists $appsWithUpdates{"Stash"} ) {
-			$stashAdditionalText =
-			    ": installed "
-			  . $appsWithUpdates{"Stash"}->{installedVersion}
-			  . " --> available "
-			  . $appsWithUpdates{"Stash"}->{availableVersion};
+		@parameterNull = $globalConfig->param("fisheye.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("fisheye.installedVersion") eq "" )
+		{
+			$isFisheyeInstalled    = "FALSE";
+			$fisheyeAdditionalText = " (Disabled - Not Currently Installed)";
 		}
-	}
+		else {
+			$isFisheyeInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Fisheye"} ) {
+				$fisheyeAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Fisheye"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Fisheye"}->{availableVersion};
+			}
+		}
+
+		@parameterNull = $globalConfig->param("jira.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("jira.installedVersion") eq "" )
+		{
+			$isJiraInstalled    = "FALSE";
+			$jiraAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isJiraInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"JIRA"} ) {
+				$jiraAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"JIRA"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"JIRA"}->{availableVersion};
+			}
+		}
+
+		@parameterNull = $globalConfig->param("stash.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("stash.installedVersion") eq "" )
+		{
+			$isStashInstalled    = "FALSE";
+			$stashAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isStashInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Stash"} ) {
+				$stashAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Stash"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Stash"}->{availableVersion};
+			}
+		}
 
 		# define the main menu as a multiline string
 		$menuText = <<'END_TXT';
