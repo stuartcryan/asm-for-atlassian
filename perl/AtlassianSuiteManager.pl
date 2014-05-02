@@ -3266,6 +3266,7 @@ sub getLatestDownloadURL {
 	my @returnArray;
 	my $decoded_json;
 	my $lcApplication;
+	my $jsonField;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3296,7 +3297,7 @@ sub getLatestDownloadURL {
 		$searchString = ".*TAR.*";
 	}
 	elsif ( $lcApplication eq "fisheye" ) {
-		$searchString = ".*FishEye.*";
+		$searchString = ".*Unix.*";
 	}
 	elsif ( $lcApplication eq "crowd" ) {
 		$searchString = ".*TAR.*";
@@ -3327,10 +3328,16 @@ sub getLatestDownloadURL {
 
 	# Decode the entire JSON
 	$decoded_json = decode_json($json);
+	if ( $lcApplication eq "fisheye" ) {
+		#Temporary bug fix for [#ATLASMGR-311] will be properly resolved in v0.2.0
+		$jsonField = "platform";
+	}else{
+		$jsonField = "description";
+	}
 
   #Loop through the feed and find the specific file we want for this application
 	for my $item ( @{ $decoded_json->{downloads} } ) {
-		foreach ( $item->{description} ) {
+		foreach ( $item->{$jsonField} ) {
 			if (/$searchString/) {
 				@returnArray = ( $item->{zipUrl}, $item->{version} );
 				dumpSingleVarToLog( "$subname" . "_zipUrl",  $item->{zipUrl} );
