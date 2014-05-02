@@ -3083,7 +3083,6 @@ END_TXT
 	$log->info("BEGIN: $subname");
 
 	if ( -e $latestVersionsCacheFile ) {
-		print "cache file found";
 
 		#Has file been modified within the last 24 hours?
 		if ( 1 < -M $latestVersionsCacheFile ) {
@@ -3723,6 +3722,9 @@ sub getLatestDownloadURL {
 	my $decoded_json;
 	my $lcApplication;
 	my $jsonField;
+	my $descriptionSearchString;
+	my $platformSearchString;
+	my $urlSearchString;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3740,26 +3742,37 @@ sub getLatestDownloadURL {
 	my $versionurl = "https://my.atlassian.com/download/feeds/current/"
 	  . $lcApplication . ".json";
 	dumpSingleVarToLog( "$subname" . "_versionurl", $versionurl );
-	my $searchString;
 
 #For each application define the file type that we are looking for in the json feed
 	if ( $lcApplication eq "confluence" ) {
-		$searchString = ".*TAR\.GZ.*";
+		$descriptionSearchString = ".*standalone.*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "jira" ) {
-		$searchString = ".*TAR\.GZ.*";
+		$descriptionSearchString = ".*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "stash" ) {
-		$searchString = ".*TAR.*";
+		$descriptionSearchString = ".*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "fisheye" ) {
-		$searchString = ".*Unix.*";
+		$descriptionSearchString = ".*fisheye.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*zip";
 	}
 	elsif ( $lcApplication eq "crowd" ) {
-		$searchString = ".*TAR.*";
+		$descriptionSearchString = ".*standalone.*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "bamboo" ) {
-		$searchString = ".*TAR\.GZ.*";
+		$descriptionSearchString = ".*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	else {
 		print
@@ -3767,7 +3780,11 @@ sub getLatestDownloadURL {
 		exit 2;
 	}
 
-	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
+	dumpSingleVarToLog( "$subname" . "_descriptionSearchString",
+		$descriptionSearchString );
+	dumpSingleVarToLog( "$subname" . "_platformSearchString",
+		$platformSearchString );
+	dumpSingleVarToLog( "$subname" . "_urlSearchString", $urlSearchString );
 
 	print
 "Downloading and parsing the Atlassian feed for the latest version of $application please wait...\n\n";
@@ -3784,17 +3801,14 @@ sub getLatestDownloadURL {
 
 	# Decode the entire JSON
 	$decoded_json = decode_json($json);
-	if ( $lcApplication eq "fisheye" ) {
-		#Temporary bug fix for [#ATLASMGR-311] will be properly resolved in v0.2.0
-		$jsonField = "platform";
-	}else{
-		$jsonField = "description";
-	}
 
   #Loop through the feed and find the specific file we want for this application
 	for my $item ( @{ $decoded_json->{downloads} } ) {
-		foreach ( $item->{$jsonField} ) {
-			if (/$searchString/) {
+		foreach ($item) {
+			if ( ( lc( $item->{"description"} ) =~ /$descriptionSearchString/ )
+				&& ( lc( $item->{"platform"} ) =~ /$platformSearchString/ )
+				&& ( lc( $item->{"zipUrl"} )   =~ /$urlSearchString/ ) )
+			{
 				@returnArray = ( $item->{zipUrl}, $item->{version} );
 				dumpSingleVarToLog( "$subname" . "_zipUrl",  $item->{zipUrl} );
 				dumpSingleVarToLog( "$subname" . "_version", $item->{version} );
@@ -4165,7 +4179,7 @@ sub installGeneric {
 "Would you like to review the $application config before installing? Yes/No [no]: "
 		);
 		print "\n";
-		if ($input eq "yes" ) {
+		if ( $input eq "yes" ) {
 			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
