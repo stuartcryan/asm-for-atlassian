@@ -63,6 +63,91 @@ else
 fi
 
 ########################################
+#Check for SELinux                     #
+########################################
+checkSELinux(){
+
+#as Debian does not know of a CPAN binary it comes in the PERL binary
+BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make cpan"
+BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
+
+#These are deliberately null
+BINARIESCHECK=""
+MISSINGBINARIES=""
+
+
+type -P getenforce &>/dev/null  || { SELINUXCHECK="UNABLE";}
+
+if [[ $SELINXUXCHECK != "UNABLE" && $DISABLESELINUXCHECK != "TRUE" ]]; then
+ 	SELINUXSTATUS=`getenforce`
+ 	 	
+ 	if [[ $SELINUXSTATUS == "Enforcing" ]]; then
+ 	echo "It appears that SELinux is currently set to Enforcing. This script has not been certified to install and configure the Atlassian Suite with SELinux enabled."
+ 	echo ""
+    echo -n "If you continue you may run into unusual problems trying to get the applications to run. Do you wish to continue? yes/no [no]: "
+ 	LOOP=1
+		while [ $LOOP -eq "1" ]
+		do
+			read USERWANTSTOPROCEEDWITHSELINUX
+			if [[("$USERWANTSTOPROCEEDWITHSELINUX" == "y" || "$USERWANTSTOPROCEEDWITHSELINUX" == "yes"|| "$USERWANTSTOPROCEEDWITHSELINUX" == "YES" || "$USERWANTSTOPROCEEDWITHSELINUX" == "Yes" || "$USERWANTSTOPROCEEDWITHSELINUX" == "YEs" || "$USERWANTSTOPROCEEDWITHSELINUX" == "yEs" || "$USERWANTSTOPROCEEDWITHSELINUX" == "YeS")]]; then
+				LOOP="0"
+                echo -n "Do you wish to disable this check in future? yes/no [yes]: "
+                    
+                INNERLOOP=1
+		        while [ $INNERLOOP -eq "1" ]
+	            do
+		            read USERWANTSTODISABLESELINUXCHECK
+		            if [[("$USERWANTSTODISABLESELINUXCHECK" == "y" || "$USERWANTSTODISABLESELINUXCHECK" == "yes"|| "$USERWANTSTODISABLESELINUXCHECK" == "YES" || "$USERWANTSTODISABLESELINUXCHECK" == "Yes" || "$USERWANTSTODISABLESELINUXCHECK" == "YEs" || "$USERWANTSTODISABLESELINUXCHECK" == "yEs" || "$USERWANTSTODISABLESELINUXCHECK" == "YeS" || "$USERWANTSTODISABLESELINUXCHECK" == "")]]; then
+		                INNERLOOP="0"
+                        if [ -f "shellScriptIncludes.inc" ]; then
+                            echo "" >> shellScriptIncludes.inc
+                            echo "DISABLESELINUXCHECK=TRUE" >> shellScriptIncludes.inc
+                        else
+                            echo "#!/bin/bash" >> shellScriptIncludes.inc
+                            echo "#    This file can contain custom configuration and script configs for the atlassianSuiteManger.sh script" >> shellScriptIncludes.inc
+						    echo "#"  >> shellScriptIncludes.inc
+						    echo "#    Copyright 2012-2014 Stuart Ryan" >> shellScriptIncludes.inc
+						    echo "" >> shellScriptIncludes.inc
+                            echo "DISABLESELINUXCHECK=TRUE" >> shellScriptIncludes.inc
+                        fi
+                    
+			        elif [[("$USERWANTSTODISABLESELINUXCHECK" == "n" || "$USERWANTSTODISABLESELINUXCHECK" == "no" || "$USERWANTSTODISABLESELINUXCHECK" == "NO" || "$USERWANTSTODISABLESELINUXCHECK" == "No" || "$USERWANTSTODISABLESELINUXCHECK" == "nO")]]; then
+			            INNERLOOP="0"
+		           else
+			            echo ""
+			            echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Do you wish to disable the SELinux check in future? yes/no [yes]: " 
+		           fi
+		       done
+                    
+			elif [[("$USERWANTSTOPROCEEDWITHSELINUX" == "n" || "$USERWANTSTOPROCEEDWITHSELINUX" == "no" || "$USERWANTSTOPROCEEDWITHSELINUX" == "NO" || "$USERWANTSTOPROCEEDWITHSELINUX" == "No" || "$USERWANTSTOPROCEEDWITHSELINUX" == "nO"|| "$USERWANTSTOPROCEEDWITHSELINUX" == "")]]; then
+				echo ""
+				echo "Please disable SELinux (search 'Disable SELinux' on Google) and then restart your machine and then run this script again."
+				echo ""
+				echo ""
+				LOOP="0"
+				exit 1
+			else
+				echo ""
+				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Do you wish to continue even though SELinux is Enforcing? yes/no [no]: " 
+			fi
+		done
+ 	
+    fi
+fi
+   
+rpm -q expat-devel >> /dev/null 2>&1
+if [[ $? -ne 0 ]]; then
+ 	BINARIESCHECK="FAIL"
+	#add expat-devel to the required binaries
+	BINARIESREDHAT="$BINARIESREDHAT expat-devel"
+fi
+
+
+
+}
+
+
+########################################
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
@@ -130,7 +215,7 @@ echo -n "Some required binary components are missing therefore this script canno
 				exit 1
 			else
 				echo ""
-				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to update the script now? yes/no [yes]:" 
+				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to update the script now? yes/no [yes]: " 
 			fi
 		done
 		
@@ -468,9 +553,6 @@ if [[ $EUID -ne 0 ]]; then
 fi
 }
 
-#Do initial checks
-checkForRootAccess
-
 #Import custom includes if the file exists
 if [ -f "shellScriptIncludes.inc" ]; then
 	source shellScriptIncludes.inc
@@ -481,6 +563,10 @@ if [ -f "shellScriptIncludes.inc" ]; then
 		PROXYPASS="--proxy-password="$PROXYPASS 
 	fi
 fi
+
+#Do initial checks
+checkForRootAccess
+checkSELinux
 
 #check for Oracle JVM
 clear
