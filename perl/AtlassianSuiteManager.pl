@@ -4417,6 +4417,32 @@ is currently in use. We will continue however there is a good chance $applicatio
 "Do you wish to delete the downloaded archive after the installation is complete? [no]: "
 	);
 	print "\n";
+	
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	#Check the user exists or create if not
+	createOSUser( $osUser, $application );
+	
+	print "\n";
+
+	print
+"We now have enough information to complete the install. \n\n";
+
+	print
+"When you are ready to proceed with the install press enter. If you wish to cancel the upgrade please type 'q' and press return. ";
+	$input = <STDIN>;
+	print "\n\n";
+
+	chomp($input);
+	if ( lc($input) eq "q" ) {
+
+		#Bail out and cancel the install.
+		print "Install has been cancelled, this script will now terminate.\n\n";
+		$input = <STDIN>;
+		print "\n\n";
+		exit 0;
+	}
 
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
@@ -4434,12 +4460,6 @@ is currently in use. We will continue however there is a good chance $applicatio
 		  downloadAtlassianInstaller( $mode, $application, $version,
 			$globalArch );
 	}
-
-	#Get the user the application will run as
-	$osUser = $globalConfig->param("$lcApplication.osUser");
-
-	#Check the user exists or create if not
-	createOSUser( $osUser, $application );
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
@@ -6648,6 +6668,12 @@ sub upgradeGeneric {
 			);
 		}
 	}
+	
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	#Check the user exists or create if not
+	createOSUser( $osUser, $application );
 
 	#Check if user wants to remove the downloaded archive
 	$removeDownloadedDataAnswer = getBooleanInput(
@@ -6713,12 +6739,6 @@ sub upgradeGeneric {
 
 	#Backup the existing install
 	backupApplication($application);
-
-	#Get the user the application will run as
-	$osUser = $globalConfig->param("$lcApplication.osUser");
-
-	#Check the user exists or create if not
-	createOSUser( $osUser, $application );
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
