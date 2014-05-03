@@ -46,6 +46,7 @@ use File::Copy::Recursive qw(fcopy rcopy dircopy fmove rmove dirmove);
 use File::Path qw(make_path remove_tree);
 use File::Path;
 use File::Find;
+use File::Basename;
 use Archive::Extract;
 use FindBin '$Bin';
 use XML::Twig;
@@ -115,8 +116,13 @@ sub backupApplication {
 	my $dataDirRef;
 	my $installDriveFreeSpace;
 	my $dataDriveFreeSpace;
+	my $installDirFolder;
+	my $dataDirPath;
+	my $installDirPath;
+	my $dataDirFolder;
 	my ($fd);
-	my $subname = ( caller(0) )[3];
+	my $compressBackups = $globalConfig->param("general.compressBackups");
+	my $subname         = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -124,7 +130,22 @@ sub backupApplication {
 	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_application",     $application );
+	dumpSingleVarToLog( "$subname" . "_compressBackups", $compressBackups );
+
+	#set up some parameters
+	$installDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
+	$installDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
 	print
 "Please wait, backing up your existing application (this may take a few moments)...\n\n";
@@ -171,6 +192,15 @@ sub backupApplication {
 	$installDriveFreeSpace = $installDirRef->{bfree};
 	$dataDriveFreeSpace    = $dataDirRef->{bfree};
 
+	#dump values if we are in debug
+	dumpSingleVarToLog( "$subname" . "_installDirSize", $installDirSize );
+	dumpSingleVarToLog( "$subname" . "_dataDirSize",    $dataDirSize );
+	dumpSingleVarToLog( "$subname" . "_installDriveFreeSpace",
+		$installDriveFreeSpace );
+	dumpSingleVarToLog( "$subname" . "_dataDriveFreeSpace", $installDirSize );
+	dumpSingleVarToLog( "$subname" . "_installDirRef",      $installDirRef );
+	dumpSingleVarToLog( "$subname" . "_dataDirRef",         $dataDirRef );
+
 #check if the free space, minus install dir size minus a 500MB buffer is less than zero
 	if ( $installDriveFreeSpace - $installDirSize - 524288000 < 0 ) {
 		$log->logdie(
@@ -204,25 +234,103 @@ sub backupApplication {
 "$subname: Backing up the $application application directory to $applicationDirBackupDirName"
 	);
 
-	print "Backing up $application installation directory...\n\n";
-	copyDirectory(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		$applicationDirBackupDirName );
-	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation",
-		$applicationDirBackupDirName );
-
-	print
+	if ( $compressBackups eq "TRUE" ) {
+		$log->info("$subname: Compressing $applicationDirBackupDirName");
+		print
+"You have selected to compress application backups... Compressing $application installation directory to a backup, this may take a few minutes...\n\n";
+		system( "cd $installDirPath && tar --checkpoint=.500 -czf "
+			  . $applicationDirBackupDirName
+			  . ".tar.gz "
+			  . $installDirFolder );
+		if ( $? != 0 ) {
+			print "\n\n";
+			$log->warn(
+"$subname: Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location."
+			);
+			print
+"Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location.: \n\n";
+			print
+"Backing up $application installation directory uncompressed...\n\n";
+			copyDirectory(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				),
+				$applicationDirBackupDirName
+			);
+			$globalConfig->param(
+				"$lcApplication.latestInstallDirBackupLocation",
+				$applicationDirBackupDirName );
+			print
 "$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
+		}
+		else {
+			print "\n\n";
+			$globalConfig->param(
+				"$lcApplication.latestInstallDirBackupLocation",
+				$applicationDirBackupDirName . ".tar.gz"
+			);
+			print
+"$application installation successfully backed up to $applicationDirBackupDirName.tar.gz \n\n";
+		}
+	}
+	else {
+		print "Backing up $application installation directory...\n\n";
+		copyDirectory(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			$applicationDirBackupDirName
+		);
+		$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation",
+			$applicationDirBackupDirName );
+		print
+"$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
+	}
 
-	print "Backing up $application data directory...\n\n";
-	copyDirectory(
-		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
-		$dataDirBackupDirName );
-	$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
-		$dataDirBackupDirName );
-
-	print
+	if ( $compressBackups eq "TRUE" ) {
+		$log->info("$subname: Compressing $dataDirBackupDirName");
+		print
+"You have selected to compress application backups... Compressing $application data directory to a backup, for large installations this may take some time...\n\n";
+		system( "cd $dataDirPath && tar --checkpoint=.500 -czf "
+			  . $dataDirBackupDirName
+			  . ".tar.gz "
+			  . $dataDirFolder );
+		if ( $? != 0 ) {
+			print "\n\n";
+			$log->warn(
+"$subname: Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location."
+			);
+			print
+"Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location.: \n\n";
+			print
+"Backing up $application installation directory uncompressed...\n\n";
+			copyDirectory(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.dataDir")
+				),
+				$dataDirBackupDirName
+			);
+			$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
+				$dataDirBackupDirName );
+			print
+"$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
+		}
+		else {
+			print "\n\n";
+			$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
+				$dataDirBackupDirName . ".tar.gz" );
+			print
+"$application data directory successfully backed up to $dataDirBackupDirName.tar.gz \n\n";
+		}
+	}
+	else {
+		print "Backing up $application data directory...\n\n";
+		copyDirectory(
+			escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+			$dataDirBackupDirName );
+		$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
+			$dataDirBackupDirName );
+		print
 "$application data directory successfully backed up to $dataDirBackupDirName. \n\n";
+	}
 
 	print "Tidying up... please wait... \n\n";
 
@@ -236,10 +344,11 @@ sub backupApplication {
 "$subname: Doing recursive chown of $applicationDirBackupDirName and $dataDirBackupDirName to "
 		  . $globalConfig->param("$lcApplication.osUser")
 		  . "." );
+
 	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
-		$applicationDirBackupDirName );
+		$globalConfig->param("$lcApplication.latestInstallDirBackupLocation") );
 	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
-		$dataDirBackupDirName );
+		$globalConfig->param("$lcApplication.latestDataDirBackupLocation") );
 
 	print "A backup of $application has been taken successfully.\n\n";
 }
@@ -1803,9 +1912,9 @@ sub escapeFilePath {
 }
 
 ########################################
-#extractAndMoveDownload                #
+#extractAndMoveFile                #
 ########################################
-sub extractAndMoveDownload {
+sub extractAndMoveFile {
 	my $inputFile;
 	my $expectedFolderName;    #MustBeAbsolute
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
@@ -2757,6 +2866,15 @@ sub generateSuiteConfig {
 			);
 		}
 	}
+
+	#Should backups be compressed
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"general.compressBackups",
+"Do you wish compress backups (note this will take a lot longer to complete post upgrade tasks)? yes/no ",
+		"no"
+	);
 
 	#Get Crowd configuration
 	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
@@ -4325,7 +4443,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
-	extractAndMoveDownload( $downloadDetails[2],
+	extractAndMoveFile( $downloadDetails[2],
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "" );
 
@@ -4990,10 +5108,36 @@ sub restoreApplicationBackup {
 	my $application;
 	my $lcApplication;
 	my $input;
+	my $compressedInstallDirBackup;
+	my $compressedDataDirBackup;
+	my $installDirFolder;
+	my $dataDirFolder;
+	my $installDirPath;
+	my $dataDirPath;
+	my $installDirBackupLocation;
+	my $dataDirBackupLocation;
 
 	$log->info("BEGIN: $subname");
 	$application   = $_[0];
 	$lcApplication = lc($application);
+
+	#set up some parameters
+	$installDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
+	$installDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
+	$installDirBackupLocation =
+	  $globalConfig->param("$lcApplication.latestInstallDirBackupLocation");
+	$dataDirBackupLocation =
+	  $globalConfig->param("$lcApplication.latestDataDirBackupLocation");
 
 	print
 "You have selected to restore the previous backup for $application. Please be aware this will NOT restore your database and this MUST be done separately.\n";
@@ -5015,47 +5159,100 @@ sub restoreApplicationBackup {
 		  . "\""
 	);
 
-	if ( -d $globalConfig->param("$lcApplication.latestDataDirBackupLocation")
-		&& -d $globalConfig->param(
-			"$lcApplication.latestInstallDirBackupLocation") )
-	{
+	if ( $dataDirBackupLocation =~ /.*\.tar\.gz$/ ) {
+		$compressedDataDirBackup = "TRUE";
+		unless ( -e $dataDirBackupLocation ) {
+			$log->logdie(
+"The Data Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
+	}
+	else {
+		$compressedDataDirBackup = "FALSE";
+		unless ( -d $dataDirBackupLocation ) {
+			$log->logdie(
+"The Data Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
+	}
 
-		#Move broken install directories
-		moveDirectory( $globalConfig->param("$lcApplication.installDir"),
-			$globalConfig->param("$lcApplication.installDir")
-			  . "_prerestore_$date" );
-		moveDirectory( $globalConfig->param("$lcApplication.dataDir"),
-			$globalConfig->param("$lcApplication.dataDir")
-			  . "_prerestore_$date" );
-
-		#Copy back last backup
-		moveDirectory(
-			$globalConfig->param(
-				"$lcApplication.latestInstallDirBackupLocation"),
-			$globalConfig->param("$lcApplication.installDir")
-		);
-		moveDirectory(
-			$globalConfig->param("$lcApplication.latestDataDirBackupLocation"),
-			$globalConfig->param("$lcApplication.dataDir")
-		);
+	if ( $installDirBackupLocation =~ /.*\.tar\.gz$/ ) {
+		$compressedInstallDirBackup = "TRUE";
+		unless ( -e $installDirBackupLocation ) {
+			$log->logdie(
+"The Installation Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
 
 	}
 	else {
-		$log->logdie(
-"Either the Data Directory backup or Application Installation Directory backup do not exist. Unfortunately we are unable to proceed."
+		$compressedInstallDirBackup = "FALSE";
+		unless ( -d $installDirBackupLocation ) {
+			$log->logdie(
+"The Installation Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
+	}
+
+	#Move broken install directories
+	moveDirectory( $globalConfig->param("$lcApplication.installDir"),
+		$globalConfig->param("$lcApplication.installDir")
+		  . "_prerestore_$date" );
+	moveDirectory( $globalConfig->param("$lcApplication.dataDir"),
+		$globalConfig->param("$lcApplication.dataDir") . "_prerestore_$date" );
+
+	if ( $compressedDataDirBackup eq "TRUE" ) {
+
+		#Set up extract object
+		my $ae = Archive::Extract->new( archive => $dataDirBackupLocation );
+
+		print "Extracting $dataDirBackupLocation. Please wait...\n\n";
+		$log->info("$subname: Extracting $dataDirBackupLocation");
+
+		#Extract
+		$ae->extract( to => escapeFilePath($dataDirPath) );
+		if ( $ae->error ) {
+			$log->logdie(
+"Unable to extract $dataDirBackupLocation. The following error was encountered: $ae->error\n\n"
+			);
+		}
+	}
+	else {
+
+		#Copy back last backup
+		copyDirectory( $dataDirBackupLocation,
+			$globalConfig->param("$lcApplication.dataDir") );
+	}
+
+	if ( $compressedInstallDirBackup eq "TRUE" ) {
+
+		#Set up extract object
+		my $ae = Archive::Extract->new( archive => $installDirBackupLocation );
+
+		print "Extracting $installDirBackupLocation. Please wait...\n\n";
+		$log->info( "$subname: Extracting $installDirBackupLocation" );
+
+		#Extract
+		$ae->extract( to => escapeFilePath($installDirPath) );
+		if ( $ae->error ) {
+			$log->logdie(
+"Unable to extract $installDirBackupLocation. The following error was encountered: $ae->error\n\n"
+			);
+		}
+	}
+	else {
+
+		#Copy back last backup
+		copyDirectory(
+			$installDirBackupLocation,
+			$globalConfig->param("$lcApplication.installDir")
 		);
 	}
 
-	#Null out as the directory no longer exists
-	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation", "" );
-
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
 	print
-"$application has now been restored successfully. Please restore your database and then start up the services manually.";
+"$application has now been restored successfully. Please restore your database and then start up the services manually.\n\n";
 	print
-"Please note that the backup has been MOVED back into place, not copied, so cannot be restored a second time. Please press enter to return to the menu...\n";
+"Please note that the backup has been copied back into place, therefore subsequent restores are still possible. Please press enter to return to the menu...\n";
 	$input = <STDIN>;
 }
 
@@ -6525,7 +6722,7 @@ sub upgradeGeneric {
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
-	extractAndMoveDownload( $downloadDetails[2],
+	extractAndMoveFile( $downloadDetails[2],
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "UPGRADE" );
 
@@ -6712,13 +6909,13 @@ sub bootStrapper {
 		@requiredConfigItems = (
 			"general.rootDataDir",  "general.rootInstallDir",
 			"general.targetDBType", "general.force32Bit",
-			"general.apacheProxy"
+			"general.apacheProxy",  "general.compressBackups"
 		);
 		if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 			$log->info(
 				"Some config items missing, kicking off config generation");
 			print
-"There are some global configuration items that are incomplete or missing. This may be due to new features or new config items.\n\nThe global config manager will now run to get all items, please press return/enter to begin.\n\n";
+"There are some global configuration items that are incomplete or missing. This is likely due to new features or new config items.\n\nThe global config manager will now run to get all items, please press return/enter to begin.\n\n";
 			$input = <STDIN>;
 			generateSuiteConfig();
 		}
@@ -9408,7 +9605,7 @@ sub installBamboo {
 				]
 			);
 
-			extractAndMoveDownload(
+			extractAndMoveFile(
 				$WrapperDownloadFile,
 				escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
@@ -9934,7 +10131,7 @@ sub upgradeBamboo {
 				]
 			);
 
-			extractAndMoveDownload(
+			extractAndMoveFile(
 				$WrapperDownloadFile,
 				escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")

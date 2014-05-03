@@ -151,11 +151,11 @@ fi
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget zip unzip tar perl cpan gcc openssl g++ make"
+BINARIES="wget zip unzip tar gzip perl cpan gcc openssl g++ make"
 
 #as Debian does not know of a CPAN binary it comes in the PERL binary
-BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make cpan"
-BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
+BINARIESREDHAT="wget zip unzip tar gzip perl gcc gcc-c++ make cpan"
+BINARIESDEBIAN="wget zip unzip tar gzip perl gcc g++ make"
 
 #These are deliberately null
 BINARIESCHECK=""
@@ -255,7 +255,7 @@ checkJVM(){
 #Test system for required PERL Modules #
 ########################################
 checkPerlModules(){
-MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable ExtUtils::Installed"
+MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable ExtUtils::Installed File::Basename"
 BINARIESCHECK=""
 MISSINGMODULES=""
 
