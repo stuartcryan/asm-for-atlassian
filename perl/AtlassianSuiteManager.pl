@@ -7220,6 +7220,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "Refreshing application versions cache file. Please wait...", "");
 			if ( -e $latestVersionsCacheFile ) {
 				print "Deleting cache file...\n\n";
 				rmtree( [ escapeFilePath($latestVersionsCacheFile) ] );
@@ -7242,6 +7243,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "ASM Command Line Parameters", "");
 			print
 "The following command line parameters are currently available for use in ASM:\n";
 			print "1. Enable EAP Downloads:\n";
@@ -7260,6 +7262,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "3\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "Forcing UID/GIDs on Account Creation", "");
 			print
 "If you would like to force specific UID/GIDs for new account creations please see the documentation at:\n";
 			print
@@ -7272,6 +7275,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "4\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "Additional Advanced Documentation", "");
 			print
 "There are additional advanced functions and features documented on the main wiki. Please see the documentation at:\n";
 			print
