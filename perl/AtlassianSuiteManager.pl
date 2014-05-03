@@ -1328,21 +1328,7 @@ sub displayQuickConfig {
 	my $menu;
 
 	# define the main menu as a multiline string
-	$menu = <<'END_TXT';
-
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      ******************
-      * Quick URL Menu *
-      ******************
-
-END_TXT
+	$menu = generateMenuHeader("MINI", "Quick URL Menu", "");
 
 	# print the main menu
 	print $menu;
@@ -2559,6 +2545,85 @@ sub generateInitDforSuite {
 }
 
 ########################################
+#Generate Menu Header                  #
+########################################
+sub generateMenuHeader {
+	my $menuHead;
+	my $menuFooter;
+	my $menuTitle;
+	my $defaultMenuBodyText;
+	my $inputTitle;
+	my $expandedTitle;
+	my $mode;
+	my $inputBodyText;
+	my $titleLength;
+	my $fullMenu;
+	my $subname = ( caller(0) )[3];
+
+	$mode          = $_[0];    #FULL/MINI
+	$inputTitle    = $_[1];    #TITLE
+	$inputBodyText = $_[2];    #Body text to replace default body text
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",          $mode );
+	dumpSingleVarToLog( "$subname" . "_inputTitle",    $inputTitle );
+	dumpSingleVarToLog( "$subname" . "_inputBodyText", $inputBodyText );
+
+	$log->info("BEGIN: $subname");
+
+	#MenuHead will always display as will MenuFooter and MenuTitle
+	#MenuBodyText is optional and will display based on input to this function
+	$menuHead = <<'END_HEAD';
+
+      Welcome to the ASM Script for Atlassian(R)
+
+      Copyright (C) 2012-2014  Stuart Ryan
+      
+END_HEAD
+
+	$defaultMenuBodyText = <<'END_BODY';
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence.
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with free hosting without which I would not have been able to write, 
+      and continue hosting the Atlassian Suite for my open source projects including this script.
+      ###########################################################################################
+
+END_BODY
+
+	$menuFooter = <<'END_FOOTER';
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+      
+END_FOOTER
+
+	$expandedTitle = "* " . $inputTitle . " *";
+
+	$titleLength = length($expandedTitle);
+
+	$menuTitle = "      " .
+	    "*" x $titleLength . "\n"
+	  . "      " . $expandedTitle . "\n"
+	  . "      " . "*" x $titleLength . "\n\n";
+	  
+	if ($inputBodyText eq "" && $mode eq "FULL"){
+		$fullMenu = $menuHead . $defaultMenuBodyText . $menuFooter . $menuTitle;
+	}elsif ($inputBodyText eq "" && $mode eq "MINI"){
+		$fullMenu = $menuHead . $menuFooter . $menuTitle;
+	}elsif ($inputBodyText ne "" && $mode eq "FULL"){
+		$fullMenu = $menuHead . $inputBodyText .  $menuFooter . $menuTitle;
+	}elsif ($inputBodyText ne "" && $mode eq "MINI"){
+		$fullMenu = $menuHead . $inputBodyText .  $menuFooter . $menuTitle;
+	}else {
+		$fullMenu = $menuHead . $defaultMenuBodyText . $menuFooter . $menuTitle;
+	}
+	return $fullMenu;
+}
+
+########################################
 #genBooleanConfigItem                  #
 ########################################
 sub genBooleanConfigItem {
@@ -3177,22 +3242,7 @@ sub getAllLatestDownloadURLs {
 	my $subname = ( caller(0) )[3];
 
 	# define the main menu as a multiline string
-	$menuText = <<'END_TXT';
-
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      *****************************************************************
-      * Please Wait... Getting latest version details from Atlassian  *
-      *****************************************************************
-      
-
-END_TXT
+	$menuText = generateMenuHeader("MINI", "Please Wait... Getting latest version details from Atlassian", "");
 
 	# print the main menu
 	system 'clear';
@@ -4417,17 +4467,16 @@ is currently in use. We will continue however there is a good chance $applicatio
 "Do you wish to delete the downloaded archive after the installation is complete? [no]: "
 	);
 	print "\n";
-	
+
 	#Get the user the application will run as
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
 	#Check the user exists or create if not
 	createOSUser( $osUser, $application );
-	
+
 	print "\n";
 
-	print
-"We now have enough information to complete the install. \n\n";
+	print "We now have enough information to complete the install. \n\n";
 
 	print
 "When you are ready to proceed with the install press enter. If you wish to cancel the upgrade please type 'q' and press return. ";
@@ -5250,7 +5299,7 @@ sub restoreApplicationBackup {
 		my $ae = Archive::Extract->new( archive => $installDirBackupLocation );
 
 		print "Extracting $installDirBackupLocation. Please wait...\n\n";
-		$log->info( "$subname: Extracting $installDirBackupLocation" );
+		$log->info("$subname: Extracting $installDirBackupLocation");
 
 		#Extract
 		$ae->extract( to => escapeFilePath($installDirPath) );
@@ -5263,10 +5312,8 @@ sub restoreApplicationBackup {
 	else {
 
 		#Copy back last backup
-		copyDirectory(
-			$installDirBackupLocation,
-			$globalConfig->param("$lcApplication.installDir")
-		);
+		copyDirectory( $installDirBackupLocation,
+			$globalConfig->param("$lcApplication.installDir") );
 	}
 
 	print
@@ -6668,7 +6715,7 @@ sub upgradeGeneric {
 			);
 		}
 	}
-	
+
 	#Get the user the application will run as
 	$osUser = $globalConfig->param("$lcApplication.osUser");
 
@@ -7131,6 +7178,7 @@ sub bootStrapper {
 sub displayAdvancedMenu {
 	my $choice;
 	my $main_menu;
+	my $menuOptions;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -7139,29 +7187,10 @@ sub displayAdvancedMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$main_menu = <<'END_TXT';
+		$main_menu = generateMenuHeader("FULL", "ASM Advanced Menu", "");
+		
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      **********************
-      * ASM Advanced Menu  *
-      **********************
-      
+        $menuOptions = <<'END_TXT';     
       Please select from the following options:
 
       1) Force refresh of latest Atlassian suite application versions cache file
@@ -7174,7 +7203,7 @@ END_TXT
 
 		# print the main menu
 		system 'clear';
-		print $main_menu;
+		print $main_menu . $menuOptions;
 
 		# prompt for user's choice
 		printf( "%s", "Please enter your selection: " );
@@ -7191,6 +7220,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "Refreshing application versions cache file. Please wait...", "");
 			if ( -e $latestVersionsCacheFile ) {
 				print "Deleting cache file...\n\n";
 				rmtree( [ escapeFilePath($latestVersionsCacheFile) ] );
@@ -7213,6 +7243,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "ASM Command Line Parameters", "");
 			print
 "The following command line parameters are currently available for use in ASM:\n";
 			print "1. Enable EAP Downloads:\n";
@@ -7231,9 +7262,11 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "3\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "Forcing UID/GIDs on Account Creation", "");
 			print
 "If you would like to force specific UID/GIDs for new account creations please see the documentation at:\n";
-			print "http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Force+UID+and+GID+on+account+creation:\n";
+			print
+"http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Force+UID+and+GID+on+account+creation:\n";
 
 			print "\n";
 			print "To return to the menu please press enter...";
@@ -7242,9 +7275,11 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "4\n" ) {
 			system 'clear';
+			print generateMenuHeader("FULL", "Additional Advanced Documentation", "");
 			print
 "There are additional advanced functions and features documented on the main wiki. Please see the documentation at:\n";
-			print "http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Advanced+ASM+Usage:\n";
+			print
+"http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Advanced+ASM+Usage:\n";
 
 			print "\n";
 			print "To return to the menu please press enter...";
@@ -7268,20 +7303,8 @@ sub displayInitialConfigMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
-
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      ************************
-      * Initial Config Menu  *
-      ************************
-      
+		$menuText = generateMenuHeader("MINI", "Initial Config Menu", "");
+		$menuText .= <<'END_TXT';
       No configuration file has been found. Please select from the following options:
 
       1) Existing install: Gather configuration (one or more products already installed)
@@ -7415,34 +7438,9 @@ sub displayInstallMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
+		$menuText = generateMenuHeader("FULL", "ASM Install Menu", "");
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      *********************
-      * ASM Install Menu  *
-      *********************
-      
-      Please select from the following options:
-
-END_TXT
-
+		$menuText = $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Install Bamboo $bambooAdditionalText\n";
 		$menuText =
@@ -7592,29 +7590,9 @@ sub displayMainMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$main_menu = <<'END_TXT';
+		$main_menu = generateMenuHeader("FULL", "ASM Main Menu", "");
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-      
-      ******************
-      * ASM Main Menu  *
-      ******************
-      
+      $main_menu .= <<'END_TXT';
       Please select from the following options:
 
       1) Install a new application
@@ -7799,32 +7777,9 @@ sub displayRestoreMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
+		$menuText = generateMenuHeader("FULL", "ASM Restore Failed Upgrades Menu", "");
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      *************************************
-      * ASM Restore Failed Upgrades Menu  *
-      *************************************
-      
-END_TXT
-
+		$menuText = $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Restore Bamboo $bambooAdditionalText\n";
 		$menuText =
@@ -8036,34 +7991,9 @@ sub displayUninstallMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
+		$menuText = generateMenuHeader("FULL", "ASM Uninstall Menu", "");
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      ***********************
-      * ASM Uninstall Menu  *
-      ***********************
-      
-      Please select from the following options:
-
-END_TXT
-
+		$menuText = $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Uninstall Bamboo $bambooAdditionalText\n";
 		$menuText = $menuText
@@ -8339,31 +8269,7 @@ sub displayUpgradeMenu {
 		}
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
-
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      *********************
-      * ASM Upgrade Menu  *
-      *********************
-      
-END_TXT
+		$menuText = generateMenuHeader("FULL", "ASM Upgrade Menu", "");
 
 		$menuText =
 		  $menuText . "      1) Upgrade Bamboo $bambooAdditionalText\n";
