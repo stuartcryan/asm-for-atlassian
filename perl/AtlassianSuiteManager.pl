@@ -6948,6 +6948,9 @@ sub displayAdvancedMenu {
       Please select from the following options:
 
       1) Force refresh of latest Atlassian suite application versions cache file
+      2) Command Line Parameters Overview
+      3) Force UID and GID on account creation
+      4) Additional advanced documentation
       Q) Return to Main Menu
 
 END_TXT
@@ -6990,6 +6993,46 @@ END_TXT
 				  "Cache refresh completed. Please press enter to continue\n\n";
 				my $test = <STDIN>;
 			}
+		}
+		elsif ( lc($choice) eq "2\n" ) {
+			system 'clear';
+			print
+"The following command line parameters are currently available for use in ASM:\n";
+			print "1. Enable EAP Downloads:\n";
+			print "   Command Line Parameter: '--enable-eap'\n";
+			print
+"   Description: can be used by app developers to skip version checks and allow installation 
+                of EAP versions of Atlassian products. Please note, you can only install or upgrade to these 
+                once, following that you will need to uninstall the application and 
+                re-install. Atlassian does not support upgrades of EAP versions and ASM 
+                follows this logic. You can attempt this but it is likely to break.\n"
+			  ;
+
+			print "\n";
+			print "To return to the menu please press enter...";
+			my $test = <STDIN>;
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			print
+"If you would like to force specific UID/GIDs for new account creations please see the documentation at:\n";
+			print "http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Force+UID+and+GID+on+account+creation:\n";
+
+			print "\n";
+			print "To return to the menu please press enter...";
+			my $test = <STDIN>;
+
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			print
+"There are additional advanced functions and features documented on the main wiki. Please see the documentation at:\n";
+			print "http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Advanced+ASM+Usage:\n";
+
+			print "\n";
+			print "To return to the menu please press enter...";
+			my $test = <STDIN>;
+
 		}
 	}
 }
