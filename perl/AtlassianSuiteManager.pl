@@ -3424,15 +3424,23 @@ sub getConfigItem {
 #This function can be used if a config item may have a NULL defined deliberately to return the correct value.
 	my $configItem;
 	my $cfg;
+	my @parameterNull;
 
 	$configItem = $_[0];
 	$cfg        = $_[1];
 
-	if ( $cfg->param($configItem) eq "NULL" ) {
+	@parameterNull = $cfg->param($configItem);
+
+	if ( !( $#parameterNull == -1 ) ) {
 		return "";
 	}
 	else {
-		return $cfg->param($configItem);
+		if ( $cfg->param($configItem) eq "NULL" ) {
+			return "";
+		}
+		else {
+			return $cfg->param($configItem);
+		}
 	}
 }
 
