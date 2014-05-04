@@ -2277,15 +2277,19 @@ sub generateInitD {
 	my $stopCmd;
 	my @initGeneric;
 	my @initSpecific;
+	my $grep1stParam;
+	my $grep2ndParam;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$application = $_[0];
-	$runUser     = $_[1];
-	$baseDir     = $_[2];
-	$startCmd    = $_[3];
-	$stopCmd     = $_[4];
+	$application  = $_[0];
+	$runUser      = $_[1];
+	$baseDir      = $_[2];
+	$startCmd     = $_[3];
+	$stopCmd      = $_[4];
+	$grep1stParam = $_[5];
+	$grep2ndParam = $_[6];
 
 	$lcApplication = lc($application);
 
@@ -2327,6 +2331,17 @@ sub generateInitD {
 		"BASE=" . $baseDir . "\n",
 		"STARTCOMMAND=\"" . $startCmd . "\"\n",
 		"STOPCOMMAND=\"" . $stopCmd . "\"\n",
+		"GREP1STPARAM=\"" . $grep1stParam . "\"\n",
+		"GREP2NDPARAM=\"" . $grep2ndParam . "\"\n",
+		"\n",
+		'for var in "$@"' . "\n",
+		'do' . "\n",
+		'  if [[ $var == "--disable-kill"  ]]; then' . "\n",
+		'    DISABLEKILL="TRUE"' . "\n",
+		'  else' . "\n",
+		'    DISABLEKILL="FALSE"' . "\n",
+		'  fi' . "\n",
+		'done' . "\n",
 		"\n",
 		'case "$1" in' . "\n",
 		"  # Start command\n",
@@ -2339,7 +2354,25 @@ sub generateInitD {
 		"  stop)\n",
 		'    echo "Stopping $APP"' . "\n",
 		'    /bin/su -m $USER -c "$BASE/$STOPCOMMAND &> /dev/null"' . "\n",
-		'    echo "$APP stopped successfully"' . "\n",
+		'    if [[ $DISABLEKILL != "TRUE"  ]]; then' . "\n",
+'      echo "Sleeping for 20 seconds to ensure $APP has successfully stopped"'
+		  . "\n",
+		'      sleep 20' . "\n",
+		"\n",
+'      PIDS=`ps -ef | grep $GREP1STPARAM | grep $GREP2NDPARAM | grep -v \'ps -ef | grep\' | awk \'{print $2}\'`'
+		  . "\n",
+		"\n",
+		'      if [[ PIDS == ""  ]]; then' . "\n",
+		'        echo "$APP stopped successfully"' . "\n",
+		'      else' . "\n",
+		'        echo "$APP still running... Killing the process..."' . "\n",
+		'        kill -9 $PIDS' . "\n",
+		'        echo "$APP killed successfully"' . "\n",
+		'      fi' . "\n",
+		'    else' . "\n",
+		'      echo "$APP stopped successfully"' . "\n",
+		'    fi' . "\n",
+		"\n",
 		"    ;;\n",
 		"   # Restart command\n",
 		"   restart)\n",
@@ -2493,17 +2526,21 @@ sub generateInitDforSuite {
 		$lcApplication = lc($application);
 
 		@addToCommands = (
-			"    if service $lcApplication stop ; then\n",
+			"    if (service $lcApplication stop --disable-kill) ; then\n",
 			"        echo \n",
 			"    else\n",
 			'        if `ps -ef | grep -i '
 			  . $lcApplication
 			  . ' | grep -v "grep"`; then' . "\n",
 "            echo 'Unable to stop $application gracefully therefore killing it'\n",
-"            APP_PID=`ps -ef | grep confluence | awk -F ' ' '{print \$2}'`\n",
+			"            APP_PID=ps -ef | grep "
+			  . $globalConfig->param("$lcApplication.processSearchParameter1")
+			  . " | grep "
+			  . $globalConfig->param("$lcApplication.processSearchParameter2")
+			  . "| grep -v \'ps -ef | grep\' | awk \'{print \$2}\'`\n",
 			'            kill -9 $APP_PID' . "\n",
 			"            else\n",
-			"            echo '$application is not currently running'\n",
+			"                echo '$application is not currently running'\n",
 			"            echo \n",
 			"        fi\n",
 			"    fi\n",
@@ -5641,7 +5678,7 @@ sub stopService {
 			print "Attempting to stop the $application service.\n\n";
 			$log->info(
 				"$subname: Attempting to stop the $application service.");
-			system( "service " . $serviceName . " stop" );
+			system( "service " . $serviceName . " stop --disable-kill" );
 			print
 "Stop command completed successfully. Sleeping for 20 seconds before testing to ensure process has died.\n\n";
 			$log->info(
@@ -9657,11 +9694,13 @@ sub installBamboo {
 		$log->info("$subname: Generating init.d file for $application.");
 
 		generateInitD(
-			$lcApplication,
+			$application,
 			$osUser,
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 			"bamboo.sh start",
-			"bamboo.sh stop"
+			"bamboo.sh stop",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
 		);
 
 	}
@@ -9848,12 +9887,14 @@ sub installBamboo {
 		$log->info("$subname: Generating init.d file for $application.");
 
 		generateInitD(
-			$lcApplication,
+			$application,
 			$osUser,
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/",
 			"start-bamboo.sh",
-			"stop-bamboo.sh"
+			"stop-bamboo.sh",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
 		);
 	}
 
@@ -10183,11 +10224,13 @@ sub upgradeBamboo {
 		$log->info("$subname: Generating init.d file for $application.");
 
 		generateInitD(
-			$lcApplication,
+			$application,
 			$osUser,
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 			"bamboo.sh start",
-			"bamboo.sh stop"
+			"bamboo.sh stop",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
 		);
 
 		#Restore the Crowd configuration files
@@ -10465,12 +10508,14 @@ sub upgradeBamboo {
 		$log->info("$subname: Generating init.d file for $application.");
 
 		generateInitD(
-			$lcApplication,
+			$application,
 			$osUser,
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/",
 			"start-bamboo.sh",
-			"stop-bamboo.sh"
+			"stop-bamboo.sh",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
 		);
 
 		#Restore the Crowd configuration files
@@ -11598,11 +11643,13 @@ sub installConfluence {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD(
-		$lcApplication,
+		$application,
 		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"/bin/start-confluence.sh",
-		"/bin/stop-confluence.sh"
+		"/bin/stop-confluence.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
 	#Finally run generic post install tasks
@@ -11899,11 +11946,13 @@ sub upgradeConfluence {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD(
-		$lcApplication,
+		$application,
 		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		"/bin/start-confluence.sh",
-		"/bin/stop-confluence.sh"
+		"/bin/stop-confluence.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
 	#Finally run generic post install tasks
@@ -12772,9 +12821,15 @@ sub installCrowd {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"start_crowd.sh", "stop_crowd.sh" );
+		"start_crowd.sh",
+		"stop_crowd.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -12995,9 +13050,15 @@ sub upgradeCrowd {
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"start_crowd.sh", "stop_crowd.sh" );
+		"start_crowd.sh",
+		"stop_crowd.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
@@ -13945,12 +14006,14 @@ sub installFisheye {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD(
-		$lcApplication,
+		$application,
 		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/",
 		"start.sh",
-		"stop.sh"
+		"stop.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
 	postInstallGeneric($application);
@@ -14130,12 +14193,14 @@ sub upgradeFisheye {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 	generateInitD(
-		$lcApplication,
+		$application,
 		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/",
 		"start.sh",
-		"stop.sh"
+		"stop.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
 	#Finally run generic post install tasks
@@ -15086,9 +15151,15 @@ sub installJira {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-jira.sh", "/bin/stop-jira.sh" );
+		"/bin/start-jira.sh",
+		"/bin/stop-jira.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -15306,9 +15377,15 @@ sub upgradeJira {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-jira.sh", "/bin/stop-jira.sh" );
+		"/bin/start-jira.sh",
+		"/bin/stop-jira.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
@@ -16254,9 +16331,15 @@ sub installStash {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
+		"/bin/start-stash.sh",
+		"/bin/stop-stash.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -16469,9 +16552,15 @@ sub upgradeStash {
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
+		"/bin/start-stash.sh",
+		"/bin/stop-stash.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
