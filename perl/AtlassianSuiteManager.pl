@@ -238,7 +238,7 @@ sub backupApplication {
 		$log->info("$subname: Compressing $applicationDirBackupDirName");
 		print
 "You have selected to compress application backups... Compressing $application installation directory to a backup, this may take a few minutes...\n\n";
-		system( "cd $installDirPath && tar --checkpoint=.500 -czf "
+		system( "cd $installDirPath && tar -czf "
 			  . $applicationDirBackupDirName
 			  . ".tar.gz "
 			  . $installDirFolder );
@@ -289,7 +289,7 @@ sub backupApplication {
 		$log->info("$subname: Compressing $dataDirBackupDirName");
 		print
 "You have selected to compress application backups... Compressing $application data directory to a backup, for large installations this may take some time...\n\n";
-		system( "cd $dataDirPath && tar --checkpoint=.500 -czf "
+		system( "cd $dataDirPath && tar -czf "
 			  . $dataDirBackupDirName
 			  . ".tar.gz "
 			  . $dataDirFolder );
