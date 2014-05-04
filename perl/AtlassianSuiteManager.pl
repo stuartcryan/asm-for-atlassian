@@ -426,12 +426,17 @@ sub checkConfiguredPort {
 	my $availCode;
 	my $configValue;
 	my $input;
+	my @portTestReturn;
+	my $application;
+	my $lcApplication;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	$configItem = $_[0];
-	if ( defined( $_[1] ) ) {
-		$cfg = $_[1];
+	$application = $_[0];
+	$configItem  = $_[1];
+
+	if ( defined( $_[2] ) ) {
+		$cfg = $_[2];
 		$log->debug("Config has been passed to $subname.");
 	}
 	else {
@@ -467,8 +472,44 @@ sub checkConfiguredPort {
 			);
 
 			if ( $availCode == 1 ) {
-				$log->debug("Port is available.");
-				$LOOP = 0;
+				@portTestReturn =
+				  isPortDefinedElsewhere( $application, $configValue );
+				if ( scalar @portTestReturn == 0 ) {
+					$log->debug("Port is available.");
+					$LOOP = 0;
+				}
+				else {
+					print
+"That port is currently configured by one or more other applications in settings.cfg (listed below). You should enter a different port: \n\n";
+					foreach (@portTestReturn) {
+						print $_ . "\n";
+					}
+					print "\n";
+				}
+				$log->debug("Port is in use.");
+
+				$input = getBooleanInput(
+"Would you like to configure a different port? yes/no [yes]: "
+				);
+				print "\n";
+				if (   $input eq "yes"
+					|| $input eq "default" )
+				{
+					$log->debug("User selected to configure new port.");
+					genConfigItem(
+						"UPDATE",
+						$cfg,
+						$configItem,
+						"Please enter the new port number to configure",
+						"",
+						'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+					);
+				}
+				elsif ( $input eq "no" ) {
+					$LOOP = 0;
+					$log->debug("User selected to keep existing port.");
+				}
 			}
 			else {
 				$log->debug("Port is in use.");
@@ -1328,7 +1369,7 @@ sub displayQuickConfig {
 	my $menu;
 
 	# define the main menu as a multiline string
-	$menu = generateMenuHeader("MINI", "Quick URL Menu", "");
+	$menu = generateMenuHeader( "MINI", "Quick URL Menu", "" );
 
 	# print the main menu
 	print $menu;
@@ -2604,20 +2645,27 @@ END_FOOTER
 
 	$titleLength = length($expandedTitle);
 
-	$menuTitle = "      " .
-	    "*" x $titleLength . "\n"
-	  . "      " . $expandedTitle . "\n"
-	  . "      " . "*" x $titleLength . "\n\n";
-	  
-	if ($inputBodyText eq "" && $mode eq "FULL"){
+	$menuTitle =
+	    "      "
+	  . "*" x $titleLength . "\n"
+	  . "      "
+	  . $expandedTitle . "\n"
+	  . "      "
+	  . "*" x $titleLength . "\n\n";
+
+	if ( $inputBodyText eq "" && $mode eq "FULL" ) {
 		$fullMenu = $menuHead . $defaultMenuBodyText . $menuFooter . $menuTitle;
-	}elsif ($inputBodyText eq "" && $mode eq "MINI"){
+	}
+	elsif ( $inputBodyText eq "" && $mode eq "MINI" ) {
 		$fullMenu = $menuHead . $menuFooter . $menuTitle;
-	}elsif ($inputBodyText ne "" && $mode eq "FULL"){
-		$fullMenu = $menuHead . $inputBodyText .  $menuFooter . $menuTitle;
-	}elsif ($inputBodyText ne "" && $mode eq "MINI"){
-		$fullMenu = $menuHead . $inputBodyText .  $menuFooter . $menuTitle;
-	}else {
+	}
+	elsif ( $inputBodyText ne "" && $mode eq "FULL" ) {
+		$fullMenu = $menuHead . $inputBodyText . $menuFooter . $menuTitle;
+	}
+	elsif ( $inputBodyText ne "" && $mode eq "MINI" ) {
+		$fullMenu = $menuHead . $inputBodyText . $menuFooter . $menuTitle;
+	}
+	else {
 		$fullMenu = $menuHead . $defaultMenuBodyText . $menuFooter . $menuTitle;
 	}
 	return $fullMenu;
@@ -3242,7 +3290,8 @@ sub getAllLatestDownloadURLs {
 	my $subname = ( caller(0) )[3];
 
 	# define the main menu as a multiline string
-	$menuText = generateMenuHeader("MINI", "Please Wait... Getting latest version details from Atlassian", "");
+	$menuText = generateMenuHeader( "MINI",
+		"Please Wait... Getting latest version details from Atlassian", "" );
 
 	# print the main menu
 	system 'clear';
@@ -4617,6 +4666,57 @@ is currently in use. We will continue however there is a good chance $applicatio
 		$osUser );
 
 	#GenericInstallCompleted
+}
+
+########################################
+#Check if port is defined elsewhere    #
+########################################
+sub isPortDefinedElsewhere {
+	my $application;
+	my $lcApplication;
+	my $lcApplicationToCheck;
+	my $applicationToCheck;
+	my @parameterNull;
+	my @portTypes = ( "serverPort", "connectorPort" );
+	my $portType;
+	my @returnDetails;
+	my $port;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application   = $_[0];
+	$port          = $_[1];
+	$lcApplication = lc($application);
+
+	foreach (@suiteApplications) {
+		$applicationToCheck   = $_;
+		$lcApplicationToCheck = lc($applicationToCheck);
+		if ( $application ne $applicationToCheck ) {
+			foreach (@portTypes) {
+				my $portType = $_;
+				@parameterNull =
+				  $globalConfig->param("$lcApplicationToCheck.$portType");
+				if ( $#parameterNull == -1 ) {
+					$log->info(
+"$subname: Port $port is not in use by $application. Continuing..."
+					);
+				}
+				else {
+					if ( $globalConfig->param("$lcApplicationToCheck.$portType")
+						eq "$port" )
+					{
+						$log->info(
+"$subname: Port $port is already defined for use by $lcApplication.$portType."
+						);
+						push( @returnDetails,
+							$applicationToCheck . " - " . $portType );
+					}
+				}
+			}
+		}
+	}
+	return @returnDetails;
 }
 
 ########################################
@@ -7187,10 +7287,9 @@ sub displayAdvancedMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$main_menu = generateMenuHeader("FULL", "ASM Advanced Menu", "");
-		
+		$main_menu = generateMenuHeader( "FULL", "ASM Advanced Menu", "" );
 
-        $menuOptions = <<'END_TXT';     
+		$menuOptions = <<'END_TXT';
       Please select from the following options:
 
       1) Force refresh of latest Atlassian suite application versions cache file
@@ -7220,7 +7319,9 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
-			print generateMenuHeader("FULL", "Refreshing application versions cache file. Please wait...", "");
+			print generateMenuHeader( "FULL",
+				"Refreshing application versions cache file. Please wait...",
+				"" );
 			if ( -e $latestVersionsCacheFile ) {
 				print "Deleting cache file...\n\n";
 				rmtree( [ escapeFilePath($latestVersionsCacheFile) ] );
@@ -7243,7 +7344,8 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
-			print generateMenuHeader("FULL", "ASM Command Line Parameters", "");
+			print generateMenuHeader( "FULL", "ASM Command Line Parameters",
+				"" );
 			print
 "The following command line parameters are currently available for use in ASM:\n";
 			print "1. Enable EAP Downloads:\n";
@@ -7262,7 +7364,8 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "3\n" ) {
 			system 'clear';
-			print generateMenuHeader("FULL", "Forcing UID/GIDs on Account Creation", "");
+			print generateMenuHeader( "FULL",
+				"Forcing UID/GIDs on Account Creation", "" );
 			print
 "If you would like to force specific UID/GIDs for new account creations please see the documentation at:\n";
 			print
@@ -7275,7 +7378,8 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "4\n" ) {
 			system 'clear';
-			print generateMenuHeader("FULL", "Additional Advanced Documentation", "");
+			print generateMenuHeader( "FULL",
+				"Additional Advanced Documentation", "" );
 			print
 "There are additional advanced functions and features documented on the main wiki. Please see the documentation at:\n";
 			print
@@ -7303,7 +7407,7 @@ sub displayInitialConfigMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = generateMenuHeader("MINI", "Initial Config Menu", "");
+		$menuText = generateMenuHeader( "MINI", "Initial Config Menu", "" );
 		$menuText .= <<'END_TXT';
       No configuration file has been found. Please select from the following options:
 
@@ -7438,9 +7542,10 @@ sub displayInstallMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = generateMenuHeader("FULL", "ASM Install Menu", "");
+		$menuText = generateMenuHeader( "FULL", "ASM Install Menu", "" );
 
-		$menuText = $menuText . "      Please select from the following options:\n\n";
+		$menuText =
+		  $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Install Bamboo $bambooAdditionalText\n";
 		$menuText =
@@ -7590,9 +7695,9 @@ sub displayMainMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$main_menu = generateMenuHeader("FULL", "ASM Main Menu", "");
+		$main_menu = generateMenuHeader( "FULL", "ASM Main Menu", "" );
 
-      $main_menu .= <<'END_TXT';
+		$main_menu .= <<'END_TXT';
       Please select from the following options:
 
       1) Install a new application
@@ -7669,6 +7774,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
+			print Dumper isPortDefinedElsewhere( "Confluence", "8059" );
 			my $test = <STDIN>;
 		}
 	}
@@ -7777,9 +7883,11 @@ sub displayRestoreMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = generateMenuHeader("FULL", "ASM Restore Failed Upgrades Menu", "");
+		$menuText =
+		  generateMenuHeader( "FULL", "ASM Restore Failed Upgrades Menu", "" );
 
-		$menuText = $menuText . "      Please select from the following options:\n\n";
+		$menuText =
+		  $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Restore Bamboo $bambooAdditionalText\n";
 		$menuText =
@@ -7991,9 +8099,10 @@ sub displayUninstallMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = generateMenuHeader("FULL", "ASM Uninstall Menu", "");
+		$menuText = generateMenuHeader( "FULL", "ASM Uninstall Menu", "" );
 
-		$menuText = $menuText . "      Please select from the following options:\n\n";
+		$menuText =
+		  $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Uninstall Bamboo $bambooAdditionalText\n";
 		$menuText = $menuText
@@ -8269,7 +8378,7 @@ sub displayUpgradeMenu {
 		}
 
 		# define the main menu as a multiline string
-		$menuText = generateMenuHeader("FULL", "ASM Upgrade Menu", "");
+		$menuText = generateMenuHeader( "FULL", "ASM Upgrade Menu", "" );
 
 		$menuText =
 		  $menuText . "      1) Upgrade Bamboo $bambooAdditionalText\n";
@@ -8542,7 +8651,7 @@ sub getExistingBambooConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "bamboo.serverPort", $cfg );
+	checkConfiguredPort( $application, "bamboo.serverPort", $cfg );
 
 	#Set up some defaults for Bamboo
 	$cfg->param( "bamboo.tomcatDir", "" )
@@ -9099,7 +9208,8 @@ sub generateBambooConfig {
 	my $defaultValue;
 	my @parameterNull;
 	my $externalCrowdInstance;
-	my $subname = ( caller(0) )[3];
+	my $application = "Bamboo";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -9159,7 +9269,7 @@ sub generateBambooConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "bamboo.connectorPort", $cfg );
+	checkConfiguredPort( $application, "bamboo.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -9171,7 +9281,7 @@ sub generateBambooConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "bamboo.serverPort", $cfg );
+	checkConfiguredPort( $application, "bamboo.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -11035,7 +11145,8 @@ sub generateConfluenceConfig {
 	my $defaultValue;
 	my @parameterNull;
 	my $externalCrowdInstance;
-	my $subname = ( caller(0) )[3];
+	my $application = "Crowd";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -11084,7 +11195,7 @@ sub generateConfluenceConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "confluence.connectorPort", $cfg );
+	checkConfiguredPort( $application, "confluence.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -11096,7 +11207,7 @@ sub generateConfluenceConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "confluence.serverPort", $cfg );
+	checkConfiguredPort( $application, "confluence.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -12301,7 +12412,8 @@ sub generateCrowdConfig {
 	my $cfg;
 	my $mode;
 	my $defaultValue;
-	my $subname = ( caller(0) )[3];
+	my $application = "Crowd";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -12363,7 +12475,7 @@ sub generateCrowdConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "crowd.connectorPort", $cfg );
+	checkConfiguredPort( $application, "crowd.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -12374,7 +12486,7 @@ sub generateCrowdConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "crowd.serverPort", $cfg );
+	checkConfiguredPort( $application, "crowd.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -13451,7 +13563,8 @@ sub generateFisheyeConfig {
 	my $defaultValue;
 	my $externalCrowdInstance;
 	my @parameterNull;
-	my $subname = ( caller(0) )[3];
+	my $application = "Fisheye";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -13513,7 +13626,7 @@ sub generateFisheyeConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "fisheye.connectorPort", $cfg );
+	checkConfiguredPort( $application, "fisheye.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -13524,7 +13637,7 @@ sub generateFisheyeConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "fisheye.serverPort", $cfg );
+	checkConfiguredPort( $application, "fisheye.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -14596,7 +14709,8 @@ sub generateJiraConfig {
 	my $defaultValue;
 	my $externalCrowdInstance;
 	my @parameterNull;
-	my $subname = ( caller(0) )[3];
+	my $application = "JIRA";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 	$mode = $_[0];
@@ -14648,7 +14762,7 @@ sub generateJiraConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "jira.connectorPort", $cfg );
+	checkConfiguredPort( $application, "jira.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -14660,7 +14774,7 @@ sub generateJiraConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "jira.serverPort", $cfg );
+	checkConfiguredPort( $application, "jira.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -15759,6 +15873,7 @@ sub generateStashConfig {
 	my $defaultValue;
 	my $subname = ( caller(0) )[3];
 	my $externalCrowdInstance;
+	my $application = "Stash";
 	my @parameterNull;
 
 	$log->info("BEGIN: $subname");
@@ -15820,7 +15935,7 @@ sub generateStashConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "stash.connectorPort", $cfg );
+	checkConfiguredPort( $application, "stash.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -15832,7 +15947,7 @@ sub generateStashConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "stash.serverPort", $cfg );
+	checkConfiguredPort( $application, "stash.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
