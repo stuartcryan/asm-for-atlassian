@@ -2526,17 +2526,21 @@ sub generateInitDforSuite {
 		$lcApplication = lc($application);
 
 		@addToCommands = (
-			"    if service $lcApplication stop ; then\n",
+			"    if (service $lcApplication stop --disable-kill) ; then\n",
 			"        echo \n",
 			"    else\n",
 			'        if `ps -ef | grep -i '
 			  . $lcApplication
 			  . ' | grep -v "grep"`; then' . "\n",
 "            echo 'Unable to stop $application gracefully therefore killing it'\n",
-"            APP_PID=`ps -ef | grep confluence | awk -F ' ' '{print \$2}'`\n",
+			"            APP_PID=ps -ef | grep "
+			  . $globalConfig->param("$lcApplication.processSearchParameter1")
+			  . " | grep "
+			  . $globalConfig->param("$lcApplication.processSearchParameter2")
+			  . "| grep -v \'ps -ef | grep\' | awk \'{print \$2}\'`\n",
 			'            kill -9 $APP_PID' . "\n",
 			"            else\n",
-			"            echo '$application is not currently running'\n",
+			"                echo '$application is not currently running'\n",
 			"            echo \n",
 			"        fi\n",
 			"    fi\n",
@@ -5674,7 +5678,7 @@ sub stopService {
 			print "Attempting to stop the $application service.\n\n";
 			$log->info(
 				"$subname: Attempting to stop the $application service.");
-			system( "service " . $serviceName . " stop" );
+			system( "service " . $serviceName . " stop --disable-kill" );
 			print
 "Stop command completed successfully. Sleeping for 20 seconds before testing to ensure process has died.\n\n";
 			$log->info(
