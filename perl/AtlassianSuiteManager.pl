@@ -73,14 +73,14 @@ my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
 my $supportedVersionsConfigFile = "supportedVersions.cfg";
 my $distro;
-my $silent                  = '';     #global flag for command line paramaters
-my $debug                   = '';     #global flag for command line paramaters
-my $unsupported             = '';     #global flag for command line paramaters
-my $ignore_version_warnings = '';     #global flag for command line paramaters
-my $disable_config_checks   = '';     #global flag for command line paramaters
-my $verbose                 = '';     #global flag for command line paramaters
-my $autoMode                = '';     #global flag for command line paramaters
-my $enableEAPDownloads      = '0';    #global flag for command line paramaters
+my $silent                  = '';     #global flag for command line parameters
+my $debug                   = '';     #global flag for command line parameters
+my $unsupported             = '';     #global flag for command line parameters
+my $ignore_version_warnings = '';     #global flag for command line parameters
+my $disable_config_checks   = '';     #global flag for command line parameters
+my $verbose                 = '';     #global flag for command line parameters
+my $autoMode                = '';     #global flag for command line parameters
+my $enableEAPDownloads      = '0';    #global flag for command line parameters
 my $globalArch;
 my $logFile;
 my @suiteApplications =
@@ -485,30 +485,31 @@ sub checkConfiguredPort {
 						print $_ . "\n";
 					}
 					print "\n";
-				}
-				$log->debug("Port is in use.");
 
-				$input = getBooleanInput(
+					$log->debug("Port is in use.");
+
+					$input = getBooleanInput(
 "Would you like to configure a different port? yes/no [yes]: "
-				);
-				print "\n";
-				if (   $input eq "yes"
-					|| $input eq "default" )
-				{
-					$log->debug("User selected to configure new port.");
-					genConfigItem(
-						"UPDATE",
-						$cfg,
-						$configItem,
-						"Please enter the new port number to configure",
-						"",
-						'^([0-9]*)$',
-"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 					);
-				}
-				elsif ( $input eq "no" ) {
-					$LOOP = 0;
-					$log->debug("User selected to keep existing port.");
+					print "\n";
+					if (   $input eq "yes"
+						|| $input eq "default" )
+					{
+						$log->debug("User selected to configure new port.");
+						genConfigItem(
+							"UPDATE",
+							$cfg,
+							$configItem,
+							"Please enter the new port number to configure",
+							"",
+							'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+						);
+					}
+					elsif ( $input eq "no" ) {
+						$LOOP = 0;
+						$log->debug("User selected to keep existing port.");
+					}
 				}
 			}
 			else {
@@ -2838,7 +2839,7 @@ sub genConfigItem {
 	dumpSingleVarToLog( "$subname" . "_validationFailureRegex",
 		$validationFailureMessage );
 
-	#Check if the paramater is null (undefined)
+	#Check if the parameter is null (undefined)
 	@parameterNull = $cfg->param($configParam);
 
 #Check if we are updating (get current value), or doing a fresh run (use default passed to this function)
@@ -5859,6 +5860,140 @@ sub testOSArchitecture {
 }
 
 ########################################
+#updateCATALINAOPTS                    #
+########################################
+sub updateCatalinaOpts {
+	my $inputFile;    #Must Be Absolute Path
+	my $catalinaOpts;
+	my $searchFor;
+	my $baseReferenceLine;
+	my $referenceVariable;
+	my @data;
+	my $application;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application       = $_[0];
+	$inputFile         = $_[1];
+	$referenceVariable = $_[2];
+	$catalinaOpts      = $_[3];
+
+#As none of the applications setenv.sh files currently have CATALINA_OPTS we need to define
+#a line that will always exist for each application to insert CATALINA_OPTS after
+
+	if ( $application eq "Confluence" ) {
+		$baseReferenceLine = "JAVA_OPTS=";
+	}
+	elsif ( $application eq "JIRA" ) {
+		$baseReferenceLine = "JVM_REQUIRED_ARGS=";
+	}
+	elsif ( $application eq "Bamboo" ) {
+		$baseReferenceLine = "JVM_REQUIRED_ARGS=";
+	}
+	elsif ( $application eq "Crowd" ) {
+		$baseReferenceLine = "JAVA_OPTS=";
+	}
+	elsif ( $application eq "Stash" ) {
+		$baseReferenceLine = "JVM_REQUIRED_ARGS=";
+	}
+
+#If no catalinaOpts parameters defined we get an undefined variable. This accounts for that.
+	if ( !defined $catalinaOpts ) {
+		$catalinaOpts = "";
+	}
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",    $inputFile );
+	dumpSingleVarToLog( "$subname" . "_catalinaOpts", $catalinaOpts );
+
+	#Try to open the provided file
+	open( FILE, $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
+
+	# read file into an array
+	@data = <FILE>;
+
+	close(FILE);
+
+	$searchFor = $referenceVariable;
+
+	#Search for the provided string in the file array
+	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+	if ( !defined($index1) ) {
+		$log->info("$subname: $searchFor not found. Adding it in.");
+		my ($index0) =
+		  grep { $data[$_] =~ /^$baseReferenceLine.*/ } 0 .. $#data;
+
+		splice( @data, $index0 + 1, 0,
+			    'CATALINA_OPTS="$CATALINA_OPTS $ATLASMGR_CATALINA_OPTS"'
+			  . "\nexport CATALINA_OPTS\n" );
+		($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+	}
+
+#See how many times ATLASMGR_CATALINA_OPTS occurs in file, this will be in the existing
+#CATALINA_OPTS parameter as a variable (if it exists).
+#If it doesn't exist this splits up the string so that we can insert it as a new variable
+	my $count = grep( /.*ATLASMGR_CATALINA_OPTS.*/, $data[$index1] );
+	if ( $count == 0 ) {
+		$log->info(
+"$subname: ATLASMGR_CATALINA_OPTS does not yet exist, splitting string to insert it."
+		);
+		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
+			my $result1 = $1;
+			my $result2 = $2;
+			my $result3 = $3;
+
+			if ( substr( $result2, -1, 1 ) eq " " ) {
+				$data[$index1] =
+				    $result1 . '"' 
+				  . $result2
+				  . '$ATLASMGR_CATALINA_OPTS "'
+				  . $result3 . "\n";
+			}
+			else {
+				$data[$index1] =
+				    $result1 . '"' 
+				  . $result2
+				  . ' $ATLASMGR_CATALINA_OPTS"'
+				  . $result3 . "\n";
+			}
+		}
+	}
+
+#Search for the definition of the variable ATLASMGR_CATALINA_OPTS which can be used to add
+#additional parameters to the main JAVA_OPTS variable
+	$searchFor = "ATLASMGR_CATALINA_OPTS=";
+	my ($index2) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+#If no result is found insert a new line before the line found above which contains the CATALINA_OPTS variable
+	my ($index3) = grep { $data[$_] =~ /^$referenceVariable.*/ } 0 .. $#data;
+	if ( !defined($index2) ) {
+		$log->info(
+			"$subname: ATLASMGR_CATALINA_OPTS= not found. Adding it in.");
+
+		splice( @data, $index3, 0,
+			"ATLASMGR_CATALINA_OPTS=\"" . $catalinaOpts . "\"\n" );
+	}
+
+	#Else update the line to have the new parameters that have been specified
+	else {
+		$log->info(
+"$subname: ATLASMGR_CATALINA_OPTS= exists, adding new javaOpts parameters."
+		);
+		$data[$index2] = "ATLASMGR_CATALINA_OPTS=\"" . $catalinaOpts . "\"\n";
+	}
+
+	#Try to open file, output the lines that are in memory and close
+	open FILE, ">$inputFile"
+	  or $log->logdie("Unable to open file $inputFile $!");
+	print FILE @data;
+	close FILE;
+
+}
+
+########################################
 #updateEnvironmentVars                 #
 ########################################
 sub updateEnvironmentVars {
@@ -6263,7 +6398,7 @@ sub updateLineInBambooWrapperConf {
 "$subname: Line with $parameterReference not found. Going to add it."
 		);
 
-#Find the number of paramaters already existing to get the next number
+#Find the number of parameters already existing to get the next number
 #This is not ideal however I expect this will be deprecated soon when Bamboo moves off Jetty.
 		foreach $line (@data) {
 			if ( $line =~ /^$variableReference.*/ ) {
@@ -7811,7 +7946,10 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			print Dumper isPortDefinedElsewhere( "Confluence", "8059" );
+			updateCatalinaOpts(
+				"Bamboo",         "/opt/atlassian/bamboo/bin/setenv.sh",
+				"CATALINA_OPTS=", "my catalina opts here"
+			);
 			my $test = <STDIN>;
 		}
 	}
@@ -8645,7 +8783,17 @@ sub getExistingBambooConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -9324,7 +9472,17 @@ sub generateBambooConfig {
 		$mode,
 		$cfg,
 		"bamboo.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -9451,6 +9609,7 @@ sub installBamboo {
 	my @requiredCrowdConfigItems;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $tomcatDir;
 	my $WrapperDownloadFile;
 	my $WrapperDownloadUrlFor64Bit =
@@ -9846,7 +10005,34 @@ sub installBamboo {
 				  . $tomcatDir
 				  . "/bin/setenv.sh",
 				"JAVA_OPTS",
-				$globalConfig->param( $lcApplication . ".javaParams" )
+				getConfigItem( "$lcApplication.javaParams", $globalConfig )
+			);
+		}
+
+		#Apply CATALINA_OPTS to install
+		@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq
+			"default" )
+		{
+			$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$catalinaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		print "Applying CATALINA_OPTS configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+			updateCatalinaOpts(
+				$application,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir
+				  . "/bin/setenv.sh",
+				"CATALINA_OPTS=",
+				getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 			);
 		}
 
@@ -9928,6 +10114,7 @@ sub upgradeBamboo {
 	my $WrapperDownloadFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $tomcatDir;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
@@ -10467,7 +10654,34 @@ sub upgradeBamboo {
 				  . $tomcatDir
 				  . "/bin/setenv.sh",
 				"JAVA_OPTS",
-				$globalConfig->param( $lcApplication . ".javaParams" )
+				getConfigItem( "$lcApplication.javaParams", $globalConfig )
+			);
+		}
+
+		#Apply CATALINA_OPTS to install
+		@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq
+			"default" )
+		{
+			$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$catalinaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		print "Applying CATALINA_OPTS configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+			updateCatalinaOpts(
+				$application,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir
+				  . "/bin/setenv.sh",
+				"CATALINA_OPTS=",
+				getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 			);
 		}
 
@@ -10702,7 +10916,17 @@ sub getExistingConfluenceConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -11258,7 +11482,17 @@ sub generateConfluenceConfig {
 		$mode,
 		$cfg,
 		"confluence.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -11372,6 +11606,7 @@ sub installConfluence {
 	my $initPropertiesFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -11533,7 +11768,30 @@ sub installConfluence {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -11675,6 +11933,7 @@ sub upgradeConfluence {
 	my $initPropertiesFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -11836,7 +12095,30 @@ sub upgradeConfluence {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -12036,7 +12318,17 @@ sub getExistingCrowdConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -12541,7 +12833,17 @@ sub generateCrowdConfig {
 		$mode,
 		$cfg,
 		"crowd.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -12633,6 +12935,7 @@ sub installCrowd {
 	my $javaMemParameterFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -12796,7 +13099,31 @@ sub installCrowd {
 			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -12857,6 +13184,7 @@ sub upgradeCrowd {
 	my $javaMemParameterFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -13026,7 +13354,31 @@ sub upgradeCrowd {
 			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -13143,7 +13495,7 @@ sub getExistingFisheyeConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -13704,7 +14056,7 @@ sub generateFisheyeConfig {
 		$mode,
 		$cfg,
 		"fisheye.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
 		"",
 		"",
 		""
@@ -13967,7 +14319,7 @@ sub installFisheye {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/fisheyectl.sh",
 			"FISHEYE_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 
 	}
@@ -14156,7 +14508,7 @@ sub upgradeFisheye {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/fisheyectl.sh",
 			"FISHEYE_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 	}
 
@@ -14286,7 +14638,17 @@ sub getExistingJiraConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -14845,7 +15207,17 @@ sub generateJiraConfig {
 		$mode,
 		$cfg,
 		"jira.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -14958,6 +15330,7 @@ sub installJira {
 	my $initPropertiesFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -15110,7 +15483,30 @@ sub installJira {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -15184,6 +15580,7 @@ sub upgradeJira {
 	my $initPropertiesFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -15336,7 +15733,30 @@ sub upgradeJira {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -15470,7 +15890,17 @@ sub getExistingStashConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -16030,7 +16460,17 @@ sub generateStashConfig {
 		$mode,
 		$cfg,
 		"stash.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -16146,6 +16586,7 @@ sub installStash {
 	my $javaMemParameterFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -16290,7 +16731,30 @@ sub installStash {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JVM_REQUIRED_ARGS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -16368,6 +16832,7 @@ sub upgradeStash {
 	my @requiredConfigItems;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -16512,7 +16977,30 @@ sub upgradeStash {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JVM_REQUIRED_ARGS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
