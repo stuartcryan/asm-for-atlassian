@@ -3430,7 +3430,7 @@ sub getConfigItem {
 
 	@parameterNull = $cfg->param($configItem);
 
-	if ( !( $#parameterNull == -1 ) ) {
+	if ( ( $#parameterNull == -1 ) ) {
 		return "";
 	}
 	else {
