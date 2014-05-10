@@ -4473,10 +4473,10 @@ sub installGeneric {
 	}
 
 	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
+	  isPortAvailable( $globalConfig->param("$lcApplication.serverPort") );
 
 	$connectorPortAvailCode =
-	  isPortAvailable( $globalConfig->param("lcApplication.connectorPort") );
+	  isPortAvailable( $globalConfig->param("$lcApplication.connectorPort") );
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
 		$log->info(
