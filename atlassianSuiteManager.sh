@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #
-#    Copyright 2012-2013 Stuart Ryan
+#    Copyright 2012-2014 Stuart Ryan
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.7
+#    Version: 0.2.0
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.1.7"
+SCRIPTVERSION="0.2.0"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
@@ -63,20 +63,84 @@ else
 fi
 
 ########################################
+#Check for SELinux                     #
+########################################
+checkSELinux(){
+
+type -P getenforce &>/dev/null  || { SELINUXCHECK="UNABLE";}
+
+if [[ $SELINXUXCHECK != "UNABLE" && $DISABLESELINUXCHECK != "TRUE" ]]; then
+ 	SELINUXSTATUS=`getenforce`
+ 	 	
+ 	if [[ $SELINUXSTATUS == "Enforcing" ]]; then
+ 	echo "It appears that SELinux is currently set to Enforcing. This script has not been certified to install and configure the Atlassian Suite with SELinux enabled."
+ 	echo ""
+    echo -n "If you continue you may run into unusual problems trying to get the applications to run. Do you wish to continue? yes/no [no]: "
+ 	LOOP=1
+		while [ $LOOP -eq "1" ]
+		do
+			read USERWANTSTOPROCEEDWITHSELINUX
+			if [[("$USERWANTSTOPROCEEDWITHSELINUX" == "y" || "$USERWANTSTOPROCEEDWITHSELINUX" == "yes"|| "$USERWANTSTOPROCEEDWITHSELINUX" == "YES" || "$USERWANTSTOPROCEEDWITHSELINUX" == "Yes" || "$USERWANTSTOPROCEEDWITHSELINUX" == "YEs" || "$USERWANTSTOPROCEEDWITHSELINUX" == "yEs" || "$USERWANTSTOPROCEEDWITHSELINUX" == "YeS")]]; then
+				LOOP="0"
+                echo -n "Do you wish to disable this check in future? yes/no [yes]: "
+                    
+                INNERLOOP=1
+		        while [ $INNERLOOP -eq "1" ]
+	            do
+		            read USERWANTSTODISABLESELINUXCHECK
+		            if [[("$USERWANTSTODISABLESELINUXCHECK" == "y" || "$USERWANTSTODISABLESELINUXCHECK" == "yes"|| "$USERWANTSTODISABLESELINUXCHECK" == "YES" || "$USERWANTSTODISABLESELINUXCHECK" == "Yes" || "$USERWANTSTODISABLESELINUXCHECK" == "YEs" || "$USERWANTSTODISABLESELINUXCHECK" == "yEs" || "$USERWANTSTODISABLESELINUXCHECK" == "YeS" || "$USERWANTSTODISABLESELINUXCHECK" == "")]]; then
+		                INNERLOOP="0"
+                        if [ -f "shellScriptIncludes.inc" ]; then
+                            echo "" >> shellScriptIncludes.inc
+                            echo "DISABLESELINUXCHECK=TRUE" >> shellScriptIncludes.inc
+                        else
+                            echo "#!/bin/bash" >> shellScriptIncludes.inc
+                            echo "#    This file can contain custom configuration and script configs for the atlassianSuiteManger.sh script" >> shellScriptIncludes.inc
+						    echo "#"  >> shellScriptIncludes.inc
+						    echo "#    Copyright 2012-2014 Stuart Ryan" >> shellScriptIncludes.inc
+						    echo "" >> shellScriptIncludes.inc
+                            echo "DISABLESELINUXCHECK=TRUE" >> shellScriptIncludes.inc
+                        fi
+                    
+			        elif [[("$USERWANTSTODISABLESELINUXCHECK" == "n" || "$USERWANTSTODISABLESELINUXCHECK" == "no" || "$USERWANTSTODISABLESELINUXCHECK" == "NO" || "$USERWANTSTODISABLESELINUXCHECK" == "No" || "$USERWANTSTODISABLESELINUXCHECK" == "nO")]]; then
+			            INNERLOOP="0"
+		           else
+			            echo ""
+			            echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Do you wish to disable the SELinux check in future? yes/no [yes]: " 
+		           fi
+		       done
+                    
+			elif [[("$USERWANTSTOPROCEEDWITHSELINUX" == "n" || "$USERWANTSTOPROCEEDWITHSELINUX" == "no" || "$USERWANTSTOPROCEEDWITHSELINUX" == "NO" || "$USERWANTSTOPROCEEDWITHSELINUX" == "No" || "$USERWANTSTOPROCEEDWITHSELINUX" == "nO"|| "$USERWANTSTOPROCEEDWITHSELINUX" == "")]]; then
+				echo ""
+				echo "Please disable SELinux (search 'Disable SELinux' on Google) and then restart your machine and then run this script again."
+				echo ""
+				echo ""
+				LOOP="0"
+				exit 1
+			else
+				echo ""
+				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Do you wish to continue even though SELinux is Enforcing? yes/no [no]: " 
+			fi
+		done
+ 	
+    fi
+fi
+}
+
+
+########################################
 #Test system for required Binaries     #
 ########################################
 checkRequiredBinaries(){
-BINARIES="wget zip unzip tar perl cpan gcc openssl g++ make"
+BINARIES="wget zip unzip tar gzip perl cpan gcc openssl g++ make"
 
 #as Debian does not know of a CPAN binary it comes in the PERL binary
-BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make cpan"
-BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
+BINARIESREDHAT="wget zip unzip tar gzip perl gcc gcc-c++ make cpan"
+BINARIESDEBIAN="wget zip unzip tar gzip perl gcc g++ make"
 
 #These are deliberately null
 BINARIESCHECK=""
 MISSINGBINARIES=""
-
-
 
 for i in $BINARIES
 do
@@ -95,19 +159,31 @@ if [[ ! -e "/usr/include/openssl/ssl.h" ]]; then
 	echo "'openssl-devel/libssl-dev' libraries not found.";
 fi
 
-# Adding expat and expat-devel package tests as per [#ATLASMGR-295] to fix bug on CentOS 5 machines
-rpm -q expat-devel >> /dev/null 2>&1
-if [[ $? -ne 0 ]]; then
- 	BINARIESCHECK="FAIL"
-	#add expat-devel to the required binaries
-	BINARIESREDHAT="$BINARIESREDHAT expat-devel"
+#adding check for getEnforce for Ubuntu and DEBIAN
+if [[ $OPERATING_SYSTEM == "UBUNTU" || $OPERATING_SYSTEM == "DEBIAN" ]]; then
+   type -P getenforce &>/dev/null
+    if [[ $? -ne 0 ]]; then
+     	BINARIESCHECK="FAIL"
+	    #add selinux-utils to the required binaries
+	    BINARIESDEBIAN="$BINARIESDEBIAN selinux-utils"
+    fi
 fi
 
-rpm -q expat >> /dev/null 2>&1
-if [[ $? -ne 0 ]]; then
-	BINARIESCHECK="FAIL"
-	#add expat-devel to the required binaries
-	BINARIESREDHAT="$BINARIESREDHAT expat"
+# Adding expat and expat-devel package tests as per [#ATLASMGR-295] to fix bug on CentOS 5 machines
+if [[ $OPERATING_SYSTEM == "REDHAT" ]]; then
+    rpm -q expat-devel >> /dev/null 2>&1
+    if [[ $? -ne 0 ]]; then
+     	BINARIESCHECK="FAIL"
+	    #add expat-devel to the required binaries
+	    BINARIESREDHAT="$BINARIESREDHAT expat-devel"
+    fi
+    
+    rpm -q expat >> /dev/null 2>&1
+    if [[ $? -ne 0 ]]; then
+	    BINARIESCHECK="FAIL"
+	    #add expat-devel to the required binaries
+	    BINARIESREDHAT="$BINARIESREDHAT expat"
+    fi
 fi
 
 if [[ $BINARIESCHECK == "FAIL" ]] ; then
@@ -130,7 +206,7 @@ echo -n "Some required binary components are missing therefore this script canno
 				exit 1
 			else
 				echo ""
-				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to update the script now? yes/no [yes]:" 
+				echo -n "Your input was not recognised, please enter 'Yes' or 'No'. Would you like to update the script now? yes/no [yes]: " 
 			fi
 		done
 		
@@ -170,7 +246,7 @@ checkJVM(){
 #Test system for required PERL Modules #
 ########################################
 checkPerlModules(){
-MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable ExtUtils::Installed"
+MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Parser XML::XPath XML::Twig Archive::Extract Socket Getopt::Long Log::Log4perl Archive::Tar Archive::Zip Filesys::DfPortable ExtUtils::Installed File::Basename"
 BINARIESCHECK=""
 MISSINGMODULES=""
 
@@ -468,9 +544,6 @@ if [[ $EUID -ne 0 ]]; then
 fi
 }
 
-#Do initial checks
-checkForRootAccess
-
 #Import custom includes if the file exists
 if [ -f "shellScriptIncludes.inc" ]; then
 	source shellScriptIncludes.inc
@@ -482,6 +555,10 @@ if [ -f "shellScriptIncludes.inc" ]; then
 	fi
 fi
 
+#Do initial checks
+checkForRootAccess
+checkSELinux
+
 #check for Oracle JVM
 clear
 
@@ -489,7 +566,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
@@ -509,7 +586,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
@@ -552,7 +629,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
@@ -571,7 +648,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
