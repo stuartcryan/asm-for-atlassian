@@ -913,7 +913,7 @@ sub compareTwoVersions {
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
-		$minVersionStatus eq "BOTHULL" )
+		$minVersionStatus eq "BOTHNULL" )
 	{
 		$log->info("$subname: Newer version is equal to old version.");
 		return "EQUAL";
