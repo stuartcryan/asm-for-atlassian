@@ -1,11 +1,11 @@
 #!/bin/bash
 
 #
-#    Copyright 2012-2013 Stuart Ryan
+#    Copyright 2012-2014 Stuart Ryan
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.7
+#    Version: 0.2.0
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.1.7"
+SCRIPTVERSION="0.2.0"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
@@ -566,7 +566,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
@@ -586,7 +586,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
@@ -629,7 +629,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
@@ -648,7 +648,7 @@ clear
 	cat <<-____HERE
       Welcome to the ASM Script for Atlassian(R)
 
-      Copyright (C) 2012-2013  Stuart Ryan
+      Copyright (C) 2012-2014  Stuart Ryan
       
       This program comes with ABSOLUTELY NO WARRANTY;
       This is free software, and you are welcome to redistribute it
