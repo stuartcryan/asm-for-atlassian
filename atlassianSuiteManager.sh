@@ -67,15 +67,6 @@ fi
 ########################################
 checkSELinux(){
 
-#as Debian does not know of a CPAN binary it comes in the PERL binary
-BINARIESREDHAT="wget zip unzip tar perl gcc gcc-c++ make cpan"
-BINARIESDEBIAN="wget zip unzip tar perl gcc g++ make"
-
-#These are deliberately null
-BINARIESCHECK=""
-MISSINGBINARIES=""
-
-
 type -P getenforce &>/dev/null  || { SELINUXCHECK="UNABLE";}
 
 if [[ $SELINXUXCHECK != "UNABLE" && $DISABLESELINUXCHECK != "TRUE" ]]; then
@@ -134,16 +125,6 @@ if [[ $SELINXUXCHECK != "UNABLE" && $DISABLESELINUXCHECK != "TRUE" ]]; then
  	
     fi
 fi
-   
-rpm -q expat-devel >> /dev/null 2>&1
-if [[ $? -ne 0 ]]; then
- 	BINARIESCHECK="FAIL"
-	#add expat-devel to the required binaries
-	BINARIESREDHAT="$BINARIESREDHAT expat-devel"
-fi
-
-
-
 }
 
 
@@ -160,8 +141,6 @@ BINARIESDEBIAN="wget zip unzip tar gzip perl gcc g++ make"
 #These are deliberately null
 BINARIESCHECK=""
 MISSINGBINARIES=""
-
-
 
 for i in $BINARIES
 do
@@ -180,19 +159,31 @@ if [[ ! -e "/usr/include/openssl/ssl.h" ]]; then
 	echo "'openssl-devel/libssl-dev' libraries not found.";
 fi
 
-# Adding expat and expat-devel package tests as per [#ATLASMGR-295] to fix bug on CentOS 5 machines
-rpm -q expat-devel >> /dev/null 2>&1
-if [[ $? -ne 0 ]]; then
- 	BINARIESCHECK="FAIL"
-	#add expat-devel to the required binaries
-	BINARIESREDHAT="$BINARIESREDHAT expat-devel"
+#adding check for getEnforce for Ubuntu and DEBIAN
+if [[ $OPERATING_SYSTEM == "UBUNTU" || $OPERATING_SYSTEM == "DEBIAN" ]]; then
+   type -P getenforce &>/dev/null
+    if [[ $? -ne 0 ]]; then
+     	BINARIESCHECK="FAIL"
+	    #add selinux-utils to the required binaries
+	    BINARIESDEBIAN="$BINARIESDEBIAN selinux-utils"
+    fi
 fi
 
-rpm -q expat >> /dev/null 2>&1
-if [[ $? -ne 0 ]]; then
-	BINARIESCHECK="FAIL"
-	#add expat-devel to the required binaries
-	BINARIESREDHAT="$BINARIESREDHAT expat"
+# Adding expat and expat-devel package tests as per [#ATLASMGR-295] to fix bug on CentOS 5 machines
+if [[ $OPERATING_SYSTEM == "REDHAT" ]]; then
+    rpm -q expat-devel >> /dev/null 2>&1
+    if [[ $? -ne 0 ]]; then
+     	BINARIESCHECK="FAIL"
+	    #add expat-devel to the required binaries
+	    BINARIESREDHAT="$BINARIESREDHAT expat-devel"
+    fi
+    
+    rpm -q expat >> /dev/null 2>&1
+    if [[ $? -ne 0 ]]; then
+	    BINARIESCHECK="FAIL"
+	    #add expat-devel to the required binaries
+	    BINARIESREDHAT="$BINARIESREDHAT expat"
+    fi
 fi
 
 if [[ $BINARIESCHECK == "FAIL" ]] ; then
