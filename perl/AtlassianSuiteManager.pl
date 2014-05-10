@@ -1836,11 +1836,9 @@ sub downloadLatestAtlassianSuite {
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
 	#Configure all products in the suite
-	@suiteProducts =
-	  ( 'Crowd', 'Confluence', 'JIRA', 'Fisheye', 'Bamboo', 'Stash' );
 
 	#Iterate through each of the products, get the URL and download
-	foreach (@suiteProducts) {
+	foreach (@suiteApplications) {
 		@downloadDetails = getLatestDownloadURL( $_, $architecture );
 
 		$parsedURL = URI->new( $downloadDetails[0] );
@@ -4230,8 +4228,7 @@ sub getPIDList {
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
 
 	@PIDs =
-`/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v 'ps -ef | grep'`
-	  ;
+`/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v 'ps -ef | grep'`;
 	return @PIDs;
 }
 
@@ -7504,9 +7501,10 @@ sub displayAdvancedMenu {
       Please select from the following options:
 
       1) Force refresh of latest Atlassian suite application versions cache file
-      2) Command Line Parameters Overview
-      3) Force UID and GID on account creation
-      4) Additional advanced documentation
+      2) Pre-download the latest versions of all suite products (immediately, no confirmation)
+      3) Command Line Parameters Overview
+      4) Force UID and GID on account creation
+      5) Additional advanced documentation
       Q) Return to Main Menu
 
 END_TXT
@@ -7555,6 +7553,10 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
+			downloadLatestAtlassianSuite($globalArch);
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
 			print generateMenuHeader( "FULL", "ASM Command Line Parameters",
 				"" );
 			print
@@ -7573,7 +7575,7 @@ END_TXT
 			print "To return to the menu please press enter...";
 			my $test = <STDIN>;
 		}
-		elsif ( lc($choice) eq "3\n" ) {
+		elsif ( lc($choice) eq "4\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL",
 				"Forcing UID/GIDs on Account Creation", "" );
@@ -7587,7 +7589,7 @@ END_TXT
 			my $test = <STDIN>;
 
 		}
-		elsif ( lc($choice) eq "4\n" ) {
+		elsif ( lc($choice) eq "5\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL",
 				"Additional Advanced Documentation", "" );
@@ -7979,13 +7981,8 @@ END_TXT
 			system 'clear';
 			generateSuiteConfig();
 		}
-		elsif ( lc($choice) eq "d\n" ) {
-			system 'clear';
-			downloadLatestAtlassianSuite($globalArch);
-		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			generateInitDforSuite();
 			my $test = <STDIN>;
 		}
 	}
