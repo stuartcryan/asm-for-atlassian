@@ -11599,7 +11599,7 @@ sub generateConfluenceConfig {
 	my $defaultValue;
 	my @parameterNull;
 	my $externalCrowdInstance;
-	my $application = "Crowd";
+	my $application = "Confluence";
 	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
