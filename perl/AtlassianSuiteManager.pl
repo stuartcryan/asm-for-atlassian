@@ -7211,7 +7211,11 @@ sub bootStrapper {
 	my @parameterNull;
 	my @proxyParameterNull;
 	my @requiredConfigItems;
+	my $applicationToCheck;
+	my $lcApplicationToCheck;
 	my $input;
+	my $configChange = "FALSE";
+	my $configResult;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -7306,6 +7310,42 @@ sub bootStrapper {
 	getAllLatestDownloadURLs();
 	checkForAvailableUpdates();
 	generateAvailableUpdatesString();
+
+	#apply any config file bug fixes:
+
+	#Apply fix for [#ATLASMGR-317]
+	foreach (@suiteApplications) {
+		$applicationToCheck   = $_;
+		$lcApplicationToCheck = lc($applicationToCheck);
+
+		@parameterNull =
+		  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
+		if ( !( $#parameterNull == -1 ) ) {
+			$configResult =
+			  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
+
+			if ( $configResult eq "https" ) {
+				$globalConfig->param( "$lcApplicationToCheck.apacheProxySSL",
+					"TRUE" );
+				$configChange = "TRUE";
+			}
+			elsif ( $configResult eq "http" ) {
+				$globalConfig->param( "$lcApplicationToCheck.apacheProxySSL",
+					"FALSE" );
+				$configChange = "TRUE";
+			}
+		}
+	}
+
+	if ( $configChange eq "TRUE" ) {
+		$log->info(
+"$subname: Config file has been patched as a result of [#ATLASMGR-317]. Writing out new config file."
+		);
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#End Fix for [#ATLASMGR-317]
 
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
@@ -8979,7 +9019,7 @@ sub getExistingBambooConfig {
 			print
 "$application context has been found successfully and added to the config file...\n\n";
 			$log->info(
-				"$subname: $application context found and added to config.");
+				"$subname: $application context found and added to config." );
 		}
 
 		$returnValue = "";
@@ -9201,7 +9241,7 @@ sub getExistingBambooConfig {
 			print
 "$application context has been found successfully and added to the config file...\n\n";
 			$log->info(
-				"$subname: $application context found and added to config.");
+				"$subname: $application context found and added to config." );
 		}
 
 		$returnValue = "";
@@ -11237,7 +11277,7 @@ sub getExistingConfluenceConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
@@ -11998,7 +12038,7 @@ sub installConfluence {
 
 		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
 			$log->info(
-				"$subname: Copying Oracle JDBC to $application lib directory");
+				"$subname: Copying Oracle JDBC to $application lib directory" );
 			copyFile(
 				$globalConfig->param("general.dbJDBCJar"),
 				escapeFilePath(
@@ -12325,7 +12365,7 @@ sub upgradeConfluence {
 
 		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
 			$log->info(
-				"$subname: Copying Oracle JDBC to $application lib directory");
+				"$subname: Copying Oracle JDBC to $application lib directory" );
 			copyFile(
 				$globalConfig->param("general.dbJDBCJar"),
 				escapeFilePath(
@@ -12600,7 +12640,7 @@ sub getExistingCrowdConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
@@ -13835,7 +13875,7 @@ sub getExistingFisheyeConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
@@ -15011,7 +15051,7 @@ sub getExistingJiraConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
@@ -16275,7 +16315,7 @@ sub getExistingStashConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config.");
+			"$subname: $application connectorPort found and added to config." );
 	}
 
 	$returnValue = "";
