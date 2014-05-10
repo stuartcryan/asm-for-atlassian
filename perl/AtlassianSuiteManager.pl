@@ -1007,7 +1007,7 @@ sub createAndChownDirectory {
 			$directory,
 			{
 				verbose => 1,
-				mode    => 0755,
+				mode    => 755,
 			}
 		);
 
@@ -1039,7 +1039,7 @@ sub createDirectory {
 			$directory,
 			{
 				verbose => 1,
-				mode    => 0755,
+				mode    => 755,
 			}
 		);
 	}
@@ -1072,13 +1072,13 @@ sub createOrUpdateLineInFile {
 	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
 	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
 	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
@@ -1115,10 +1115,10 @@ sub createOrUpdateLineInFile {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 
 }
 
@@ -1145,13 +1145,13 @@ sub createOrUpdateLineInXML {
 	dumpSingleVarToLog( "$subname" . "_inputFile",     $inputFile );
 	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
 	dumpSingleVarToLog( "$subname" . "_newLine",       $newLine );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
@@ -1172,10 +1172,10 @@ sub createOrUpdateLineInXML {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 
 }
 
@@ -1365,7 +1365,6 @@ sub dirSize {
 sub displayQuickConfig {
 
 	my $subname = ( caller(0) )[3];
-	my $application;
 	my $menu;
 
 	# define the main menu as a multiline string
@@ -1374,7 +1373,7 @@ sub displayQuickConfig {
 	# print the main menu
 	print $menu;
 
-	foreach $application (@suiteApplications) {
+	foreach my $application (@suiteApplications) {
 		my $lcApplication = lc($application);
 		my @parameterNull =
 		  $globalConfig->param("$lcApplication.installedVersion");
@@ -1888,12 +1887,12 @@ sub dumpHashToFile {
 	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
 	dumpSingleVarToLog( "$subname" . "_hash_ref", %hash_ref );
 
-	open my $fh, '>', $fileName
+	open( my $outputFileHandle, '>', $fileName )
 	  or $log->logdie("Can't write to '$fileName': $!\n\n");
 	local $Data::Dumper::Terse = 1;    # no '$VAR1 = '
 	local $Data::Dumper::Useqq = 1;    # double quoted strings
-	print $fh Dumper \%hash_ref;
-	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
+	print $outputFileHandle Dumper \%hash_ref;
+	close $outputFileHandle or log->logdie("Can't close '$fileName': $!\n\n");
 
 }
 
@@ -2223,16 +2222,17 @@ sub generateCrowdPropertiesFile {
 	dumpSingleVarToLog( "$subname" . "_filename",    $filename );
 	dumpSingleVarToLog( "$subname" . "_application", $application );
 
-	open FH, ">$filename"
+	open( my $outputFileHandle, '>', "$filename" )
 	  or $log->logdie("Unable to open $filename for writing.");
-	print FH "session.lastvalidation		session.lastvalidation\n";
-	print FH "session.isauthenticated		session.isauthenticated\n";
-	print FH "application.password		"
+	print $outputFileHandle "session.lastvalidation		session.lastvalidation\n";
+	print $outputFileHandle
+	  "session.isauthenticated		session.isauthenticated\n";
+	print $outputFileHandle "application.password		"
 	  . $globalConfig->param("$lcApplication.crowdApplicationPassword") . "\n";
-	print FH "application.name		"
+	print $outputFileHandle "application.name		"
 	  . $globalConfig->param("$lcApplication.crowdApplicationName") . "\n";
-	print FH "session.validationinterval		10\n";
-	print FH "session.tokenkey		session.tokenkey\n";
+	print $outputFileHandle "session.validationinterval		10\n";
+	print $outputFileHandle "session.tokenkey		session.tokenkey\n";
 
 	if ( $globalConfig->param("general.externalCrowdPort") eq "443" ) {
 		$protocol = "https";
@@ -2241,28 +2241,28 @@ sub generateCrowdPropertiesFile {
 		$protocol = "http";
 	}
 	if ( $globalConfig->param("general.externalCrowdInstance") eq "TRUE" ) {
-		print FH "crowd.server.url		$protocol\://"
+		print $outputFileHandle "crowd.server.url		$protocol\://"
 		  . $globalConfig->param("general.externalCrowdHostname") . ":"
 		  . $globalConfig->param("general.externalCrowdPort")
 		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
 		  . "/services/\n";
-		print FH "application.login.url		$protocol\://"
+		print $outputFileHandle "application.login.url		$protocol\://"
 		  . $globalConfig->param("general.externalCrowdHostname") . ":"
 		  . $globalConfig->param("general.externalCrowdPort")
 		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
 		  . "/services/\n";
 	}
 	else {
-		print FH "crowd.server.url		http://localhost:"
+		print $outputFileHandle "crowd.server.url		http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
 		  . getConfigItem( "crowd.appContext", $globalConfig )
 		  . "/services/\n";
-		print FH "application.login.url		http://localhost:"
+		print $outputFileHandle "application.login.url		http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
 		  . getConfigItem( "crowd.appContext", $globalConfig ) . "/\n";
 
 	}
-	close FH;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -2393,14 +2393,14 @@ sub generateInitD {
 
 	#Write out file to /etc/init.d
 	$log->info("$subname: Writing out init.d file for $application.");
-	open FILE, ">/etc/init.d/$lcApplication"
+	open( my $outputFileHandle, '>', "/etc/init.d/$lcApplication" )
 	  or $log->logdie("Unable to open file /etc/init.d/$lcApplication: $!");
-	print FILE @initSpecific;
-	close FILE;
+	print $outputFileHandle @initSpecific;
+	close $outputFileHandle;
 
 	#Make the new init.d file executable
 	$log->info("$subname: Chmodding init.d file for $lcApplication.");
-	chmod 0755, "/etc/init.d/$lcApplication"
+	chmod 755, "/etc/init.d/$lcApplication"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
 
 	#Always call an update to the main Atlassian init.d script
@@ -2613,14 +2613,14 @@ sub generateInitDforSuite {
 
 	#Write out file to /etc/init.d
 	$log->info("$subname: Writing out init.d file for atlassian.");
-	open FILE, ">/etc/init.d/atlassian"
+	open( my $outputFileHandle, '>', "/etc/init.d/atlassian" )
 	  or $log->logdie("Unable to open file /etc/init.d/atlassian: $!");
-	print FILE @initSpecific;
-	close FILE;
+	print $outputFileHandle @initSpecific;
+	close $outputFileHandle;
 
 	#Make the new init.d file executable
 	$log->info("$subname: Chmodding init.d file for atlassian.");
-	chmod 0755, "/etc/init.d/atlassian"
+	chmod 755, "/etc/init.d/atlassian"
 	  or $log->logdie("Couldn't chmod /etc/init.d/atlassian: $!");
 }
 
@@ -3548,13 +3548,13 @@ sub getEnvironmentVars {
 	dumpSingleVarToLog( "$subname" . "_referenceVar", $referenceVar );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for the definition of the provided variable
 	$searchFor = "$referenceVar=";
@@ -3927,13 +3927,13 @@ sub getJavaMemParameter {
 		$referenceParameter );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	$searchFor = $referenceVariable;
 
@@ -4104,13 +4104,13 @@ sub getLineFromFile {
 	dumpSingleVarToLog( "$subname" . "_inputFile",     $inputFile );
 	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
 	dumpSingleVarToLog( "$subname" . "_valueRegex",    $valueRegex );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	my ($index1) =
@@ -4167,13 +4167,13 @@ sub getLineFromBambooWrapperConf {
 	dumpSingleVarToLog( "$subname" . "_variableReference", $variableReference );
 	dumpSingleVarToLog( "$subname" . "_parameterReference",
 		$parameterReference );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	($index1) =
@@ -4229,18 +4229,9 @@ sub getPIDList {
 	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
 
-	open( PIDLIST,
-"/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v 'ps -ef | grep' |"
-	);
-	$i = 0;
-	while (<PIDLIST>) {
-		$line = $_;
-		chomp $line;
-		dumpSingleVarToLog( "$subname" . "_line_$i", $line );
-		$PIDs[$i] = $line;
-		$i++;
-	}
-	close PIDLIST;
+	@PIDs =
+`/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v 'ps -ef | grep'`
+	  ;
 	return @PIDs;
 }
 
@@ -5917,13 +5908,13 @@ sub updateCatalinaOpts {
 	dumpSingleVarToLog( "$subname" . "_catalinaOpts", $catalinaOpts );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	$searchFor = $referenceVariable;
 
@@ -5995,10 +5986,10 @@ sub updateCatalinaOpts {
 	}
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 
 }
 
@@ -6025,13 +6016,13 @@ sub updateEnvironmentVars {
 	dumpSingleVarToLog( "$subname" . "_newValue",     $newValue );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for the definition of the provided variable
 	$searchFor = "$referenceVar=";
@@ -6053,10 +6044,10 @@ sub updateEnvironmentVars {
 	}
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -6086,13 +6077,13 @@ sub updateJavaMemParameter {
 	dumpSingleVarToLog( "$subname" . "_newValue", $newValue );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	$searchFor = $referenceVariable;
 
@@ -6165,10 +6156,10 @@ sub updateJavaMemParameter {
 		"$subname: Value updated, outputting new line to file $inputFile.");
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -6198,13 +6189,13 @@ sub updateJavaOpts {
 	dumpSingleVarToLog( "$subname" . "_javaOpts",  $javaOpts );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	$searchFor = $referenceVariable;
 
@@ -6263,10 +6254,10 @@ sub updateJavaOpts {
 	}
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 
 }
 
@@ -6373,7 +6364,6 @@ sub updateLineInBambooWrapperConf {
 	my $newValue;
 	my @data;
 	my $index1;
-	my $line;
 	my $newLine;
 	my $count   = 0;
 	my $subname = ( caller(0) )[3];
@@ -6391,13 +6381,13 @@ sub updateLineInBambooWrapperConf {
 	dumpSingleVarToLog( "$subname" . "_parameterReference",
 		$parameterReference );
 	dumpSingleVarToLog( "$subname" . "_newValue", $newValue );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	($index1) =
@@ -6409,7 +6399,7 @@ sub updateLineInBambooWrapperConf {
 
 #Find the number of parameters already existing to get the next number
 #This is not ideal however I expect this will be deprecated soon when Bamboo moves off Jetty.
-		foreach $line (@data) {
+		foreach my $line (@data) {
 			if ( $line =~ /^$variableReference.*/ ) {
 				$count++;
 			}
@@ -6462,10 +6452,10 @@ sub updateLineInBambooWrapperConf {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -6492,13 +6482,13 @@ sub updateLineInFile {
 	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
 	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
 	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	my ($index1) =
@@ -6536,10 +6526,10 @@ sub updateLineInFile {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -6577,13 +6567,13 @@ sub updateSeraphConfig {
 	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
 
 	$lcApplication = lc($application);
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Remove windows newlines to get around Bamboo config file funnies
 	s/\r\n/\n/g for (@data);
@@ -6652,10 +6642,10 @@ sub updateSeraphConfig {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -9501,8 +9491,8 @@ sub getExistingBambooConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -9510,8 +9500,9 @@ sub getExistingBambooConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
@@ -12774,8 +12765,8 @@ sub getExistingCrowdConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -12783,8 +12774,10 @@ sub getExistingCrowdConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
@@ -14013,8 +14006,8 @@ sub getExistingFisheyeConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -14022,8 +14015,10 @@ sub getExistingFisheyeConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
@@ -16453,8 +16448,8 @@ sub getExistingStashConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -16462,8 +16457,10 @@ sub getExistingStashConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
