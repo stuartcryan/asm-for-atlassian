@@ -2362,7 +2362,7 @@ sub generateInitD {
 '      PIDS=`ps -ef | grep $GREP1STPARAM | grep $GREP2NDPARAM | grep -v \'ps -ef | grep\' | awk \'{print $2}\'`'
 		  . "\n",
 		"\n",
-		'      if [[ PIDS == ""  ]]; then' . "\n",
+		'      if [[ $PIDS == ""  ]]; then' . "\n",
 		'        echo "$APP stopped successfully"' . "\n",
 		'      else' . "\n",
 		'        echo "$APP still running... Killing the process..."' . "\n",
