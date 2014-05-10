@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.2.0"
+SCRIPTVERSION="0.1.8"
 LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
@@ -448,33 +448,46 @@ processLatestVersionFile(){
 		fi
 	fi
 	
-	for i in "${downloadURL[@]}"
-	do
 		#only continue testing if we haven't ascertained that we DO need to update.
-		if [[( "$ISUPDATENEEDED" == "FALSE" )]]; then
-			if [[ $i =~ ^(.*)\/(.*)\|(.*)\|(.*)$ ]]; then
-    			BASEURL=${BASH_REMATCH[1]}
-    			FILENAME=${BASH_REMATCH[2]}
-    			DIRECTORYLOCATION=${BASH_REMATCH[3]}
-    			LASTUPDATEDINVER=${BASH_REMATCH[4]}
-    		fi
-    		#Null out VERSIONCOMPARISON
-    		VERSIONCOMPARISON=""
-    		if [[ $FILENAME == "atlassianSuiteManager.sh" ]]; then
-    			compareTwoVersions $SCRIPTVERSION $LASTUPDATEDINVER
-    		elif [[ $FILENAME == "AtlassianSuiteManager.pl" ]]; then
-    			compareTwoVersions $PERLVERSION $LASTUPDATEDINVER
-    		fi
-    	
-    		if [[("$VERSIONCOMPARISON" == "LESS")]]; then
-    				ISUPDATENEEDED="TRUE"
-			elif [[("$VERSIONCOMPARISON" == "EQUAL")]]; then
-					ISUPDATENEEDED="FALSE"
-			elif [[("$VERSIONCOMPARISON" == "GREATER")]]; then
-					ISUPDATENEEDED="FALSE"
-			fi
+	if [[( "$ISUPDATENEEDED" == "FALSE" )]]; then
+
+   		BASEURL=${latestPerlFile[0]}
+   		FILENAME=${latestPerlFile[1]}
+   		DIRECTORYLOCATION=${latestPerlFile[2]}
+   		LASTUPDATEDINVER=${latestPerlFile[3]}
+
+   		#Null out VERSIONCOMPARISON
+   		VERSIONCOMPARISON=""
+   		compareTwoVersions $PERLVERSION $LASTUPDATEDINVER
+   	
+   		if [[("$VERSIONCOMPARISON" == "LESS")]]; then
+   				ISUPDATENEEDED="TRUE"
+		elif [[("$VERSIONCOMPARISON" == "EQUAL")]]; then
+				ISUPDATENEEDED="FALSE"
+		elif [[("$VERSIONCOMPARISON" == "GREATER")]]; then
+				ISUPDATENEEDED="FALSE"
 		fi
-	done
+	fi
+	
+	if [[( "$ISUPDATENEEDED" == "FALSE" )]]; then
+	
+		BASEURL=${latestWrapperFile[0]}
+   		FILENAME=${latestWrapperFile[1]}
+   		DIRECTORYLOCATION=${latestWrapperFile[2]}
+   		LASTUPDATEDINVER=${latestWrapperFile[3]}
+
+   		#Null out VERSIONCOMPARISON
+   		VERSIONCOMPARISON=""
+   		compareTwoVersions $SCRIPTVERSION $LASTUPDATEDINVER
+   		
+   		if [[("$VERSIONCOMPARISON" == "LESS")]]; then
+   				ISUPDATENEEDED="TRUE"
+		elif [[("$VERSIONCOMPARISON" == "EQUAL")]]; then
+				ISUPDATENEEDED="FALSE"
+		elif [[("$VERSIONCOMPARISON" == "GREATER")]]; then
+				ISUPDATENEEDED="FALSE"
+		fi
+	fi
 	
 	if [[("$ISUPDATENEEDED" == "TRUE")]]; then
 		LOOP="1"
@@ -500,26 +513,37 @@ processLatestVersionFile(){
 		done
 		
 		if [[("$USERWANTSUPDATE" == "TRUE")]]; then
-			for i in "${downloadURL[@]}"
-			do
-				if [[ $i =~ ^(.*)\/(.*)\|(.*)\|(.*)$ ]]; then
-    				BASEURL=${BASH_REMATCH[1]}
-    				FILENAME=${BASH_REMATCH[2]}
-    				DIRECTORYLOCATION=${BASH_REMATCH[3]}
-    				LASTUPDATEDINVER=${BASH_REMATCH[4]}
-    			fi
-    			#Possibly for future, look at updating only files that are required in a future release
-				echo "Downloading the latest version of $FILENAME. Please Wait..."
-				cd $INSTALLDIR$DIRECTORYLOCATION
-				mv $FILENAME .$FILENAME.OLD
-				if ! wget $PROXYUSER $PROXYPASS --quiet $BASEURL/$FILENAME ; then
-    				mv .$FILENAME.OLD $FILENAME
-    				echo "Unable to update $FILENAME please try again later. The script will continue using the existing version."
-				fi
-				echo "Updated $FILENAME successfully"
-				echo ""
-				echo ""
-			done
+			BASEURL=${latestPerlFile[0]}
+   			FILENAME=${latestPerlFile[1]}
+   			DIRECTORYLOCATION=${latestPerlFile[2]}
+   			LASTUPDATEDINVER=${latestPerlFile[3]}
+    		#Possibly for future, look at updating only files that are required in a future release
+			echo "Downloading the latest version of $FILENAME. Please Wait..."
+			cd $INSTALLDIR$DIRECTORYLOCATION
+			mv $FILENAME .$FILENAME.OLD
+			if ! wget $PROXYUSER $PROXYPASS --quiet $BASEURL/$FILENAME ; then
+				mv .$FILENAME.OLD $FILENAME
+				echo "Unable to update $FILENAME please try again later. The script will continue using the existing version."
+			fi
+			echo "Updated $FILENAME successfully"
+			echo ""
+			echo ""
+			
+			BASEURL=${latestWrapperFile[0]}
+   			FILENAME=${latestWrapperFile[1]}
+   			DIRECTORYLOCATION=${latestWrapperFile[2]}
+   			LASTUPDATEDINVER=${latestWrapperFile[3]}
+    		#Possibly for future, look at updating only files that are required in a future release
+			echo "Downloading the latest version of $FILENAME. Please Wait..."
+			cd $INSTALLDIR$DIRECTORYLOCATION
+			mv $FILENAME .$FILENAME.OLD
+			if ! wget $PROXYUSER $PROXYPASS --quiet $BASEURL/$FILENAME ; then
+				mv .$FILENAME.OLD $FILENAME
+				echo "Unable to update $FILENAME please try again later. The script will continue using the existing version."
+			fi
+			echo "Updated $FILENAME successfully"
+			echo ""
+			echo ""
 			
 			chmod a+x $INSTALLDIR/atlassianSuiteManager.sh
 			echo "ASM has been updated and will now terminate, please run ASM again to use the new version."
