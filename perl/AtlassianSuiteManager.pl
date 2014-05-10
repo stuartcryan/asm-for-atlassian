@@ -50,7 +50,6 @@ use File::Basename;
 use Archive::Extract;
 use FindBin '$Bin';
 use XML::Twig;
-use XML::Simple;
 use Socket qw( PF_INET SOCK_STREAM INADDR_ANY sockaddr_in );
 use Errno qw( EADDRINUSE );
 use Getopt::Long;
