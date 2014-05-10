@@ -2526,36 +2526,35 @@ sub generateInitDforSuite {
 		$lcApplication = lc($application);
 
 		@addToCommands = (
-			"    if (service $lcApplication stop --disable-kill) ; then\n",
-			"        echo \n",
+			"    echo \"Stopping $application\"\n",
+"    if (service $lcApplication stop --disable-kill > /dev/null 2>\&1) ; then\n",
+			"        echo \"$application Stopped Successfully\"\n",
 			"    else\n",
-			'        if `ps -ef | grep -i '
-			  . $lcApplication
-			  . ' | grep -v "grep"`; then' . "\n",
-"            echo 'Unable to stop $application gracefully therefore killing it'\n",
-			"            APP_PID=ps -ef | grep "
+			"            APP_PID=`ps -ef | grep "
 			  . $globalConfig->param("$lcApplication.processSearchParameter1")
 			  . " | grep "
 			  . $globalConfig->param("$lcApplication.processSearchParameter2")
 			  . "| grep -v \'ps -ef | grep\' | awk \'{print \$2}\'`\n",
+			'        if (`ps -ef | grep -i '
+			  . $lcApplication
+			  . ' | grep -v "grep"` && $APP_PID != "") ; then' . "\n",
+"            echo 'Unable to stop $application gracefully therefore killing it'\n",
 			'            kill -9 $APP_PID' . "\n",
 			"            else\n",
-			"                echo '$application is not currently running'\n",
+"                echo '$application does not appear to be running'\n",
 			"            echo \n",
 			"        fi\n",
 			"    fi\n",
-			"\n"
 		);
 
 		push( @stopCommands, @addToCommands );
 		undef(@addToCommands);
 		@addToCommands = (
-			"    if service $lcApplication start ; then\n",
-			"        echo \n",
+			"    if service $lcApplication start > /dev/null 2>\&1; then\n",
+			"        echo $application Started Successfully\n",
 			"    else\n",
 "        echo 'Unable to start $application automagically. Please try to start it up manually'\n\n",
 			"    fi\n",
-			"\n"
 		);
 
 		push( @startCommands, @addToCommands );
@@ -2570,7 +2569,7 @@ sub generateInitDforSuite {
 	);
 	push( @initGeneric, @startCommands );
 	@addToInitGeneric = (
-		'    echo "Starting the Atlassian Suite"' . "\n",
+		'    echo "Atlassian Suite Started Successfully"' . "\n",
 		"    ;;\n",
 		"  # Stop command\n",
 		"  stop)\n",
@@ -2589,8 +2588,11 @@ sub generateInitDforSuite {
 	push( @initGeneric, @addToInitGeneric );
 	push( @initGeneric, @stopCommands );
 	undef(@addToInitGeneric);
-	@addToInitGeneric =
-	  ( '    echo "Sleeping for 20 seconds"' . "\n", "        sleep 20\n" );
+	@addToInitGeneric = (
+'    echo "Sleeping for 20 seconds to allow services to stop gracefully"'
+		  . "\n",
+		"        sleep 20\n"
+	);
 	push( @initGeneric, @addToInitGeneric );
 	push( @initGeneric, @startCommands );
 	undef(@addToInitGeneric);
@@ -7993,10 +7995,7 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-			updateCatalinaOpts(
-				"Bamboo",         "/opt/atlassian/bamboo/bin/setenv.sh",
-				"CATALINA_OPTS=", "my catalina opts here"
-			);
+			generateInitDforSuite();
 			my $test = <STDIN>;
 		}
 	}
@@ -9019,7 +9018,7 @@ sub getExistingBambooConfig {
 			print
 "$application context has been found successfully and added to the config file...\n\n";
 			$log->info(
-				"$subname: $application context found and added to config." );
+				"$subname: $application context found and added to config.");
 		}
 
 		$returnValue = "";
@@ -9241,7 +9240,7 @@ sub getExistingBambooConfig {
 			print
 "$application context has been found successfully and added to the config file...\n\n";
 			$log->info(
-				"$subname: $application context found and added to config." );
+				"$subname: $application context found and added to config.");
 		}
 
 		$returnValue = "";
@@ -11277,7 +11276,7 @@ sub getExistingConfluenceConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
@@ -12038,7 +12037,7 @@ sub installConfluence {
 
 		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
 			$log->info(
-				"$subname: Copying Oracle JDBC to $application lib directory" );
+				"$subname: Copying Oracle JDBC to $application lib directory");
 			copyFile(
 				$globalConfig->param("general.dbJDBCJar"),
 				escapeFilePath(
@@ -12365,7 +12364,7 @@ sub upgradeConfluence {
 
 		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
 			$log->info(
-				"$subname: Copying Oracle JDBC to $application lib directory" );
+				"$subname: Copying Oracle JDBC to $application lib directory");
 			copyFile(
 				$globalConfig->param("general.dbJDBCJar"),
 				escapeFilePath(
@@ -12640,7 +12639,7 @@ sub getExistingCrowdConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
@@ -13875,7 +13874,7 @@ sub getExistingFisheyeConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
@@ -15051,7 +15050,7 @@ sub getExistingJiraConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
@@ -16315,7 +16314,7 @@ sub getExistingStashConfig {
 		print
 "$application connectorPort has been found successfully and added to the config file...\n\n";
 		$log->info(
-			"$subname: $application connectorPort found and added to config." );
+			"$subname: $application connectorPort found and added to config.");
 	}
 
 	$returnValue = "";
