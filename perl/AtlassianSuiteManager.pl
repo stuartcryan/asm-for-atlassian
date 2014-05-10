@@ -9337,6 +9337,126 @@ sub getExistingBambooConfig {
 "$subname: $application XX:MaxPermSize java memory parameter found and added to config."
 			);
 		}
+
+		if (   $cfg->param("general.apacheProxy") eq "TRUE"
+			&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			$returnValue = "";
+
+			print
+"Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
+			$log->info(
+"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+			);
+			$returnValue =
+			  getXMLAttribute( $serverConfigFile, "///Connector", "proxyName" );
+
+			if ( $returnValue eq "NOTFOUND" ) {
+				$log->info(
+"$subname: Unable to locate $application proxyName. Asking user for input."
+				);
+				genConfigItem(
+					$mode,
+					$cfg,
+					"$lcApplication.apacheProxyHost",
+"Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+					"",
+					'^([a-zA-Z0-9\.]*)$',
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+				);
+			}
+			else {
+				$cfg->param( "$lcApplication.apacheProxyHost", $returnValue );
+				print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+				$log->info(
+"$subname: $application base hostname found and added to config."
+				);
+			}
+
+			$returnValue = "";
+
+			print
+"Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
+			$log->info(
+"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+			);
+			$returnValue =
+			  getXMLAttribute( $serverConfigFile, "///Connector", "scheme" );
+
+			if ( $returnValue eq "NOTFOUND" ) {
+				$log->info(
+"$subname: Unable to locate $application proxy scheme. Asking user for input."
+				);
+				genBooleanConfigItem(
+					$mode,
+					$cfg,
+					"$lcApplication.apacheProxySSL",
+"Unable to locate the Apache proxy scheme configuration in $application config. Will you be running $application over SSL.",
+					"no"
+				);
+			}
+			else {
+				if ( $returnValue eq "http" ) {
+					$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+					);
+					$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+				}
+				elsif ( $returnValue eq "https" ) {
+					$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+					);
+					$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+				}
+				else {
+					$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+					);
+					$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+				}
+
+				print
+"$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
+				$log->info(
+"$subname: $application proxy scheme found and added to config."
+				);
+			}
+
+			$returnValue = "";
+
+			print
+"Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
+			$log->info(
+"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+			);
+			$returnValue =
+			  getXMLAttribute( $serverConfigFile, "///Connector", "proxyPort" );
+
+			if ( $returnValue eq "NOTFOUND" ) {
+				$log->info(
+"$subname: Unable to locate $application proxyPort. Asking user for input."
+				);
+				genConfigItem(
+					$mode,
+					$cfg,
+					"$lcApplication.apacheProxyPort",
+"Unable to find the Apache proxy port attribute in the expected location in the $application config. Please enter the port number that Apache currently serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+					"80/443",
+					'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+				);
+			}
+			else {
+				$cfg->param( "$lcApplication.apacheProxyPort", $returnValue );
+				print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+				$log->info(
+"$subname: $application base hostname found and added to config."
+				);
+			}
+		}
+
 	}
 
 	$returnValue = "";
@@ -11356,7 +11476,25 @@ sub getExistingConfluenceConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
+
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -12693,7 +12831,24 @@ sub getExistingCrowdConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -13914,7 +14069,24 @@ sub getExistingFisheyeConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -15078,7 +15250,24 @@ sub getExistingJiraConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -16321,7 +16510,24 @@ sub getExistingStashConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
