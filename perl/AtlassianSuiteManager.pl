@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.0
+#    Version: 0.2.1
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -66,7 +66,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-2-0"
+my $scriptVersion = "0-2-1"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -9817,6 +9817,15 @@ sub installBamboo {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param(
+		"$lcApplication.processSearchParameter2",
+		$globalConfig->param("$lcApplication.installDir")
+	);
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -10369,6 +10378,15 @@ sub upgradeBamboo {
 			}
 		}
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param(
+		"$lcApplication.processSearchParameter2",
+		$globalConfig->param("$lcApplication.installDir")
+	);
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -11825,6 +11843,13 @@ sub installConfluence {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -12147,6 +12172,35 @@ sub upgradeConfluence {
 		}
 	}
 
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/confluence/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -12294,6 +12348,52 @@ sub upgradeConfluence {
 		);
 	}
 
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
+	}
+
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
@@ -12392,6 +12492,26 @@ sub upgradeConfluence {
 "It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
 			$input = <STDIN>;
 		}
+	}
+
+	#Apply Seraph Config
+	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+		backupFile(
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/seraph-config.xml"
+			),
+			$osUser
+		);
+		updateSeraphConfig(
+			$application,
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/seraph-config.xml"
+			),
+			"com.atlassian.confluence.user.ConfluenceCrowdSSOAuthenticator",
+			"com.atlassian.confluence.user.ConfluenceAuthenticator"
+		);
 	}
 
 	#Generate the init.d file
@@ -12920,14 +13040,9 @@ sub getExistingCrowdConfig {
 	}
 
 	#Set up some defaults for Crowd
-	$cfg->param( "$lcApplication.tomcatDir",               "/apache-tomcat" );
-	$cfg->param( "$lcApplication.webappDir",               "/crowd-webapp" );
-	$cfg->param( "$lcApplication.processSearchParameter1", "java" );
-	$cfg->param( "$lcApplication.processSearchParameter2",
-		    "Dcatalina.base="
-		  . $cfg->param("$lcApplication.installDir")
-		  . $cfg->param("$lcApplication.tomcatDir") );
-	$cfg->param( "$lcApplication.enable", "TRUE" );
+	$cfg->param( "$lcApplication.tomcatDir", "/apache-tomcat" );
+	$cfg->param( "$lcApplication.webappDir", "/crowd-webapp" );
+	$cfg->param( "$lcApplication.enable",    "TRUE" );
 
 	$cfg->write($configFile);
 	loadSuiteConfig();
@@ -13168,6 +13283,15 @@ sub installCrowd {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		    "Dcatalina.base="
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -13417,6 +13541,15 @@ sub upgradeCrowd {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		    "Dcatalina.base="
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -14417,6 +14550,13 @@ sub installFisheye {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"Dfisheye.inst=" . $globalConfig->param("fisheye.dataDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Copying example config file, please wait...\n\n";
 	$serverXMLFile =
@@ -14671,6 +14811,13 @@ sub upgradeFisheye {
 		  . $globalConfig->param("general.rootDataDir")
 		  . "/fisheye Config updated and now ready to upgrade.\n\n";
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"Dfisheye.inst=" . $globalConfig->param("fisheye.dataDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -15595,6 +15742,13 @@ sub installJira {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "jira.processSearchParameter1", "java" );
+	$globalConfig->param( "jira.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -15840,6 +15994,35 @@ sub upgradeJira {
 		}
 	}
 
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/confluence/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "jira.processSearchParameter1", "java" );
+	$globalConfig->param( "jira.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -15987,6 +16170,52 @@ sub upgradeJira {
 		);
 	}
 
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
+	}
+
 	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
@@ -16019,6 +16248,26 @@ sub upgradeJira {
 		"#JIRA_MAX_PERM_SIZE="
 	);
 
+	#Apply Seraph Config
+	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+		backupFile(
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+			),
+			$osUser
+		);
+		updateSeraphConfig(
+			$application,
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+			),
+			"com.atlassian.jira.security.login.SSOSeraphAuthenticator",
+			"com.atlassian.jira.security.login.JiraSeraphAuthenticator"
+		);
+	}
+
 	#Generate the init.d file
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
@@ -16033,6 +16282,26 @@ sub upgradeJira {
 		$globalConfig->param("$lcApplication.processSearchParameter1"),
 		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
+
+	#Apply Seraph Config
+	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+		backupFile(
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+			),
+			$osUser
+		);
+		updateSeraphConfig(
+			$application,
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+			),
+			"com.atlassian.jira.security.login.SSOSeraphAuthenticator",
+			"com.atlassian.jira.security.login.JiraSeraphAuthenticator"
+		);
+	}
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
@@ -16866,6 +17135,13 @@ sub installStash {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -17105,6 +17381,14 @@ sub upgradeStash {
 			push( @requiredConfigItems, "stash.apacheProxyHost" );
 		}
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") )
+	  ;
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
