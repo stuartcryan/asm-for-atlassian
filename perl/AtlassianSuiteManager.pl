@@ -12147,6 +12147,28 @@ sub upgradeConfluence {
 		}
 	}
 
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/confluence/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
+
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -12292,6 +12314,52 @@ sub upgradeConfluence {
 			"CATALINA_OPTS=",
 			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
+	}
+
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
 	}
 
 	print "Configuration settings have been applied successfully.\n\n";
@@ -15860,6 +15928,28 @@ sub upgradeJira {
 		}
 	}
 
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/confluence/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
+
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -16005,6 +16095,52 @@ sub upgradeJira {
 			"CATALINA_OPTS=",
 			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
+	}
+
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
 	}
 
 	print "Configuration settings have been applied successfully.\n\n";
