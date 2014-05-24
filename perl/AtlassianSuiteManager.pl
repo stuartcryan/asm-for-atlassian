@@ -9817,6 +9817,15 @@ sub installBamboo {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param(
+		"$lcApplication.processSearchParameter2",
+		$globalConfig->param("$lcApplication.installDir")
+	);
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -10369,6 +10378,15 @@ sub upgradeBamboo {
 			}
 		}
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param(
+		"$lcApplication.processSearchParameter2",
+		$globalConfig->param("$lcApplication.installDir")
+	);
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -11825,6 +11843,13 @@ sub installConfluence {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -12168,6 +12193,13 @@ sub upgradeConfluence {
 			);
 		}
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -13008,14 +13040,9 @@ sub getExistingCrowdConfig {
 	}
 
 	#Set up some defaults for Crowd
-	$cfg->param( "$lcApplication.tomcatDir",               "/apache-tomcat" );
-	$cfg->param( "$lcApplication.webappDir",               "/crowd-webapp" );
-	$cfg->param( "$lcApplication.processSearchParameter1", "java" );
-	$cfg->param( "$lcApplication.processSearchParameter2",
-		    "Dcatalina.base="
-		  . $cfg->param("$lcApplication.installDir")
-		  . $cfg->param("$lcApplication.tomcatDir") );
-	$cfg->param( "$lcApplication.enable", "TRUE" );
+	$cfg->param( "$lcApplication.tomcatDir", "/apache-tomcat" );
+	$cfg->param( "$lcApplication.webappDir", "/crowd-webapp" );
+	$cfg->param( "$lcApplication.enable",    "TRUE" );
 
 	$cfg->write($configFile);
 	loadSuiteConfig();
@@ -13256,6 +13283,15 @@ sub installCrowd {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		    "Dcatalina.base="
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -13505,6 +13541,15 @@ sub upgradeCrowd {
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		    "Dcatalina.base="
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -14505,6 +14550,13 @@ sub installFisheye {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"Dfisheye.inst=" . $globalConfig->param("fisheye.dataDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Copying example config file, please wait...\n\n";
 	$serverXMLFile =
@@ -14759,6 +14811,13 @@ sub upgradeFisheye {
 		  . $globalConfig->param("general.rootDataDir")
 		  . "/fisheye Config updated and now ready to upgrade.\n\n";
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"Dfisheye.inst=" . $globalConfig->param("fisheye.dataDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -15683,6 +15742,13 @@ sub installJira {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "jira.processSearchParameter1", "java" );
+	$globalConfig->param( "jira.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -15949,6 +16015,13 @@ sub upgradeJira {
 			);
 		}
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "jira.processSearchParameter1", "java" );
+	$globalConfig->param( "jira.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -17062,6 +17135,13 @@ sub installStash {
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
@@ -17301,6 +17381,14 @@ sub upgradeStash {
 			push( @requiredConfigItems, "stash.apacheProxyHost" );
 		}
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") )
+	  ;
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
