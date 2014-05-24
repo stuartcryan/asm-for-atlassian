@@ -16283,26 +16283,6 @@ sub upgradeJira {
 		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
-	#Apply Seraph Config
-	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
-		backupFile(
-			escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
-			),
-			$osUser
-		);
-		updateSeraphConfig(
-			$application,
-			escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
-			),
-			"com.atlassian.jira.security.login.SSOSeraphAuthenticator",
-			"com.atlassian.jira.security.login.JiraSeraphAuthenticator"
-		);
-	}
-
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
 }
