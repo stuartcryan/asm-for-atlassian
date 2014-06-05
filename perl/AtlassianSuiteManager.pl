@@ -15999,11 +15999,11 @@ sub upgradeJira {
 		$log->info("$subname: Backing up Crowd configuration files.");
 		print "Backing up the Crowd configuration files...\n\n";
 		if ( -e $globalConfig->param("$lcApplication.installDir")
-			. "/confluence/WEB-INF/classes/crowd.properties" )
+			. "/atlassian-jira/WEB-INF/classes/crowd.properties" )
 		{
 			copyFile(
 				$globalConfig->param("$lcApplication.installDir")
-				  . "/confluence/WEB-INF/classes/crowd.properties",
+				  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
 				"$Bin/working/crowd.properties.$lcApplication"
 			);
 		}
