@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.1
+#    Version: 0.2.2
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -66,7 +66,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-2-1"
+my $scriptVersion = "0-2-2"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -15999,11 +15999,11 @@ sub upgradeJira {
 		$log->info("$subname: Backing up Crowd configuration files.");
 		print "Backing up the Crowd configuration files...\n\n";
 		if ( -e $globalConfig->param("$lcApplication.installDir")
-			. "/confluence/WEB-INF/classes/crowd.properties" )
+			. "/atlassian-jira/WEB-INF/classes/crowd.properties" )
 		{
 			copyFile(
 				$globalConfig->param("$lcApplication.installDir")
-				  . "/confluence/WEB-INF/classes/crowd.properties",
+				  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
 				"$Bin/working/crowd.properties.$lcApplication"
 			);
 		}
