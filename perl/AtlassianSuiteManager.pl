@@ -2174,16 +2174,7 @@ sub generateApplicationConfig {
 #Generate Available Updates String     #
 ########################################
 sub generateAvailableUpdatesString {
-	my $cfg;
-	my $configItem;
-	my $availCode;
-	my $configValue;
-	my $application;
-	my $lcApplication;
-	my $versionCompareResult;
-	my @parameterNull;
 	my $returnString;
-	my $input;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
