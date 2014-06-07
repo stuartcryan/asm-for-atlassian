@@ -175,10 +175,10 @@ sub backupApplication {
 
 	#Check that we have enough disk space
 	$installDirSize =
-	  dirSize(
+	  getDirSize(
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
 	$dataDirSize =
-	  dirSize(
+	  getDirSize(
 		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
 	$installDirRef =
@@ -1327,9 +1327,9 @@ sub createOSUser {
 }
 
 ########################################
-#dirSize - Calculate Directory Size    #
+#getDirSize - Calculate Directory Size    #
 ########################################
-sub dirSize {
+sub getDirSize {
 
 #code written by docsnider on http://bytes.com/topic/perl/answers/603354-calculate-size-all-files-directory
 	my ($dir)  = $_[0];
@@ -1349,13 +1349,12 @@ sub dirSize {
 
 		$size += (
 			( -d $path )
-			? dirSize($path)
+			? getDirSize($path)
 			: ( -f $path ? ( stat($path) )[7] : 0 )
 		);
 	}
 
 	closedir($fd);
-
 	return ($size);
 }
 
@@ -17339,8 +17338,7 @@ sub upgradeStash {
 	#Force update config items for search parameters
 	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
 	$globalConfig->param( "$lcApplication.processSearchParameter2",
-		"classpath " . $globalConfig->param("$lcApplication.installDir") )
-	  ;
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
