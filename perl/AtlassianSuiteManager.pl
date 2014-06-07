@@ -2191,69 +2191,6 @@ sub generateAvailableUpdatesString {
 }
 
 ########################################
-#Generate crowd.properties file        #
-########################################
-sub generateCrowdPropertiesFile {
-	my $filename;    #Must contain absolute path
-	my $application;
-	my $lcApplication;
-	my $protocol;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$filename      = $_[0];
-	$application   = $_[1];
-	$lcApplication = lc($application);
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_filename",    $filename );
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-
-	open( my $outputFileHandle, '>', "$filename" )
-	  or $log->logdie("Unable to open $filename for writing.");
-	print $outputFileHandle "session.lastvalidation		session.lastvalidation\n";
-	print $outputFileHandle
-	  "session.isauthenticated		session.isauthenticated\n";
-	print $outputFileHandle "application.password		"
-	  . $globalConfig->param("$lcApplication.crowdApplicationPassword") . "\n";
-	print $outputFileHandle "application.name		"
-	  . $globalConfig->param("$lcApplication.crowdApplicationName") . "\n";
-	print $outputFileHandle "session.validationinterval		10\n";
-	print $outputFileHandle "session.tokenkey		session.tokenkey\n";
-
-	if ( $globalConfig->param("general.externalCrowdPort") eq "443" ) {
-		$protocol = "https";
-	}
-	else {
-		$protocol = "http";
-	}
-	if ( $globalConfig->param("general.externalCrowdInstance") eq "TRUE" ) {
-		print $outputFileHandle "crowd.server.url		$protocol\://"
-		  . $globalConfig->param("general.externalCrowdHostname") . ":"
-		  . $globalConfig->param("general.externalCrowdPort")
-		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
-		  . "/services/\n";
-		print $outputFileHandle "application.login.url		$protocol\://"
-		  . $globalConfig->param("general.externalCrowdHostname") . ":"
-		  . $globalConfig->param("general.externalCrowdPort")
-		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
-		  . "/services/\n";
-	}
-	else {
-		print $outputFileHandle "crowd.server.url		http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig )
-		  . "/services/\n";
-		print $outputFileHandle "application.login.url		http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig ) . "/\n";
-
-	}
-	close $outputFileHandle;
-}
-
-########################################
 #GenerateInitD                         #
 ########################################
 sub generateInitD {
