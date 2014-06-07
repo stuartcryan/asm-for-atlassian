@@ -2939,19 +2939,6 @@ sub generateSuiteConfig {
 	print
 "This will guide you through the generation of the config required for the management of the Atlassian suite.\n\n";
 
-	#Check for 64Bit Override
-	if ( testOSArchitecture() eq "64" ) {
-		genBooleanConfigItem(
-			$mode,
-			$cfg,
-			"general.force32Bit",
-			"Your operating system architecture has been detected as "
-			  . testOSArchitecture()
-			  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no",
-			"no"
-		);
-	}
-
 	#Get root installation directory
 	genConfigItem(
 		$mode,
@@ -3599,19 +3586,6 @@ sub getExistingSuiteConfig {
 	#Generate Main Suite Configuration
 	print
 "This will guide you through the generation of the config required for the management of your existing Atlassian suite. Many of the options will gather automagically however some will require manual input. This wizard will guide you through the process.\n\n";
-
-	#Check for 64Bit Override
-	if ( testOSArchitecture() eq "64" ) {
-		genBooleanConfigItem(
-			$mode,
-			$cfg,
-			"general.force32Bit",
-			"Your operating system architecture has been detected as "
-			  . testOSArchitecture()
-			  . "bit. Do you currently use 32 bit installs (not recommended)? yes/no",
-			"no"
-		);
-	}
 
 	#Get root installation directory
 	genConfigItem(
