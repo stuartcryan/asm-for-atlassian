@@ -3440,9 +3440,9 @@ sub getEnvironmentDebugInfo {
 }
 
 ########################################
-#getEnvironmentVars                    #
+#getEnvironmentVarsFromConfigFile                    #
 ########################################
-sub getEnvironmentVars {
+sub getEnvironmentVarsFromConfigFile {
 	my $inputFile;    #Must Be Absolute Path
 	my $searchFor;
 	my @data;
@@ -13802,7 +13802,8 @@ sub getExistingFisheyeConfig {
 	);
 
 	#get data/home directory
-	$returnValue = getEnvironmentVars( "/etc/environment", "FISHEYE_INST" );
+	$returnValue =
+	  getEnvironmentVarsFromConfigFile( "/etc/environment", "FISHEYE_INST" );
 
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
