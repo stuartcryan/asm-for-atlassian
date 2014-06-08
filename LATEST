@@ -5,12 +5,7 @@
 
 LATESTAVAILABLEVER=0.2.2
 
-#below method has been deprecated due to issues with REGEX in bash
 #***NOTE*** If you have a version prior to v0.2.0 you MAY need to manually download the latest version (See [#ATLASMGR-330])
-#downloadURL in the format URL|destinationPath|lastUpdatedInVer
-downloadURL[0]="http://technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.2"
-downloadURL[1]="http://technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.2"
-
 #new method of checking for updates as of v0.2.0
 latestPerlFile[0]="http://technicalnotebook.com/asmGitPublicRepo/perl/"
 latestPerlFile[1]="AtlassianSuiteManager.pl"
