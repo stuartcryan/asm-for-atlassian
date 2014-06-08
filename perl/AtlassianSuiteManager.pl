@@ -1192,21 +1192,11 @@ sub createOSUser {
 	my $lcApplication;
 	my $subname = ( caller(0) )[3];
 
-	#	my @chars = ("A".."Z", "a".."z", "0".."9");
-	#	my $password;
-	#	my $salt;
-	#	my $hashedPass;
-
 	$log->debug("BEGIN: $subname");
 
 	$osUser        = $_[0];
 	$application   = $_[1];
 	$lcApplication = lc($application);
-
-	#	#Create random password and salt
-	#	$password .= $chars[rand @chars] for 1..16;
-	#	$salt     .= $chars[rand @chars] for 1..16;
-	#	$hashedPass = crypt("$password", "$salt");
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
@@ -1336,7 +1326,6 @@ sub getDirSize {
 	my ($size) = 0;
 	my ($fd);
 	my $subname = ( caller(0) )[3];
-
 	opendir( $fd, $dir )
 	  or $log->logdie(
 "Unable to open directory to calculate the directory size. Unable to continue: $!"
