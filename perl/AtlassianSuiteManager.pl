@@ -1007,7 +1007,7 @@ sub createAndChownDirectory {
 			$directory,
 			{
 				verbose => 1,
-				mode    => 755,
+				mode    => 0755,
 			}
 		);
 
@@ -1039,7 +1039,7 @@ sub createDirectory {
 			$directory,
 			{
 				verbose => 1,
-				mode    => 755,
+				mode    => 0755,
 			}
 		);
 	}
@@ -2314,7 +2314,7 @@ sub generateInitD {
 
 	#Make the new init.d file executable
 	$log->debug("$subname: Chmodding init.d file for $lcApplication.");
-	chmod 755, "/etc/init.d/$lcApplication"
+	chmod 0755, "/etc/init.d/$lcApplication"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
 
 	#Always call an update to the main Atlassian init.d script
@@ -2534,7 +2534,7 @@ sub generateInitDforSuite {
 
 	#Make the new init.d file executable
 	$log->debug("$subname: Chmodding init.d file for atlassian.");
-	chmod 755, "/etc/init.d/atlassian"
+	chmod 0755, "/etc/init.d/atlassian"
 	  or $log->logdie("Couldn't chmod /etc/init.d/atlassian: $!");
 }
 
