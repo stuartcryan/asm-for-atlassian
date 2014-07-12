@@ -551,6 +551,9 @@ sub checkConfiguredPort {
 sub checkASMPatchLevel {
 	my @parameterNull;
 	my $patchLevel;
+	my $applicationToCheck;
+	my $lcApplicationToCheck;
+	my $configResult;
 
 	my $subname = ( caller(0) )[3];
 
@@ -572,8 +575,8 @@ sub checkASMPatchLevel {
 		$patchLevel = $globalConfig->param("general.asmPatchLevel");
 	}
 
-	if ( compareTwoVersions( $patchlevel, $scriptVersion ) eq "LESS" ) {
-		if ( compareTwoVersions( $patchlevel, "0-2-3" ) eq "LESS" ) {
+	if ( compareTwoVersions( $patchLevel, $scriptVersion ) eq "LESS" ) {
+		if ( compareTwoVersions( $patchLevel, "0-2-3" ) eq "LESS" ) {
 
 			#previous bugfixes being migrated into this new tool
 			#Apply fix for [#ATLASMGR-317]
@@ -589,8 +592,7 @@ sub checkASMPatchLevel {
 
 					if ( $configResult eq "https" ) {
 						$globalConfig->param(
-							"$lcApplicationToCheck.apacheProxySSL", "TRUE" )
-						  ;
+							"$lcApplicationToCheck.apacheProxySSL", "TRUE" );
 					}
 					elsif ( $configResult eq "http" ) {
 						$globalConfig->param(
@@ -603,6 +605,24 @@ sub checkASMPatchLevel {
 			#end previous bugfixes
 
 			#bugfixes for v0.2.3 release
+			#Begin fix for [#ATLASMGR-381]
+
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				if ( -e "/etc/init.d/$lcApplicationToCheck" ) {
+					chmod 0755, "/etc/init.d/$lcApplicationToCheck"
+					  or $log->warn(
+						"Couldn't chmod /etc/init.d/$lcApplicationToCheck: $!");
+				}
+
+			}
+
+			#Generate the new Atlassian Init.D Script
+			generateInitDforSuite();
+
+			#End Fix for [#ATLASMGR-381]
 
 			#set new patch level version
 			$globalConfig->param( "general.asmPatchLevel", "0-2-3" );
