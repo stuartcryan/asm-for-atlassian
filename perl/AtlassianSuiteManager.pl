@@ -7669,10 +7669,12 @@ sub displayAdvancedMenu {
       Please select from the following options:
 
       1) Force refresh of latest Atlassian suite application versions cache file
-      2) Pre-download the latest versions of all suite products (immediately, no confirmation)
-      3) Command Line Parameters Overview
-      4) Force UID and GID on account creation
-      5) Additional advanced documentation
+      2) Clear Confluence Plugin Cache
+      3) Clear JIRA Plugin Cache
+      4) Pre-download the latest versions of all suite products (immediately, no confirmation)
+      5) Command Line Parameters Overview
+      6) Force UID and GID on account creation
+      7) Additional advanced documentation
       Q) Return to Main Menu
 
 END_TXT
@@ -7721,9 +7723,21 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
-			downloadLatestAtlassianSuite($globalArch);
+			clearConfluencePluginCache();
+			print "Please press enter to return to the menu.\n\n";
+			my $test = <STDIN>;
 		}
 		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			clearJIRAPluginCache();
+			print "Please press enter to return to the menu.\n\n";
+			my $test = <STDIN>;
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			downloadLatestAtlassianSuite($globalArch);
+		}
+		elsif ( lc($choice) eq "5\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL", "ASM Command Line Parameters",
 				"" );
@@ -7743,7 +7757,7 @@ END_TXT
 			print "To return to the menu please press enter...";
 			my $test = <STDIN>;
 		}
-		elsif ( lc($choice) eq "4\n" ) {
+		elsif ( lc($choice) eq "6\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL",
 				"Forcing UID/GIDs on Account Creation", "" );
@@ -7757,7 +7771,7 @@ END_TXT
 			my $test = <STDIN>;
 
 		}
-		elsif ( lc($choice) eq "5\n" ) {
+		elsif ( lc($choice) eq "7\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL",
 				"Additional Advanced Documentation", "" );
@@ -12699,6 +12713,7 @@ sub upgradeConfluence {
 
 	#Clear confluence plugin cache as per [#ATLASMGR-374]
 	clearConfluencePluginCache();
+
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
 }
