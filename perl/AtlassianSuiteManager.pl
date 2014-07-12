@@ -419,21 +419,108 @@ sub backupFile {
 }
 
 ########################################
-#clearJIRAPluginCache                  #
+#checkASMPatchLevel                    #
 ########################################
-sub clearJIRAPluginCache {
-	my @cacheDirs = (
-		$globalConfig->param("jira.dataDir") . "/plugins/.bundled-plugins",
-		$globalConfig->param("jira.dataDir") . "/plugins/.osgi-plugins"
-	);
+sub checkASMPatchLevel {
+	my @parameterNull;
+	my $patchLevel;
+	my $applicationToCheck;
+	my $lcApplicationToCheck;
+	my $configResult;
+
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	#remove init.d file
-	print "Clearing JIRA Plugin Cache... please wait...\n\n";
+	#check if there is a corresponding version in settings.cfg
 
-	removeDirs(@cacheDirs);
+	@parameterNull = $globalConfig->param("general.asmPatchLevel");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("general.asmPatchLevel") eq "" )
+	{
+		$log->debug(
+"$subname: No ASM patch level currently exists in the settings file."
+		);
+		$patchLevel =
+		  "0-0-0";    #set patch level to 0 to apply all previous patches
+	}
+	else {
+		$patchLevel = $globalConfig->param("general.asmPatchLevel");
+	}
+
+	if ( compareTwoVersions( $patchLevel, $scriptVersion ) eq "LESS" ) {
+		if ( compareTwoVersions( $patchLevel, "0-2-3" ) eq "LESS" ) {
+
+			#previous bugfixes being migrated into this new tool
+			#Apply fix for [#ATLASMGR-317]
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				@parameterNull =
+				  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
+				if ( !( $#parameterNull == -1 ) ) {
+					$configResult = $globalConfig->param(
+						"$lcApplicationToCheck.apacheProxySSL");
+
+					if ( $configResult eq "https" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "TRUE" );
+					}
+					elsif ( $configResult eq "http" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "FALSE" );
+					}
+				}
+			}
+
+			#End Fix for [#ATLASMGR-317]
+			#end previous bugfixes
+
+			#bugfixes for v0.2.3 release
+			#Begin fix for [#ATLASMGR-381]
+
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				if ( -e "/etc/init.d/$lcApplicationToCheck" ) {
+					chmod 0755, "/etc/init.d/$lcApplicationToCheck"
+					  or $log->warn(
+						"Couldn't chmod /etc/init.d/$lcApplicationToCheck: $!");
+				}
+
+			}
+
+			#Generate the new Atlassian Init.D Script
+			generateInitDforSuite();
+
+			#End Fix for [#ATLASMGR-381]
+
+			#set new patch level version
+			$globalConfig->param( "general.asmPatchLevel", "0-2-3" );
+
+			#Write config and reload
+			$log->info("Writing out config file to disk.");
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+
+		}
+
+	   #insert any later version patches here to apply them in the correct order
+
+#apply current script version number to file after all patchlevels have been met
+		$globalConfig->param( "general.asmPatchLevel", $scriptVersion );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+
+	}
+	else {
+		$log->info("$subname: Patchlevel is up to date");
+	}
 }
 
 ########################################
@@ -560,111 +647,6 @@ sub checkConfiguredPort {
 				}
 			}
 		}
-	}
-}
-
-########################################
-#checkASMPatchLevel                    #
-########################################
-sub checkASMPatchLevel {
-	my @parameterNull;
-	my $patchLevel;
-	my $applicationToCheck;
-	my $lcApplicationToCheck;
-	my $configResult;
-
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	#check if there is a corresponding version in settings.cfg
-
-	@parameterNull = $globalConfig->param("general.asmPatchLevel");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("general.asmPatchLevel") eq "" )
-	{
-		$log->debug(
-"$subname: No ASM patch level currently exists in the settings file."
-		);
-		$patchLevel =
-		  "0-0-0";    #set patch level to 0 to apply all previous patches
-	}
-	else {
-		$patchLevel = $globalConfig->param("general.asmPatchLevel");
-	}
-
-	if ( compareTwoVersions( $patchLevel, $scriptVersion ) eq "LESS" ) {
-		if ( compareTwoVersions( $patchLevel, "0-2-3" ) eq "LESS" ) {
-
-			#previous bugfixes being migrated into this new tool
-			#Apply fix for [#ATLASMGR-317]
-			foreach (@suiteApplications) {
-				$applicationToCheck   = $_;
-				$lcApplicationToCheck = lc($applicationToCheck);
-
-				@parameterNull =
-				  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
-				if ( !( $#parameterNull == -1 ) ) {
-					$configResult = $globalConfig->param(
-						"$lcApplicationToCheck.apacheProxySSL");
-
-					if ( $configResult eq "https" ) {
-						$globalConfig->param(
-							"$lcApplicationToCheck.apacheProxySSL", "TRUE" );
-					}
-					elsif ( $configResult eq "http" ) {
-						$globalConfig->param(
-							"$lcApplicationToCheck.apacheProxySSL", "FALSE" );
-					}
-				}
-			}
-
-			#End Fix for [#ATLASMGR-317]
-			#end previous bugfixes
-
-			#bugfixes for v0.2.3 release
-			#Begin fix for [#ATLASMGR-381]
-
-			foreach (@suiteApplications) {
-				$applicationToCheck   = $_;
-				$lcApplicationToCheck = lc($applicationToCheck);
-
-				if ( -e "/etc/init.d/$lcApplicationToCheck" ) {
-					chmod 0755, "/etc/init.d/$lcApplicationToCheck"
-					  or $log->warn(
-						"Couldn't chmod /etc/init.d/$lcApplicationToCheck: $!");
-				}
-
-			}
-
-			#Generate the new Atlassian Init.D Script
-			generateInitDforSuite();
-
-			#End Fix for [#ATLASMGR-381]
-
-			#set new patch level version
-			$globalConfig->param( "general.asmPatchLevel", "0-2-3" );
-
-			#Write config and reload
-			$log->info("Writing out config file to disk.");
-			$globalConfig->write($configFile);
-			loadSuiteConfig();
-
-		}
-
-	   #insert any later version patches here to apply them in the correct order
-
-#apply current script version number to file after all patchlevels have been met
-		$globalConfig->param( "general.asmPatchLevel", $scriptVersion );
-
-		#Write config and reload
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-
-	}
-	else {
-		$log->info("$subname: Patchlevel is up to date");
 	}
 }
 
@@ -893,6 +875,48 @@ sub chownFile {
 	  or $log->logdie("could not chown '$_': $!");
 
 	print "File chowned successfully.\n\n";
+}
+
+########################################
+#clearJIRAPluginCache                  #
+########################################
+sub clearConfluencePluginCache {
+	my @cacheDirs = (
+		$globalConfig->param("confluence.dataDir") . "/bundled-plugins",
+		$globalConfig->param("confluence.dataDir") . "/plugins-cache",
+		$globalConfig->param("confluence.dataDir") . "/plugins-osgi-cache",
+		$globalConfig->param("confluence.dataDir") . "/plugins-temp",
+		$globalConfig->param("confluence.dataDir") . "/bundled-plugins_language"
+	);
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#remove init.d file
+	print "Clearing Confluence Plugin Cache, please wait...\n\n";
+
+	removeDirs(@cacheDirs);
+
+	print "Confluence Plugin Cache has been cleaned.\n\n";
+}
+
+########################################
+#clearJIRAPluginCache                  #
+########################################
+sub clearJIRAPluginCache {
+	my @cacheDirs = (
+		$globalConfig->param("jira.dataDir") . "/plugins/.bundled-plugins",
+		$globalConfig->param("jira.dataDir") . "/plugins/.osgi-plugins"
+	);
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#remove init.d file
+	print "Clearing JIRA Plugin Cache... please wait...\n\n";
+
+	removeDirs(@cacheDirs);
+	print "JIRA Plugin Cache has been cleaned.\n\n";
 }
 
 ########################################
@@ -5424,11 +5448,9 @@ sub removeDirs {
 			rmtree( [$escapedDirectory] );
 		}
 		else {
-			$log->warn( "$subname: Unable to remove "
+			$log->info( "$subname: Unable to remove "
 				  . $escapedDirectory
 				  . ". Directory does not exist." );
-			print
-"Could not remove $escapedDirectory... does not currently exist\n\n";
 		}
 	}
 
@@ -12675,6 +12697,8 @@ sub upgradeConfluence {
 		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
+	#Clear confluence plugin cache as per [#ATLASMGR-374]
+	clearConfluencePluginCache();
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
 }
