@@ -6912,7 +6912,7 @@ sub upgradeGeneric {
 
 #Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$$log->info("Writing out config file to disk.");
+		$log->info
 		(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
 		);

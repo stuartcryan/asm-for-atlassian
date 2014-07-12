@@ -250,14 +250,44 @@ MODULES="LWP::Simple JSON Data::Dumper Config::Simple Crypt::SSLeay URI XML::Par
 BINARIESCHECK=""
 MISSINGMODULES=""
 
-for i in $MODULES
-do
-perl -e "use $i" &>/dev/null  || { echo "$i PERL module not found."; MODULESCHECK="FAIL"; MISSINGMODULES=$MISSINGMODULES"$i "; }
-done
+PERLVERSION=`grep "my \\$scriptVersion =" $INSTALLDIR/perl/AtlassianSuiteManager.pl`
+if [[ $PERLVERSION =~ ^.*\"([0-9]*)-([0-9]*)-?([0-9]*?)\".*?$ ]]; then
+	if [[ ${BASH_REMATCH[3]} == "" ]]; then
+		PERLVERSION=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}
+	else
+		PERLVERSION=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}
+	fi
+fi
+	
+SETTINGSCONFVERSION=`grep "asmPatchLevel=" $INSTALLDIR/settings.cfg`
+if [[ $FORCEPERLMODULES == "FALSE" && $SETTINGSCONFVERSION == "" ]]; then
+	FORCEPERLMODULES="TRUE"
+elif [[ $FORCEPERLMODULES == "TRUE" ]]; then
+	FORCEPERLMODULES="TRUE"
+else
+	FORCEPERLMODULES="FALSE"
+fi
 
-if [[ $MODULESCHECK == "FAIL" ]] ; then
-   echo -n "Some required PERL modules are missing therefore this script cannot be run. Would you like the script to attempt to install them? yes/no [yes]: "
-   LOOP=1
+if [[ $FORCEPERLMODULES == "FALSE" && $SETTINGSCONFVERSION =~ ([0-9]*)-([0-9]*)?-?([0-9]*)?.*$ ]]; then
+	if [[ ${BASH_REMATCH[3]} == "" ]]; then
+		SETTINGSCONFVERSION=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}
+	else
+		SETTINGSCONFVERSION=${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}
+	fi
+fi
+	
+compareTwoVersions $SETTINGSCONFVERSION $PERLVERSION
+   	
+if [[($FORCEPERLMODULES == "TRUE") || ("$VERSIONCOMPARISON" == "LESS")]]; then
+
+	for i in $MODULES
+	do
+		perl -e "use $i" &>/dev/null  || { echo "$i PERL module not found."; MODULESCHECK="FAIL"; MISSINGMODULES=$MISSINGMODULES"$i "; }
+	done
+
+	if [[ $MODULESCHECK == "FAIL" ]] ; then
+   		echo -n "Some required PERL modules are missing therefore this script cannot be run. Would you like the script to attempt to install them? yes/no [yes]: "
+  		LOOP=1
 		while [ $LOOP -eq "1" ]
 		do
 			read USERWANTSINSTALLPREREQ
@@ -323,8 +353,8 @@ if [[ $MODULESCHECK == "FAIL" ]] ; then
 			perl -e "use LWP::Simple" &>/dev/null  || { cpan "LWP::Simple" || { echo "CPAN was unable to install LWP::Simple. Please correct this manually and then run this script again. This script will now exit"; exit 1; } ; }
 			cpan $MISSINGMODULES || { echo "CPAN was unable to install the required PERL modules. Please correct this manually and then run this script again. This script will now exit"; exit 1; }
 		fi
+	fi
 fi
-
 }
 
 ########################################
@@ -686,7 +716,14 @@ clear
       ****************************************
     
 	____HERE
-	
+
+args=("$@")
+if [[(${args[0]} == "--force-perl-modules-check")]]; then
+FORCEPERLMODULES="TRUE"
+else
+FORCEPERLMODULES="FALSE"
+fi
+
 checkPerlModules
 
 #run the perl script

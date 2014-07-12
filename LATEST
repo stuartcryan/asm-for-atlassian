@@ -6,13 +6,10 @@
 LATESTAVAILABLEVER=0.2.3
 
 #***NOTE*** If you have a version prior to v0.2.0 you MAY need to manually download the latest version (See [#ATLASMGR-330])
-<<<<<<< HEAD
-=======
 #downloadURL in the format URL|destinationPath|lastUpdatedInVer
 downloadURL[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.3"
 downloadURL[1]="http://akamai.technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.3"
 
->>>>>>> origin/release/ATLASMGR-382-release-version-0.2.3
 #new method of checking for updates as of v0.2.0
 latestPerlFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/"
 latestPerlFile[1]="AtlassianSuiteManager.pl"
