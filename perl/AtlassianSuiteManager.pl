@@ -419,6 +419,24 @@ sub backupFile {
 }
 
 ########################################
+#clearJIRAPluginCache                  #
+########################################
+sub clearJIRAPluginCache {
+	my @cacheDirs = (
+		$globalConfig->param("jira.dataDir") . "/plugins/.bundled-plugins",
+		$globalConfig->param("jira.dataDir") . "/plugins/.osgi-plugins"
+	);
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#remove init.d file
+	print "Clearing JIRA Plugin Cache... please wait...\n\n";
+
+	removeDirs(@cacheDirs);
+}
+
+########################################
 #Check configured port                 #
 ########################################
 sub checkConfiguredPort {
@@ -5380,6 +5398,40 @@ sub readHashFromFile {
 	my $dumped = <$fh>;
 	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
 	return %{ eval $dumped };
+}
+
+########################################
+#RemoveDirector(ies)                   #
+#Takes an array of directories in      #
+########################################
+sub removeDirs {
+	my $directory;
+	my $escapedDirectory;
+	my $subname = ( caller(0) )[3];
+	my @directoryList;
+
+	$log->info("BEGIN: $subname");
+
+	@directoryList = @_;
+
+	foreach (@directoryList) {
+		$directory        = $_;
+		$escapedDirectory = escapeFilePath($directory);
+
+		#removeDirectories
+		$log->info( "$subname: Removing " . $escapedDirectory );
+		if ( -d $escapedDirectory ) {
+			rmtree( [$escapedDirectory] );
+		}
+		else {
+			$log->warn( "$subname: Unable to remove "
+				  . $escapedDirectory
+				  . ". Directory does not exist." );
+			print
+"Could not remove $escapedDirectory... does not currently exist\n\n";
+		}
+	}
+
 }
 
 ########################################
@@ -16376,6 +16428,9 @@ sub upgradeJira {
 		$globalConfig->param("$lcApplication.processSearchParameter1"),
 		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
+
+	#clear the JIRA plugin cache for good measure (see [#ATLASMGR-341])
+	clearJIRAPluginCache();
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
