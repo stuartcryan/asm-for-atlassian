@@ -34,6 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use Net::SSLGlue::LWP; #Added to resolve [#ATLASMGR-378]
 use LWP::Simple qw($ua getstore get is_success head);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
