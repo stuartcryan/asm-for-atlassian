@@ -34,6 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use Net::SSLGlue::LWP; #Added to resolve [#ATLASMGR-378]
 use LWP::Simple qw($ua getstore get is_success head);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
@@ -2313,7 +2314,11 @@ sub generateInitD {
 	close $outputFileHandle;
 
 	#Make the new init.d file executable
+<<<<<<< HEAD
 	$log->debug("$subname: Chmodding init.d file for $lcApplication.");
+=======
+	$log->info("$subname: Chmodding init.d file for $lcApplication.");
+>>>>>>> origin/release/ATLASMGR-382-release-version-0.2.3
 	chmod 0755, "/etc/init.d/$lcApplication"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
 
@@ -2533,7 +2538,11 @@ sub generateInitDforSuite {
 	close $outputFileHandle;
 
 	#Make the new init.d file executable
+<<<<<<< HEAD
 	$log->debug("$subname: Chmodding init.d file for atlassian.");
+=======
+	$log->info("$subname: Chmodding init.d file for atlassian.");
+>>>>>>> origin/release/ATLASMGR-382-release-version-0.2.3
 	chmod 0755, "/etc/init.d/atlassian"
 	  or $log->logdie("Couldn't chmod /etc/init.d/atlassian: $!");
 }
