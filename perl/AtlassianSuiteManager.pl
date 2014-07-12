@@ -34,7 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use Net::SSLGlue::LWP; #Added to resolve [#ATLASMGR-378]
+use Net::SSLGlue::LWP;    #Added to resolve [#ATLASMGR-378]
 use LWP::Simple qw($ua getstore get is_success head);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
@@ -546,6 +546,91 @@ sub checkConfiguredPort {
 }
 
 ########################################
+#checkASMPatchLevel                    #
+########################################
+sub checkASMPatchLevel {
+	my @parameterNull;
+	my $patchLevel;
+
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#check if there is a corresponding version in settings.cfg
+
+	@parameterNull = $globalConfig->param("general.asmPatchLevel");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("general.asmPatchLevel") eq "" )
+	{
+		$log->debug(
+"$subname: No ASM patch level currently exists in the settings file."
+		);
+		$patchLevel =
+		  "0-0-0";    #set patch level to 0 to apply all previous patches
+	}
+	else {
+		$patchLevel = $globalConfig->param("general.asmPatchLevel");
+	}
+
+	if ( compareTwoVersions( $patchlevel, $scriptVersion ) eq "LESS" ) {
+		if ( compareTwoVersions( $patchlevel, "0-2-3" ) eq "LESS" ) {
+
+			#previous bugfixes being migrated into this new tool
+			#Apply fix for [#ATLASMGR-317]
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				@parameterNull =
+				  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
+				if ( !( $#parameterNull == -1 ) ) {
+					$configResult = $globalConfig->param(
+						"$lcApplicationToCheck.apacheProxySSL");
+
+					if ( $configResult eq "https" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "TRUE" )
+						  ;
+					}
+					elsif ( $configResult eq "http" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "FALSE" );
+					}
+				}
+			}
+
+			#End Fix for [#ATLASMGR-317]
+			#end previous bugfixes
+
+			#bugfixes for v0.2.3 release
+
+			#set new patch level version
+			$globalConfig->param( "general.asmPatchLevel", "0-2-3" );
+
+			#Write config and reload
+			$log->info("Writing out config file to disk.");
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+
+		}
+
+	   #insert any later version patches here to apply them in the correct order
+
+#apply current script version number to file after all patchlevels have been met
+		$globalConfig->param( "general.asmPatchLevel", $scriptVersion );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+
+	}
+	else {
+		$log->info("$subname: Patchlevel is up to date");
+	}
+}
+
+########################################
 #CheckCrowdConfig                      #
 ########################################
 sub checkCrowdConfig {
@@ -785,6 +870,8 @@ sub compareTwoVersions {
 	my $majorVersionStatus;
 	my $midVersionStatus;
 	my $minVersionStatus;
+	my $version1Delim;
+	my $version2Delim;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -796,8 +883,26 @@ sub compareTwoVersions {
 	dumpSingleVarToLog( "$subname" . "_version1", $version1 );
 	dumpSingleVarToLog( "$subname" . "_version2", $version2 );
 
-	@splitVersion1 = split( /\./, $version1 );
-	@splitVersion2 = split( /\./, $version2 );
+	if ( $version1 =~ m/.*-.*/ ) {
+		$version1Delim = "-";
+	}
+	else {
+
+		#assume original delimiter of a period
+		$version1Delim = "\.";
+	}
+
+	if ( $version2 =~ m/.*-.*/ ) {
+		$version2Delim = "-";
+	}
+	else {
+
+		#assume original delimiter of a period
+		$version2Delim = '\.';
+	}
+
+	@splitVersion1 = split( /$version1Delim/, $version1 );
+	@splitVersion2 = split( /$version2Delim/, $version2 );
 
 #Iterate through first array and test if the version provided is less than or equal to the second array
 	for ( $count = 0 ; $count <= 3 ; $count++ ) {
@@ -7302,41 +7407,8 @@ sub bootStrapper {
 	checkForAvailableUpdates();
 	generateAvailableUpdatesString();
 
-	#apply any config file bug fixes:
-
-	#Apply fix for [#ATLASMGR-317]
-	foreach (@suiteApplications) {
-		$applicationToCheck   = $_;
-		$lcApplicationToCheck = lc($applicationToCheck);
-
-		@parameterNull =
-		  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
-		if ( !( $#parameterNull == -1 ) ) {
-			$configResult =
-			  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
-
-			if ( $configResult eq "https" ) {
-				$globalConfig->param( "$lcApplicationToCheck.apacheProxySSL",
-					"TRUE" );
-				$configChange = "TRUE";
-			}
-			elsif ( $configResult eq "http" ) {
-				$globalConfig->param( "$lcApplicationToCheck.apacheProxySSL",
-					"FALSE" );
-				$configChange = "TRUE";
-			}
-		}
-	}
-
-	if ( $configChange eq "TRUE" ) {
-		$log->info(
-"$subname: Config file has been patched as a result of [#ATLASMGR-317]. Writing out new config file."
-		);
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
-
-	#End Fix for [#ATLASMGR-317]
+	#check for and apply any bugfixes since the last version
+	checkASMPatchLevel();
 
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
@@ -17367,8 +17439,7 @@ sub upgradeStash {
 	#Force update config items for search parameters
 	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
 	$globalConfig->param( "$lcApplication.processSearchParameter2",
-		"classpath " . $globalConfig->param("$lcApplication.installDir") )
-	  ;
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
