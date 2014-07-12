@@ -29,7 +29,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.2.2"
+SCRIPTVERSION="0.2.1"
 LATESTDOWNLOADURL="http://akamai.technicalnotebook.com/asmGitPublicRepo/LATEST"
 LATESTSUPPORTEDDOWNLOADURL="http://akamai.technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
@@ -493,6 +493,9 @@ processLatestVersionFile(){
 		LOOP="1"
 	
 		echo "An update to the script is available, it is STRONGLY recommended that you update prior to using ASM."
+		echo ""
+		echo "$changeLog"
+		echo ""
 		echo -n "Would you like to update the script now? yes/no [yes]:"
 		
 		while [ $LOOP -eq "1" ]

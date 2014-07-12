@@ -3,7 +3,7 @@
 #
 #    Copyright 2012-2014 Stuart Ryan
 
-LATESTAVAILABLEVER=0.2.2
+LATESTAVAILABLEVER=0.2.3
 
 #below method has been deprecated due to issues with REGEX in bash
 #***NOTE*** If you have a version prior to v0.2.0 you MAY need to manually download the latest version (See [#ATLASMGR-330])
@@ -21,3 +21,21 @@ latestWrapperFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/"
 latestWrapperFile[1]="atlassianSuiteManager.sh"
 latestWrapperFile[2]="/"
 latestWrapperFile[3]="0.2.2"
+
+changeLog="Changes available in the latest version: 
+     *Fix  - Init.D permissions incorrect
+     *Fix  - Permissions on directories are sometimes incorrect 
+             (fix submitted by Bradley Baetz)
+     *Fix  - Unable to access https URLs through proxy 
+             (fix submitted by Bradley Baetz)
+     *Fix  - Hyphen's not accepted in hostnames 
+             (fix submitted by Bradley Baetz)
+     *Feat - Clear plugin caches of JIRA and Confluence on upgrades 
+             (to get around occasional cache corruption)
+     *Imp  - Akamai CDN now used for all update URLS for ASM for Atlassian 
+             script to speed up the update process
+     *Imp - Future bug fixes to config files and existing installs will 
+            only be run once. Patch level is now tracked.
+            
+     ***Please Note*** 
+     This upgrade will install additional PERL modules that are now required."
