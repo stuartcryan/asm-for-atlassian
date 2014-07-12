@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.2
+#    Version: 0.2.3
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -34,7 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use Net::SSLGlue::LWP; #Added to resolve [#ATLASMGR-378]
+use Net::SSLGlue::LWP;    #Added to resolve [#ATLASMGR-378]
 use LWP::Simple qw($ua getstore get is_success head);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
@@ -67,7 +67,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-2-2"
+my $scriptVersion = "0-2-3"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -90,6 +90,7 @@ my %appsWithUpdates = ();
 my $availableUpdatesString;
 my $latestVersionsCacheFile = "$Bin/working/latestVersions.cache";
 my $log                     = Log::Log4perl->get_logger("");
+my $hostnameRegex           = qr/^([-a-zA-Z0-9\.]*)$/;
 $Archive::Extract::PREFER_BIN = 1;
 
 #######################################################################
@@ -415,6 +416,111 @@ sub backupFile {
 		  . $date );
 
 	chownFile( $osUser, $inputFile . "_" . $date );
+}
+
+########################################
+#checkASMPatchLevel                    #
+########################################
+sub checkASMPatchLevel {
+	my @parameterNull;
+	my $patchLevel;
+	my $applicationToCheck;
+	my $lcApplicationToCheck;
+	my $configResult;
+
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#check if there is a corresponding version in settings.cfg
+
+	@parameterNull = $globalConfig->param("general.asmPatchLevel");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("general.asmPatchLevel") eq "" )
+	{
+		$log->debug(
+"$subname: No ASM patch level currently exists in the settings file."
+		);
+		$patchLevel =
+		  "0-0-0";    #set patch level to 0 to apply all previous patches
+	}
+	else {
+		$patchLevel = $globalConfig->param("general.asmPatchLevel");
+	}
+
+	if ( compareTwoVersions( $patchLevel, $scriptVersion ) eq "LESS" ) {
+		if ( compareTwoVersions( $patchLevel, "0-2-3" ) eq "LESS" ) {
+
+			#previous bugfixes being migrated into this new tool
+			#Apply fix for [#ATLASMGR-317]
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				@parameterNull =
+				  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
+				if ( !( $#parameterNull == -1 ) ) {
+					$configResult = $globalConfig->param(
+						"$lcApplicationToCheck.apacheProxySSL");
+
+					if ( $configResult eq "https" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "TRUE" );
+					}
+					elsif ( $configResult eq "http" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "FALSE" );
+					}
+				}
+			}
+
+			#End Fix for [#ATLASMGR-317]
+			#end previous bugfixes
+
+			#bugfixes for v0.2.3 release
+			#Begin fix for [#ATLASMGR-381]
+
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				if ( -e "/etc/init.d/$lcApplicationToCheck" ) {
+					chmod 0755, "/etc/init.d/$lcApplicationToCheck"
+					  or $log->warn(
+						"Couldn't chmod /etc/init.d/$lcApplicationToCheck: $!");
+				}
+
+			}
+
+			#Generate the new Atlassian Init.D Script
+			generateInitDforSuite();
+
+			#End Fix for [#ATLASMGR-381]
+
+			#set new patch level version
+			$globalConfig->param( "general.asmPatchLevel", "0-2-3" );
+
+			#Write config and reload
+			$log->info("Writing out config file to disk.");
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+
+		}
+
+	   #insert any later version patches here to apply them in the correct order
+
+#apply current script version number to file after all patchlevels have been met
+		$globalConfig->param( "general.asmPatchLevel", $scriptVersion );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+
+	}
+	else {
+		$log->info("$subname: Patchlevel is up to date");
+	}
 }
 
 ########################################
@@ -772,6 +878,48 @@ sub chownFile {
 }
 
 ########################################
+#clearJIRAPluginCache                  #
+########################################
+sub clearConfluencePluginCache {
+	my @cacheDirs = (
+		$globalConfig->param("confluence.dataDir") . "/bundled-plugins",
+		$globalConfig->param("confluence.dataDir") . "/plugins-cache",
+		$globalConfig->param("confluence.dataDir") . "/plugins-osgi-cache",
+		$globalConfig->param("confluence.dataDir") . "/plugins-temp",
+		$globalConfig->param("confluence.dataDir") . "/bundled-plugins_language"
+	);
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#remove init.d file
+	print "Clearing Confluence Plugin Cache, please wait...\n\n";
+
+	removeDirs(@cacheDirs);
+
+	print "Confluence Plugin Cache has been cleaned.\n\n";
+}
+
+########################################
+#clearJIRAPluginCache                  #
+########################################
+sub clearJIRAPluginCache {
+	my @cacheDirs = (
+		$globalConfig->param("jira.dataDir") . "/plugins/.bundled-plugins",
+		$globalConfig->param("jira.dataDir") . "/plugins/.osgi-plugins"
+	);
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#remove init.d file
+	print "Clearing JIRA Plugin Cache... please wait...\n\n";
+
+	removeDirs(@cacheDirs);
+	print "JIRA Plugin Cache has been cleaned.\n\n";
+}
+
+########################################
 #Compare two versions                  #
 #compareTwoVersions("current","new");  #
 ########################################
@@ -784,6 +932,8 @@ sub compareTwoVersions {
 	my $majorVersionStatus;
 	my $midVersionStatus;
 	my $minVersionStatus;
+	my $version1Delim;
+	my $version2Delim;
 	my $subname = ( caller(0) )[3];
 
 	$log->debug("BEGIN: $subname");
@@ -795,8 +945,26 @@ sub compareTwoVersions {
 	dumpSingleVarToLog( "$subname" . "_version1", $version1 );
 	dumpSingleVarToLog( "$subname" . "_version2", $version2 );
 
-	@splitVersion1 = split( /\./, $version1 );
-	@splitVersion2 = split( /\./, $version2 );
+	if ( $version1 =~ m/.*-.*/ ) {
+		$version1Delim = "-";
+	}
+	else {
+
+		#assume original delimiter of a period
+		$version1Delim = "\.";
+	}
+
+	if ( $version2 =~ m/.*-.*/ ) {
+		$version2Delim = "-";
+	}
+	else {
+
+		#assume original delimiter of a period
+		$version2Delim = '\.';
+	}
+
+	@splitVersion1 = split( /$version1Delim/, $version1 );
+	@splitVersion2 = split( /$version2Delim/, $version2 );
 
 #Iterate through first array and test if the version provided is less than or equal to the second array
 	for ( $count = 0 ; $count <= 3 ; $count++ ) {
@@ -2910,7 +3078,7 @@ sub generateSuiteConfig {
 				"general.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 
@@ -2970,7 +3138,7 @@ sub generateSuiteConfig {
 				"general.externalCrowdHostname",
 "Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
 			);
 
@@ -3557,7 +3725,7 @@ sub getExistingSuiteConfig {
 				"general.apacheProxyHost",
 "Please enter the base URL that the suite currently resides on (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 
@@ -3599,7 +3767,7 @@ sub getExistingSuiteConfig {
 				"general.externalCrowdHostname",
 "Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
 			);
 
@@ -5151,6 +5319,38 @@ sub readHashFromFile {
 	my $dumped = <$fh>;
 	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
 	return %{ eval $dumped };
+}
+
+########################################
+#RemoveDirector(ies)                   #
+#Takes an array of directories in      #
+########################################
+sub removeDirs {
+	my $directory;
+	my $escapedDirectory;
+	my $subname = ( caller(0) )[3];
+	my @directoryList;
+
+	$log->info("BEGIN: $subname");
+
+	@directoryList = @_;
+
+	foreach (@directoryList) {
+		$directory        = $_;
+		$escapedDirectory = escapeFilePath($directory);
+
+		#removeDirectories
+		$log->info( "$subname: Removing " . $escapedDirectory );
+		if ( -d $escapedDirectory ) {
+			rmtree( [$escapedDirectory] );
+		}
+		else {
+			$log->info( "$subname: Unable to remove "
+				  . $escapedDirectory
+				  . ". Directory does not exist." );
+		}
+	}
+
 }
 
 ########################################
@@ -7195,41 +7395,8 @@ sub bootStrapper {
 	checkForAvailableUpdates();
 	generateAvailableUpdatesString();
 
-	#apply any config file bug fixes:
-
-	#Apply fix for [#ATLASMGR-317]
-	foreach (@suiteApplications) {
-		$applicationToCheck   = $_;
-		$lcApplicationToCheck = lc($applicationToCheck);
-
-		@parameterNull =
-		  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
-		if ( !( $#parameterNull == -1 ) ) {
-			$configResult =
-			  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
-
-			if ( $configResult eq "https" ) {
-				$globalConfig->param( "$lcApplicationToCheck.apacheProxySSL",
-					"TRUE" );
-				$configChange = "TRUE";
-			}
-			elsif ( $configResult eq "http" ) {
-				$globalConfig->param( "$lcApplicationToCheck.apacheProxySSL",
-					"FALSE" );
-				$configChange = "TRUE";
-			}
-		}
-	}
-
-	if ( $configChange eq "TRUE" ) {
-		$log->info(
-"$subname: Config file has been patched as a result of [#ATLASMGR-317]. Writing out new config file."
-		);
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
-
-	#End Fix for [#ATLASMGR-317]
+	#check for and apply any bugfixes since the last version
+	checkASMPatchLevel();
 
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
@@ -7396,10 +7563,12 @@ sub displayAdvancedMenu {
       Please select from the following options:
 
       1) Force refresh of latest Atlassian suite application versions cache file
-      2) Pre-download the latest versions of all suite products (immediately, no confirmation)
-      3) Command Line Parameters Overview
-      4) Force UID and GID on account creation
-      5) Additional advanced documentation
+      2) Clear Confluence Plugin Cache
+      3) Clear JIRA Plugin Cache
+      4) Pre-download the latest versions of all suite products (immediately, no confirmation)
+      5) Command Line Parameters Overview
+      6) Force UID and GID on account creation
+      7) Additional advanced documentation
       Q) Return to Main Menu
 
 END_TXT
@@ -7448,9 +7617,21 @@ END_TXT
 		}
 		elsif ( lc($choice) eq "2\n" ) {
 			system 'clear';
-			downloadLatestAtlassianSuite($globalArch);
+			clearConfluencePluginCache();
+			print "Please press enter to return to the menu.\n\n";
+			my $test = <STDIN>;
 		}
 		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			clearJIRAPluginCache();
+			print "Please press enter to return to the menu.\n\n";
+			my $test = <STDIN>;
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			downloadLatestAtlassianSuite($globalArch);
+		}
+		elsif ( lc($choice) eq "5\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL", "ASM Command Line Parameters",
 				"" );
@@ -7470,7 +7651,7 @@ END_TXT
 			print "To return to the menu please press enter...";
 			my $test = <STDIN>;
 		}
-		elsif ( lc($choice) eq "4\n" ) {
+		elsif ( lc($choice) eq "6\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL",
 				"Forcing UID/GIDs on Account Creation", "" );
@@ -7484,7 +7665,7 @@ END_TXT
 			my $test = <STDIN>;
 
 		}
-		elsif ( lc($choice) eq "5\n" ) {
+		elsif ( lc($choice) eq "7\n" ) {
 			system 'clear';
 			print generateMenuHeader( "FULL",
 				"Additional Advanced Documentation", "" );
@@ -8736,7 +8917,7 @@ sub getExistingBambooConfig {
 			"bamboo.apacheProxyHost",
 "Please enter the base URL Bamboo currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -9282,7 +9463,7 @@ sub getExistingBambooConfig {
 					"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 					"",
-					'^([a-zA-Z0-9\.]*)$',
+					$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 				);
 			}
@@ -9576,7 +9757,7 @@ sub generateBambooConfig {
 			"bamboo.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -11008,7 +11189,7 @@ sub getExistingConfluenceConfig {
 			"confluence.apacheProxyHost",
 "Please enter the base URL Confluence currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -11380,7 +11561,7 @@ sub getExistingConfluenceConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -11622,7 +11803,7 @@ sub generateConfluenceConfig {
 			"confluence.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -12424,6 +12605,9 @@ sub upgradeConfluence {
 		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
+	#Clear confluence plugin cache as per [#ATLASMGR-374]
+	clearConfluencePluginCache();
+
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
 }
@@ -12541,7 +12725,7 @@ sub getExistingCrowdConfig {
 			"crowd.apacheProxyHost",
 "Please enter the base URL Crowd currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -12839,7 +13023,7 @@ sub getExistingCrowdConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -13089,7 +13273,7 @@ sub generateCrowdConfig {
 			"crowd.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -13729,7 +13913,7 @@ sub getExistingFisheyeConfig {
 			"fisheye.apacheProxyHost",
 "Please enter the base URL Fisheye currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -14093,7 +14277,7 @@ sub getExistingFisheyeConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -14340,7 +14524,7 @@ sub generateFisheyeConfig {
 			"fisheye.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -14916,7 +15100,7 @@ sub getExistingJiraConfig {
 			"jira.apacheProxyHost",
 "Please enter the base URL JIRA currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -15288,7 +15472,7 @@ sub getExistingJiraConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -15532,7 +15716,7 @@ sub generateJiraConfig {
 			"jira.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -16179,6 +16363,9 @@ sub upgradeJira {
 		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
+	#clear the JIRA plugin cache for good measure (see [#ATLASMGR-341])
+	clearJIRAPluginCache();
+
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
 }
@@ -16287,7 +16474,7 @@ sub getExistingStashConfig {
 			"stash.apacheProxyHost",
 "Please enter the base URL Stash currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -16652,7 +16839,7 @@ sub getExistingStashConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -16906,7 +17093,7 @@ sub generateStashConfig {
 			"stash.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 

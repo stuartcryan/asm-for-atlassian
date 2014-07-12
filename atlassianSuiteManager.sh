@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.2
+#    Version: 0.2.3
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -29,9 +29,9 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-SCRIPTVERSION="0.2.2"
-LATESTDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/LATEST"
-LATESTSUPPORTEDDOWNLOADURL="http://technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
+SCRIPTVERSION="0.2.3"
+LATESTDOWNLOADURL="http://akamai.technicalnotebook.com/asmGitPublicRepo/LATEST"
+LATESTSUPPORTEDDOWNLOADURL="http://akamai.technicalnotebook.com/asmGitPublicRepo/supportedVersions.cfg"
 EXPATDOWNLOADURL="http://sourceforge.net/projects/expat/files/latest/download"
 clear
 INSTALLDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
@@ -493,6 +493,9 @@ processLatestVersionFile(){
 		LOOP="1"
 	
 		echo "An update to the script is available, it is STRONGLY recommended that you update prior to using ASM."
+		echo ""
+		echo "$changeLog"
+		echo ""
 		echo -n "Would you like to update the script now? yes/no [yes]:"
 		
 		while [ $LOOP -eq "1" ]
