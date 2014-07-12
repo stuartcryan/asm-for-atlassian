@@ -946,25 +946,22 @@ sub compareTwoVersions {
 	dumpSingleVarToLog( "$subname" . "_version2", $version2 );
 
 	if ( $version1 =~ m/.*-.*/ ) {
-		$version1Delim = "-";
+		@splitVersion1 = split( /-/, $version1 );
 	}
 	else {
 
 		#assume original delimiter of a period
-		$version1Delim = "\.";
+		@splitVersion1 = split( /\./, $version1 );
 	}
 
 	if ( $version2 =~ m/.*-.*/ ) {
-		$version2Delim = "-";
+		@splitVersion2 = split( /-/, $version2 );
 	}
 	else {
 
 		#assume original delimiter of a period
-		$version2Delim = '\.';
+		@splitVersion2 = split( /\./, $version2 );
 	}
-
-	@splitVersion1 = split( /$version1Delim/, $version1 );
-	@splitVersion2 = split( /$version2Delim/, $version2 );
 
 #Iterate through first array and test if the version provided is less than or equal to the second array
 	for ( $count = 0 ; $count <= 3 ; $count++ ) {
