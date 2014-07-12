@@ -231,12 +231,12 @@ sub backupApplication {
 	    escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
 	  . "_backup_"
 	  . $date;
-	$log->debug(
+	$log->info(
 "$subname: Backing up the $application application directory to $applicationDirBackupDirName"
 	);
 
 	if ( $compressBackups eq "TRUE" ) {
-		$log->debug("$subname: Compressing $applicationDirBackupDirName");
+		$log->info("$subname: Compressing $applicationDirBackupDirName");
 		print
 "You have selected to compress application backups... Compressing $application installation directory to a backup, this may take a few minutes...\n\n";
 		system( "cd $installDirPath && tar -czf "
@@ -287,7 +287,7 @@ sub backupApplication {
 	}
 
 	if ( $compressBackups eq "TRUE" ) {
-		$log->debug("$subname: Compressing $dataDirBackupDirName");
+		$log->info("$subname: Compressing $dataDirBackupDirName");
 		print
 "You have selected to compress application backups... Compressing $application data directory to a backup, for large installations this may take some time...\n\n";
 		system( "cd $dataDirPath && tar -czf "
@@ -335,13 +335,13 @@ sub backupApplication {
 
 	print "Tidying up... please wait... \n\n";
 
-	$log->debug(
+	$log->info(
 "Writing out config file to disk following new application backup being taken."
 	);
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
-	$log->debug(
+	$log->info(
 "$subname: Doing recursive chown of $applicationDirBackupDirName and $dataDirBackupDirName to "
 		  . $globalConfig->param("$lcApplication.osUser")
 		  . "." );
@@ -377,11 +377,11 @@ sub backupDirectoryAndChown {
 	dumpSingleVarToLog( "$subname" . "_date",        $date );
 
 	$backupDirName = $originalDir . "_backup_" . $date;
-	$log->debug("$subname: Backing up $originalDir to $backupDirName");
+	$log->info("$subname: Backing up $originalDir to $backupDirName");
 
 	moveDirectory( $originalDir, $backupDirName );
 	print "Folder moved to " . $backupDirName . "\n\n";
-	$log->debug("$subname: Doing recursive chown of $backupDirName to $osUser");
+	$log->info("$subname: Doing recursive chown of $backupDirName to $osUser");
 	chownRecursive( $osUser, $backupDirName );
 }
 
@@ -404,14 +404,14 @@ sub backupFile {
 	dumpSingleVarToLog( "$subname" . "_osUser",    $osUser );
 
 	#Create copy of input file with date_time appended to the end of filename
-	$log->debug(
+	$log->info(
 		"$subname: Backing up $inputFile to " . $inputFile . "_" . $date );
 	copy( $inputFile, $inputFile . "_" . $date )
 	  or $log->logdie( "File copy failed for $inputFile, "
 		  . $inputFile . "_"
 		  . $date
 		  . ": $!" );
-	$log->debug( "$subname: Input file '$inputFile' copied to "
+	$log->info( "$subname: Input file '$inputFile' copied to "
 		  . $inputFile . "_"
 		  . $date );
 
@@ -430,7 +430,7 @@ sub checkASMPatchLevel {
 
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#check if there is a corresponding version in settings.cfg
 
@@ -438,7 +438,7 @@ sub checkASMPatchLevel {
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("general.asmPatchLevel") eq "" )
 	{
-		$log->debug(
+		$log->info(
 "$subname: No ASM patch level currently exists in the settings file."
 		);
 		$patchLevel =
@@ -450,6 +450,7 @@ sub checkASMPatchLevel {
 
 	if ( compareTwoVersions( $patchLevel, $scriptVersion ) eq "LESS" ) {
 		if ( compareTwoVersions( $patchLevel, "0-2-3" ) eq "LESS" ) {
+			$log->info("$subname: Applying patchlevel 0.2.3 to current config");
 
 			#previous bugfixes being migrated into this new tool
 			#Apply fix for [#ATLASMGR-317]
@@ -581,7 +582,7 @@ sub checkConfiguredPort {
 				@portTestReturn =
 				  isPortDefinedElsewhere( $application, $configValue );
 				if ( scalar @portTestReturn == 0 ) {
-					$log->debug("Port is available.");
+					$log->info("Port is available.");
 					$LOOP = 0;
 				}
 				else {
@@ -592,7 +593,7 @@ sub checkConfiguredPort {
 					}
 					print "\n";
 
-					$log->debug("Port is in use.");
+					$log->info("Port is in use.");
 
 					$input = getBooleanInput(
 "Would you like to configure a different port? yes/no [yes]: "
@@ -601,7 +602,7 @@ sub checkConfiguredPort {
 					if (   $input eq "yes"
 						|| $input eq "default" )
 					{
-						$log->debug("User selected to configure new port.");
+						$log->info("User selected to configure new port.");
 						genConfigItem(
 							"UPDATE",
 							$cfg,
@@ -614,12 +615,12 @@ sub checkConfiguredPort {
 					}
 					elsif ( $input eq "no" ) {
 						$LOOP = 0;
-						$log->debug("User selected to keep existing port.");
+						$log->info("User selected to keep existing port.");
 					}
 				}
 			}
 			else {
-				$log->debug("Port is in use.");
+				$log->info("Port is in use.");
 
 				$input = getBooleanInput(
 "The port you have configured ($configValue) for $configItem is currently in use, this may be expected if you are already running the application."
@@ -629,7 +630,7 @@ sub checkConfiguredPort {
 				if (   $input eq "yes"
 					|| $input eq "default" )
 				{
-					$log->debug("User selected to configure new port.");
+					$log->info("User selected to configure new port.");
 					genConfigItem(
 						"UPDATE",
 						$cfg,
@@ -643,7 +644,7 @@ sub checkConfiguredPort {
 				}
 				elsif ( $input eq "no" ) {
 					$LOOP = 0;
-					$log->debug("User selected to keep existing port.");
+					$log->info("User selected to keep existing port.");
 				}
 			}
 		}
@@ -890,7 +891,7 @@ sub clearConfluencePluginCache {
 	);
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#remove init.d file
 	print "Clearing Confluence Plugin Cache, please wait...\n\n";
@@ -910,7 +911,7 @@ sub clearJIRAPluginCache {
 	);
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#remove init.d file
 	print "Clearing JIRA Plugin Cache... please wait...\n\n";
@@ -1889,11 +1890,11 @@ sub downloadJDBCConnector {
 				  . ".tar.gz";
 				dumpSingleVarToLog( "$subname" . "_url", $url );
 				if ( head($url) ) {
-					$log->debug("MSQL JDBC Version entered $input is valid");
+					$log->info("MSQL JDBC Version entered $input is valid");
 					$LOOP = 0;
 				}
 				else {
-					$log->debug("MSQL JDBC Version entered $input not valid");
+					$log->info("MSQL JDBC Version entered $input not valid");
 					print
 "That is not a valid version, no such URL with that version exists. Please try again: ";
 				}
@@ -1956,7 +1957,7 @@ sub downloadJDBCConnector {
 		dumpSingleVarToLog( "$subname" . "_jarFile", $jarFile );
 		if ( -e $jarFile ) {
 			$cfg->param( "general.dbJDBCJar", $jarFile );
-			$log->debug("Writing out config file to disk.");
+			$log->info("Writing out config file to disk.");
 			$cfg->write($configFile);
 		}
 		else {
@@ -2320,7 +2321,7 @@ sub generateApplicationConfig {
 		generateBambooConfig( $mode, $cfg );
 	}
 
-	$log->debug("Writing out config file to disk.");
+	$log->info("Writing out config file to disk.");
 	$cfg->write($configFile);
 	loadSuiteConfig();
 }
@@ -2479,11 +2480,7 @@ sub generateInitD {
 	close $outputFileHandle;
 
 	#Make the new init.d file executable
-<<<<<<< HEAD
 	$log->debug("$subname: Chmodding init.d file for $lcApplication.");
-=======
-	$log->info("$subname: Chmodding init.d file for $lcApplication.");
->>>>>>> origin/release/ATLASMGR-382-release-version-0.2.3
 	chmod 0755, "/etc/init.d/$lcApplication"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
 
@@ -2703,11 +2700,7 @@ sub generateInitDforSuite {
 	close $outputFileHandle;
 
 	#Make the new init.d file executable
-<<<<<<< HEAD
 	$log->debug("$subname: Chmodding init.d file for atlassian.");
-=======
-	$log->info("$subname: Chmodding init.d file for atlassian.");
->>>>>>> origin/release/ATLASMGR-382-release-version-0.2.3
 	chmod 0755, "/etc/init.d/atlassian"
 	  or $log->logdie("Couldn't chmod /etc/init.d/atlassian: $!");
 }
@@ -3379,7 +3372,7 @@ sub generateSuiteConfig {
 	}
 
 	#Write config and reload
-	$log->debug("Writing out config file to disk.");
+	$log->info("Writing out config file to disk.");
 	$cfg->write($configFile);
 	loadSuiteConfig();
 	$globalArch = whichApplicationArchitecture();
@@ -3930,7 +3923,7 @@ sub getExistingSuiteConfig {
 	}
 
 	#Write config and reload
-	$log->debug("Writing out config file to disk.");
+	$log->info("Writing out config file to disk.");
 	$cfg->write($configFile);
 	loadSuiteConfig();
 	$globalArch = whichApplicationArchitecture();
@@ -4483,7 +4476,7 @@ sub installGeneric {
 		print
 "Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
 		generateApplicationConfig( $application, "UPDATE", $globalConfig );
-		$log->debug("Writing out config file to disk.");
+		$log->info("Writing out config file to disk.");
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
@@ -4495,11 +4488,11 @@ sub installGeneric {
 		);
 		print "\n";
 		if ( $input eq "yes" ) {
-			$log->debug(
+			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
 			generateApplicationConfig( $application, "UPDATE", $globalConfig );
-			$log->debug("Writing out config file to disk.");
+			$log->info("Writing out config file to disk.");
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
@@ -4532,7 +4525,7 @@ sub installGeneric {
 	  isPortAvailable( $globalConfig->param("$lcApplication.connectorPort") );
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-		$log->debug(
+		$log->info(
 "$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0 
 is currently in use. We will continue however there is a good chance $application will not start."
 		);
@@ -4642,7 +4635,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
-		$log->debug("$subname: Downloading latest version of $application");
+		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
 		$version = $downloadDetails[1];
@@ -4651,21 +4644,21 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 	#Download a specific version
 	else {
-		$log->debug("$subname: Downloading version $version of $application");
+		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
 		  downloadAtlassianInstaller( $mode, $application, $version,
 			$globalArch );
 	}
 
 	#Extract the download and move into place
-	$log->debug("$subname: Extracting $downloadDetails[2]...");
+	$log->info("$subname: Extracting $downloadDetails[2]...");
 	extractAndMoveFile( $downloadDetails[2],
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "" );
 
 	#Remove downloaded data if user opted to do so
 	if ( $removeDownloadedDataAnswer eq "yes" ) {
-		$log->debug("$subname: User opted to delete downloaded installer.");
+		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
 	}
@@ -4673,13 +4666,13 @@ is currently in use. We will continue however there is a good chance $applicatio
 	#Update config to reflect new version that is installed
 	$log->debug("$subname: Writing new installed version to the config file.");
 	$globalConfig->param( "$lcApplication.installedVersion", $version );
-	$log->debug("Writing out config file to disk.");
+	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
 #If MySQL is the Database, Atlassian apps do not come with the driver so copy it
 	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		$log->debug(
+		$log->info(
 "$subname: Copying MySQL JDBC connector to $application install directory."
 		);
 
@@ -4754,7 +4747,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 	}
 
 	#Create home/data directory if it does not exist
-	$log->debug(
+	$log->info(
 "$subname: Checking for and creating $application home directory (if it does not exist)."
 	);
 	print
@@ -4961,30 +4954,30 @@ sub manageService {
 
 	#Install the service
 	if ( $mode eq "INSTALL" ) {
-		$log->debug("Installing Service for $application.");
+		$log->info("Installing Service for $application.");
 		print "Installing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --add $lcApplication") == 0
-			  or $log->debug("Adding $application as a service failed: $?");
+			  or $log->warn("Adding $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
 			system("update-rc.d $lcApplication defaults") == 0
-			  or $log->logdie("Adding $application as a service failed: $?");
+			  or $log->warn("Adding $application as a service failed: $?");
 		}
 		print "Service installed successfully...\n\n";
 	}
 
 	#Remove the service
 	elsif ( $mode eq "UNINSTALL" ) {
-		$log->debug("Removing Service for $application.");
+		$log->info("Removing Service for $application.");
 		print "Removing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --del $lcApplication") == 0
-			  or $log->logdie("Removing $application as a service failed: $?");
+			  or $log->warn("Removing $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
 			system("update-rc.d -f $lcApplication remove") == 0
-			  or $log->logdie("Removing $application as a service failed: $?");
+			  or $log->warn("Removing $application as a service failed: $?");
 
 		}
 		print "Service removed successfully...\n\n";
@@ -5063,7 +5056,7 @@ sub postInstallGeneric {
 
 	#If set to run as a service, set to run on startup
 	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
-		$log->debug(
+		$log->info(
 			"$subname: Setting up $application as a service to run on startup."
 		);
 		manageService( $application, "INSTALL" );
@@ -5076,7 +5069,7 @@ sub postInstallGeneric {
 	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
-		$log->debug("$subname: User opted to start application service.");
+		$log->info("$subname: User opted to start application service.");
 		my $processReturnCode = startService(
 			$application,
 			"\""
@@ -5189,7 +5182,7 @@ sub postUpgradeGeneric {
 
 	#If set to run as a service, set to run on startup
 	if ( $globalConfig->param("$lcApplication.runAsService") eq "TRUE" ) {
-		$log->debug(
+		$log->info(
 			"$subname: Setting up $application as a service to run on startup."
 		);
 		manageService( $application, "INSTALL" );
@@ -5202,7 +5195,7 @@ sub postUpgradeGeneric {
 	);
 	print "\n";
 	if ( $input eq "default" || $input eq "yes" ) {
-		$log->debug("$subname: User opted to start application service.");
+		$log->info("$subname: User opted to start application service.");
 		my $processReturnCode = startService(
 			$application,
 			"\""
@@ -5328,7 +5321,7 @@ sub removeDirs {
 	my $subname = ( caller(0) )[3];
 	my @directoryList;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	@directoryList = @_;
 
@@ -5337,12 +5330,12 @@ sub removeDirs {
 		$escapedDirectory = escapeFilePath($directory);
 
 		#removeDirectories
-		$log->info( "$subname: Removing " . $escapedDirectory );
+		$log->debug( "$subname: Removing " . $escapedDirectory );
 		if ( -d $escapedDirectory ) {
 			rmtree( [$escapedDirectory] );
 		}
 		else {
-			$log->info( "$subname: Unable to remove "
+			$log->debug( "$subname: Unable to remove "
 				  . $escapedDirectory
 				  . ". Directory does not exist." );
 		}
@@ -5374,26 +5367,26 @@ sub restartService {
 	if (
 		stopService( $application, $grep1stParam, $grep2ndParam ) eq "SUCCESS" )
 	{
-		$log->debug("$subname: Service stop for $application succeeded.");
+		$log->info("$subname: Service stop for $application succeeded.");
 		$startReturn =
 		  startService( $application, $grep1stParam, $grep2ndParam );
 
 		if ( $startReturn eq "SUCCESS" ) {
-			$log->debug("$subname: Service start for $application succeeded.");
+			$log->info("$subname: Service start for $application succeeded.");
 			return "SUCCESS";
 		}
 		elsif ( $startReturn eq "FAIL" ) {
-			$log->debug("$subname: Service start for $application failed.");
+			$log->info("$subname: Service start for $application failed.");
 			return "FAIL";
 		}
 		elsif ( $startReturn eq "WARN" ) {
-			$log->debug(
+			$log->info(
 				"$subname: Service start for $application returned 'WARN'.");
 			return "WARN";
 		}
 	}
 	else {
-		$log->debug("$subname: Service stop for $application failed.");
+		$log->info("$subname: Service stop for $application failed.");
 		return "FAIL";
 	}
 }
@@ -5506,7 +5499,7 @@ sub restoreApplicationBackup {
 		my $ae = Archive::Extract->new( archive => $dataDirBackupLocation );
 
 		print "Extracting $dataDirBackupLocation. Please wait...\n\n";
-		$log->debug("$subname: Extracting $dataDirBackupLocation");
+		$log->info("$subname: Extracting $dataDirBackupLocation");
 
 		#Extract
 		$ae->extract( to => escapeFilePath($dataDirPath) );
@@ -5529,7 +5522,7 @@ sub restoreApplicationBackup {
 		my $ae = Archive::Extract->new( archive => $installDirBackupLocation );
 
 		print "Extracting $installDirBackupLocation. Please wait...\n\n";
-		$log->debug("$subname: Extracting $installDirBackupLocation");
+		$log->info("$subname: Extracting $installDirBackupLocation");
 
 		#Extract
 		$ae->extract( to => escapeFilePath($installDirPath) );
@@ -5672,7 +5665,7 @@ sub startService {
 	if ( @pidList > 0 ) {
 
 		#Service is started we need to stop it
-		$log->debug("$subname: $application is already running.");
+		$log->info("$subname: $application is already running.");
 		print "The $application service is already running.\n\n";
 		return "SUCCESS";
 	}
@@ -5684,7 +5677,7 @@ sub startService {
 	if ( @pidList == 1 ) {
 
 		#service started successfully
-		$log->debug(
+		$log->info(
 "$subname: $application started successfully. 1 process now running."
 		);
 		print
@@ -5769,12 +5762,12 @@ sub stopService {
 
 			#attempt to stop the service
 			print "Attempting to stop the $application service.\n\n";
-			$log->debug(
+			$log->info(
 				"$subname: Attempting to stop the $application service.");
 			system( "service " . $serviceName . " stop --disable-kill" );
 			print
 "Stop command completed successfully. Sleeping for 20 seconds before testing to ensure process has died.\n\n";
-			$log->debug(
+			$log->info(
 				"$subname: Stop command completed. Sleeing for 20 seconds.");
 			sleep 20;
 
@@ -5784,7 +5777,7 @@ sub stopService {
 
 				#Stop completed successfully
 				print "The $application service was stopped succesfully.\n\n";
-				$log->debug(
+				$log->info(
 					"$subname: $application service stopped succesfully.");
 				$LOOP = 0;
 				return "SUCCESS";
@@ -5794,7 +5787,7 @@ sub stopService {
 				#Process is still running sleep for another 30 seconds
 				print
 "The process still appears to be running... Sleeping for another 30 seconds after which you can opt to kill the process.\n\n";
-				$log->debug(
+				$log->info(
 "$subname: $application Process still running. Sleeing for another 30 seconds."
 				);
 				sleep 30;
@@ -5806,7 +5799,7 @@ sub stopService {
 					#Stop completed successfully
 					print
 					  "The $application service was stopped succesfully.\n\n";
-					$log->debug(
+					$log->info(
 						"$subname: $application service stopped succesfully.");
 					$LOOP = 0;
 					return "SUCCESS";
@@ -5814,7 +5807,7 @@ sub stopService {
 				elsif ( @pidList == 1 ) {
 
 					#Process is still running try again or kill?
-					$log->debug(
+					$log->info(
 "$subname: $application process still running. Offering option to try again or kill."
 					);
 
@@ -5849,7 +5842,7 @@ sub stopService {
 									#Stop completed successfully
 									print
 "The $application service was killed succesfully.\n\n";
-									$log->debug(
+									$log->info(
 "$subname: $application service killed succesfully."
 									);
 									$LOOP = 0;
@@ -5858,7 +5851,7 @@ sub stopService {
 								elsif ( @pidList == 1 ) {
 									print
 "The $application service could not be killed.\n\n";
-									$log->debug(
+									$log->info(
 "$subname: $application service could not be killed."
 									);
 									return "FAIL";
@@ -5872,7 +5865,7 @@ sub stopService {
 							  ; #break this inner loop to return to the outer loop
 						}
 						else {
-							$log->debug(
+							$log->info(
 "$subname: Input not recognised, asking user for input again."
 							);
 							print "Your input '" . $input
@@ -5885,7 +5878,7 @@ sub stopService {
 		elsif ( @pidList > 1 ) {
 
 			#Multiple matching processes running
-			$log->debug(
+			$log->info(
 "$subname: Multiple $application process running. Offering option to kill them manually."
 			);
 
@@ -5901,7 +5894,7 @@ sub stopService {
 				print "UID        PID  PPID  C STIME TTY          TIME CMD\n";
 
 				foreach (@pidList) {
-					$log->debug("$subname: Duplicate process --> $_");
+					$log->info("$subname: Duplicate process --> $_");
 					print "$_" . "\n";
 				}
 				print "\n\n";
@@ -5923,7 +5916,7 @@ sub stopService {
 					#Stop completed successfully
 					print
 					  "The $application services were killed succesfully.\n\n";
-					$log->debug(
+					$log->info(
 "$subname: $application services were killed succesfully."
 					);
 					$LOOP  = 0;
@@ -6872,7 +6865,7 @@ sub uninstallGeneric {
 			"$subname: Nulling out the installed version of $application.");
 		$globalConfig->param( "$lcApplication.installedVersion", "" );
 		$globalConfig->param( "$lcApplication.enable",           "FALSE" );
-		$log->debug("Writing out config file to disk.");
+		$log->info("Writing out config file to disk.");
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 
@@ -6919,13 +6912,14 @@ sub upgradeGeneric {
 
 #Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info(
+		$$log->info("Writing out config file to disk.");
+		(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
 		);
 		print
 "Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
 		generateApplicationConfig( $application, "UPDATE", $globalConfig );
-		$log->debug("Writing out config file to disk.");
+		$log->info("Writing out config file to disk.");
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
@@ -6942,7 +6936,7 @@ sub upgradeGeneric {
 				"$subname: User opted to update config prior to installation."
 			);
 			generateApplicationConfig( $application, "UPDATE", $globalConfig );
-			$log->debug("Writing out config file to disk.");
+			$log->info("Writing out config file to disk.");
 			$globalConfig->write($configFile);
 			loadSuiteConfig();
 		}
@@ -6962,7 +6956,7 @@ sub upgradeGeneric {
 			"",
 			""
 		);
-		$log->debug("Writing out config file to disk.");
+		$log->info("Writing out config file to disk.");
 		$globalConfig->write($configFile);
 		loadSuiteConfig();
 	}
@@ -7163,7 +7157,7 @@ sub upgradeGeneric {
 	#Update config to reflect new version that is installed
 	$log->debug("$subname: Writing new installed version to the config file.");
 	$globalConfig->param( "$lcApplication.installedVersion", $version );
-	$log->debug("Writing out config file to disk.");
+	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
