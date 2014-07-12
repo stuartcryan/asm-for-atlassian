@@ -90,6 +90,7 @@ my %appsWithUpdates = ();
 my $availableUpdatesString;
 my $latestVersionsCacheFile = "$Bin/working/latestVersions.cache";
 my $log                     = Log::Log4perl->get_logger("");
+my $hostnameRegex           = qr/^([-a-zA-Z0-9\.]*)$/;
 $Archive::Extract::PREFER_BIN = 1;
 
 #######################################################################
@@ -2999,7 +3000,7 @@ sub generateSuiteConfig {
 				"general.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 
@@ -3059,7 +3060,7 @@ sub generateSuiteConfig {
 				"general.externalCrowdHostname",
 "Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
 			);
 
@@ -3659,7 +3660,7 @@ sub getExistingSuiteConfig {
 				"general.apacheProxyHost",
 "Please enter the base URL that the suite currently resides on (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 
@@ -3701,7 +3702,7 @@ sub getExistingSuiteConfig {
 				"general.externalCrowdHostname",
 "Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
 			);
 
@@ -8842,7 +8843,7 @@ sub getExistingBambooConfig {
 			"bamboo.apacheProxyHost",
 "Please enter the base URL Bamboo currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -9388,7 +9389,7 @@ sub getExistingBambooConfig {
 					"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 					"",
-					'^([a-zA-Z0-9\.]*)$',
+					$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 				);
 			}
@@ -9682,7 +9683,7 @@ sub generateBambooConfig {
 			"bamboo.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -11114,7 +11115,7 @@ sub getExistingConfluenceConfig {
 			"confluence.apacheProxyHost",
 "Please enter the base URL Confluence currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -11486,7 +11487,7 @@ sub getExistingConfluenceConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -11728,7 +11729,7 @@ sub generateConfluenceConfig {
 			"confluence.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -12647,7 +12648,7 @@ sub getExistingCrowdConfig {
 			"crowd.apacheProxyHost",
 "Please enter the base URL Crowd currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -12945,7 +12946,7 @@ sub getExistingCrowdConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -13195,7 +13196,7 @@ sub generateCrowdConfig {
 			"crowd.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -13835,7 +13836,7 @@ sub getExistingFisheyeConfig {
 			"fisheye.apacheProxyHost",
 "Please enter the base URL Fisheye currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -14198,7 +14199,7 @@ sub getExistingFisheyeConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -14445,7 +14446,7 @@ sub generateFisheyeConfig {
 			"fisheye.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -15021,7 +15022,7 @@ sub getExistingJiraConfig {
 			"jira.apacheProxyHost",
 "Please enter the base URL JIRA currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -15393,7 +15394,7 @@ sub getExistingJiraConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -15637,7 +15638,7 @@ sub generateJiraConfig {
 			"jira.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -16392,7 +16393,7 @@ sub getExistingStashConfig {
 			"stash.apacheProxyHost",
 "Please enter the base URL Stash currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -16757,7 +16758,7 @@ sub getExistingStashConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -17011,7 +17012,7 @@ sub generateStashConfig {
 			"stash.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
