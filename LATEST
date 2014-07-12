@@ -8,21 +8,21 @@ LATESTAVAILABLEVER=0.2.3
 #below method has been deprecated due to issues with REGEX in bash
 #***NOTE*** If you have a version prior to v0.2.0 you MAY need to manually download the latest version (See [#ATLASMGR-330])
 #downloadURL in the format URL|destinationPath|lastUpdatedInVer
-downloadURL[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.2"
-downloadURL[1]="http://akamai.technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.2"
+downloadURL[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.3"
+downloadURL[1]="http://akamai.technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.3"
 
 #new method of checking for updates as of v0.2.0
 latestPerlFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/"
 latestPerlFile[1]="AtlassianSuiteManager.pl"
 latestPerlFile[2]="/perl/"
-latestPerlFile[3]="0.2.2"
+latestPerlFile[3]="0.2.3"
 
 latestWrapperFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/"
 latestWrapperFile[1]="atlassianSuiteManager.sh"
 latestWrapperFile[2]="/"
-latestWrapperFile[3]="0.2.2"
+latestWrapperFile[3]="0.2.3"
 
-changeLog="Changes available in the latest version: 
+changeLog="Changes available in the latest version (v0.2.3): 
      *Fix  - Init.D permissions incorrect
      *Fix  - Permissions on directories are sometimes incorrect 
              (fix submitted by Bradley Baetz)
