@@ -1,11 +1,11 @@
 #!/usr/bin/perl
 
 #
-#    Copyright 2012-2013 Stuart Ryan
+#    Copyright 2012-2014 Stuart Ryan
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.1.5
+#    Version: 0.2.3
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -34,6 +34,7 @@
 #    You should have received a copy of the GNU General Public License
 #    along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use Net::SSLGlue::LWP;    #Added to resolve [#ATLASMGR-378]
 use LWP::Simple qw($ua getstore get is_success head);
 use JSON qw( decode_json );    # From CPAN
 use JSON qw( from_json );      # From CPAN
@@ -46,6 +47,7 @@ use File::Copy::Recursive qw(fcopy rcopy dircopy fmove rmove dirmove);
 use File::Path qw(make_path remove_tree);
 use File::Path;
 use File::Find;
+use File::Basename;
 use Archive::Extract;
 use FindBin '$Bin';
 use XML::Twig;
@@ -54,6 +56,7 @@ use Errno qw( EADDRINUSE );
 use Getopt::Long;
 use Log::Log4perl;
 use Filesys::DfPortable;
+use ExtUtils::Installed;
 use strict;      # Good practice
 use warnings;    # Good practice
 
@@ -64,25 +67,30 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-1-5"
+my $scriptVersion = "0-2-3"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
 my $supportedVersionsConfigFile = "supportedVersions.cfg";
 my $distro;
-my $silent                  = '';     #global flag for command line paramaters
-my $debug                   = '';     #global flag for command line paramaters
-my $unsupported             = '';     #global flag for command line paramaters
-my $ignore_version_warnings = '';     #global flag for command line paramaters
-my $disable_config_checks   = '';     #global flag for command line paramaters
-my $verbose                 = '';     #global flag for command line paramaters
-my $autoMode                = '';     #global flag for command line paramaters
-my $enableEAPDownloads      = '0';    #global flag for command line paramaters
+my $silent                  = '';     #global flag for command line parameters
+my $debug                   = '';     #global flag for command line parameters
+my $unsupported             = '';     #global flag for command line parameters
+my $ignore_version_warnings = '';     #global flag for command line parameters
+my $disable_config_checks   = '';     #global flag for command line parameters
+my $verbose                 = '';     #global flag for command line parameters
+my $autoMode                = '';     #global flag for command line parameters
+my $enableEAPDownloads      = '0';    #global flag for command line parameters
 my $globalArch;
 my $logFile;
 my @suiteApplications =
   ( "Bamboo", "Confluence", "Crowd", "Fisheye", "JIRA", "Stash" );
-my $log = Log::Log4perl->get_logger("");
+my %latestVersions  = ();
+my %appsWithUpdates = ();
+my $availableUpdatesString;
+my $latestVersionsCacheFile = "$Bin/working/latestVersions.cache";
+my $log                     = Log::Log4perl->get_logger("");
+my $hostnameRegex           = qr/^([-a-zA-Z0-9\.]*)$/;
 $Archive::Extract::PREFER_BIN = 1;
 
 #######################################################################
@@ -109,8 +117,13 @@ sub backupApplication {
 	my $dataDirRef;
 	my $installDriveFreeSpace;
 	my $dataDriveFreeSpace;
+	my $installDirFolder;
+	my $dataDirPath;
+	my $installDirPath;
+	my $dataDirFolder;
 	my ($fd);
-	my $subname = ( caller(0) )[3];
+	my $compressBackups = $globalConfig->param("general.compressBackups");
+	my $subname         = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -118,7 +131,22 @@ sub backupApplication {
 	$lcApplication = lc($application);
 
 	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
+	dumpSingleVarToLog( "$subname" . "_application",     $application );
+	dumpSingleVarToLog( "$subname" . "_compressBackups", $compressBackups );
+
+	#set up some parameters
+	$installDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
+	$installDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
 	print
 "Please wait, backing up your existing application (this may take a few moments)...\n\n";
@@ -165,6 +193,15 @@ sub backupApplication {
 	$installDriveFreeSpace = $installDirRef->{bfree};
 	$dataDriveFreeSpace    = $dataDirRef->{bfree};
 
+	#dump values if we are in debug
+	dumpSingleVarToLog( "$subname" . "_installDirSize", $installDirSize );
+	dumpSingleVarToLog( "$subname" . "_dataDirSize",    $dataDirSize );
+	dumpSingleVarToLog( "$subname" . "_installDriveFreeSpace",
+		$installDriveFreeSpace );
+	dumpSingleVarToLog( "$subname" . "_dataDriveFreeSpace", $installDirSize );
+	dumpSingleVarToLog( "$subname" . "_installDirRef",      $installDirRef );
+	dumpSingleVarToLog( "$subname" . "_dataDirRef",         $dataDirRef );
+
 #check if the free space, minus install dir size minus a 500MB buffer is less than zero
 	if ( $installDriveFreeSpace - $installDirSize - 524288000 < 0 ) {
 		$log->logdie(
@@ -198,25 +235,103 @@ sub backupApplication {
 "$subname: Backing up the $application application directory to $applicationDirBackupDirName"
 	);
 
-	print "Backing up $application installation directory...\n\n";
-	copyDirectory(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		$applicationDirBackupDirName );
-	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation",
-		$applicationDirBackupDirName );
-
-	print
+	if ( $compressBackups eq "TRUE" ) {
+		$log->info("$subname: Compressing $applicationDirBackupDirName");
+		print
+"You have selected to compress application backups... Compressing $application installation directory to a backup, this may take a few minutes...\n\n";
+		system( "cd $installDirPath && tar -czf "
+			  . $applicationDirBackupDirName
+			  . ".tar.gz "
+			  . $installDirFolder );
+		if ( $? != 0 ) {
+			print "\n\n";
+			$log->warn(
+"$subname: Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location."
+			);
+			print
+"Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location.: \n\n";
+			print
+"Backing up $application installation directory uncompressed...\n\n";
+			copyDirectory(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				),
+				$applicationDirBackupDirName
+			);
+			$globalConfig->param(
+				"$lcApplication.latestInstallDirBackupLocation",
+				$applicationDirBackupDirName );
+			print
 "$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
+		}
+		else {
+			print "\n\n";
+			$globalConfig->param(
+				"$lcApplication.latestInstallDirBackupLocation",
+				$applicationDirBackupDirName . ".tar.gz"
+			);
+			print
+"$application installation successfully backed up to $applicationDirBackupDirName.tar.gz \n\n";
+		}
+	}
+	else {
+		print "Backing up $application installation directory...\n\n";
+		copyDirectory(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			$applicationDirBackupDirName
+		);
+		$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation",
+			$applicationDirBackupDirName );
+		print
+"$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
+	}
 
-	print "Backing up $application data directory...\n\n";
-	copyDirectory(
-		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
-		$dataDirBackupDirName );
-	$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
-		$dataDirBackupDirName );
-
-	print
+	if ( $compressBackups eq "TRUE" ) {
+		$log->info("$subname: Compressing $dataDirBackupDirName");
+		print
+"You have selected to compress application backups... Compressing $application data directory to a backup, for large installations this may take some time...\n\n";
+		system( "cd $dataDirPath && tar -czf "
+			  . $dataDirBackupDirName
+			  . ".tar.gz "
+			  . $dataDirFolder );
+		if ( $? != 0 ) {
+			print "\n\n";
+			$log->warn(
+"$subname: Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location."
+			);
+			print
+"Compression did not complete succesfully, proceeding with standard uncompressed directory as the backup location.: \n\n";
+			print
+"Backing up $application installation directory uncompressed...\n\n";
+			copyDirectory(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.dataDir")
+				),
+				$dataDirBackupDirName
+			);
+			$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
+				$dataDirBackupDirName );
+			print
+"$application installation successfully backed up to $applicationDirBackupDirName. \n\n";
+		}
+		else {
+			print "\n\n";
+			$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
+				$dataDirBackupDirName . ".tar.gz" );
+			print
+"$application data directory successfully backed up to $dataDirBackupDirName.tar.gz \n\n";
+		}
+	}
+	else {
+		print "Backing up $application data directory...\n\n";
+		copyDirectory(
+			escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+			$dataDirBackupDirName );
+		$globalConfig->param( "$lcApplication.latestDataDirBackupLocation",
+			$dataDirBackupDirName );
+		print
 "$application data directory successfully backed up to $dataDirBackupDirName. \n\n";
+	}
 
 	print "Tidying up... please wait... \n\n";
 
@@ -230,20 +345,13 @@ sub backupApplication {
 "$subname: Doing recursive chown of $applicationDirBackupDirName and $dataDirBackupDirName to "
 		  . $globalConfig->param("$lcApplication.osUser")
 		  . "." );
-	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
-		$applicationDirBackupDirName );
-	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
-		$dataDirBackupDirName );
 
-	print
-"A backup of $application has been taken. Please note, this script can only backup your application and data directories.\n"
-	  . "It is imperative that you take a backup of your database. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n"
-	  . "restore your database. This script DOES NOT BACKUP OR RESTORE YOUR DATABASE!!!\n\n";
+	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
+		$globalConfig->param("$lcApplication.latestInstallDirBackupLocation") );
+	chownRecursive( $globalConfig->param("$lcApplication.osUser"),
+		$globalConfig->param("$lcApplication.latestDataDirBackupLocation") );
 
-	print
-"Please press enter to confirm you have read and thorougly understand the above warning regarding database restores.";
-	my $input = <STDIN>;
-	print "\n\n";
+	print "A backup of $application has been taken successfully.\n\n";
 }
 
 ########################################
@@ -311,6 +419,111 @@ sub backupFile {
 }
 
 ########################################
+#checkASMPatchLevel                    #
+########################################
+sub checkASMPatchLevel {
+	my @parameterNull;
+	my $patchLevel;
+	my $applicationToCheck;
+	my $lcApplicationToCheck;
+	my $configResult;
+
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#check if there is a corresponding version in settings.cfg
+
+	@parameterNull = $globalConfig->param("general.asmPatchLevel");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("general.asmPatchLevel") eq "" )
+	{
+		$log->debug(
+"$subname: No ASM patch level currently exists in the settings file."
+		);
+		$patchLevel =
+		  "0-0-0";    #set patch level to 0 to apply all previous patches
+	}
+	else {
+		$patchLevel = $globalConfig->param("general.asmPatchLevel");
+	}
+
+	if ( compareTwoVersions( $patchLevel, $scriptVersion ) eq "LESS" ) {
+		if ( compareTwoVersions( $patchLevel, "0-2-3" ) eq "LESS" ) {
+
+			#previous bugfixes being migrated into this new tool
+			#Apply fix for [#ATLASMGR-317]
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				@parameterNull =
+				  $globalConfig->param("$lcApplicationToCheck.apacheProxySSL");
+				if ( !( $#parameterNull == -1 ) ) {
+					$configResult = $globalConfig->param(
+						"$lcApplicationToCheck.apacheProxySSL");
+
+					if ( $configResult eq "https" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "TRUE" );
+					}
+					elsif ( $configResult eq "http" ) {
+						$globalConfig->param(
+							"$lcApplicationToCheck.apacheProxySSL", "FALSE" );
+					}
+				}
+			}
+
+			#End Fix for [#ATLASMGR-317]
+			#end previous bugfixes
+
+			#bugfixes for v0.2.3 release
+			#Begin fix for [#ATLASMGR-381]
+
+			foreach (@suiteApplications) {
+				$applicationToCheck   = $_;
+				$lcApplicationToCheck = lc($applicationToCheck);
+
+				if ( -e "/etc/init.d/$lcApplicationToCheck" ) {
+					chmod 0755, "/etc/init.d/$lcApplicationToCheck"
+					  or $log->warn(
+						"Couldn't chmod /etc/init.d/$lcApplicationToCheck: $!");
+				}
+
+			}
+
+			#Generate the new Atlassian Init.D Script
+			generateInitDforSuite();
+
+			#End Fix for [#ATLASMGR-381]
+
+			#set new patch level version
+			$globalConfig->param( "general.asmPatchLevel", "0-2-3" );
+
+			#Write config and reload
+			$log->info("Writing out config file to disk.");
+			$globalConfig->write($configFile);
+			loadSuiteConfig();
+
+		}
+
+	   #insert any later version patches here to apply them in the correct order
+
+#apply current script version number to file after all patchlevels have been met
+		$globalConfig->param( "general.asmPatchLevel", $scriptVersion );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+
+	}
+	else {
+		$log->info("$subname: Patchlevel is up to date");
+	}
+}
+
+########################################
 #Check configured port                 #
 ########################################
 sub checkConfiguredPort {
@@ -319,12 +532,17 @@ sub checkConfiguredPort {
 	my $availCode;
 	my $configValue;
 	my $input;
+	my @portTestReturn;
+	my $application;
+	my $lcApplication;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	$configItem = $_[0];
-	if ( defined( $_[1] ) ) {
-		$cfg = $_[1];
+	$application = $_[0];
+	$configItem  = $_[1];
+
+	if ( defined( $_[2] ) ) {
+		$cfg = $_[2];
 		$log->debug("Config has been passed to $subname.");
 	}
 	else {
@@ -360,8 +578,45 @@ sub checkConfiguredPort {
 			);
 
 			if ( $availCode == 1 ) {
-				$log->debug("Port is available.");
-				$LOOP = 0;
+				@portTestReturn =
+				  isPortDefinedElsewhere( $application, $configValue );
+				if ( scalar @portTestReturn == 0 ) {
+					$log->debug("Port is available.");
+					$LOOP = 0;
+				}
+				else {
+					print
+"That port is currently configured by one or more other applications in settings.cfg (listed below). You should enter a different port: \n\n";
+					foreach (@portTestReturn) {
+						print $_ . "\n";
+					}
+					print "\n";
+
+					$log->debug("Port is in use.");
+
+					$input = getBooleanInput(
+"Would you like to configure a different port? yes/no [yes]: "
+					);
+					print "\n";
+					if (   $input eq "yes"
+						|| $input eq "default" )
+					{
+						$log->debug("User selected to configure new port.");
+						genConfigItem(
+							"UPDATE",
+							$cfg,
+							$configItem,
+							"Please enter the new port number to configure",
+							"",
+							'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+						);
+					}
+					elsif ( $input eq "no" ) {
+						$LOOP = 0;
+						$log->debug("User selected to keep existing port.");
+					}
+				}
 			}
 			else {
 				$log->debug("Port is in use.");
@@ -465,6 +720,67 @@ sub checkCrowdConfig {
 }
 
 ########################################
+#Check for Available Updates           #
+########################################
+sub checkForAvailableUpdates {
+	my $cfg;
+	my $configItem;
+	my $availCode;
+	my $configValue;
+	my $application;
+	my $lcApplication;
+	my $versionCompareResult;
+	my @parameterNull;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	#force a reload of the global config file
+	loadSuiteConfig();
+
+	#undefine any previous details in the hash in case we are re-running:
+	undef(%appsWithUpdates);
+
+	$log->info("BEGIN: $subname");
+	foreach (@suiteApplications) {
+
+		$application   = $_;
+		$lcApplication = lc($application);
+
+		@parameterNull =
+		  $globalConfig->param("$lcApplication.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.installedVersion") eq "" )
+		{
+			$log->debug(
+"$subname: $application is not installed therefore not checking for updates."
+			);
+		}
+		else {
+			$log->debug(
+				"$subname: $application is installed. Checking for updates.");
+			$versionCompareResult = compareTwoVersions(
+				$globalConfig->param("$lcApplication.installedVersion"),
+				$latestVersions{"$application"}->{"version"}
+			);
+			if ( $versionCompareResult eq "LESS" ) {
+				$log->debug(
+					"$subname: $application update is available installedVer: "
+					  . $globalConfig->param("$lcApplication.installedVersion")
+					  . " availableVer: "
+					  . $latestVersions{"$application"}->{"version"} );
+				$appsWithUpdates{"$application"}{"installedVersion"} =
+				  $globalConfig->param("$lcApplication.installedVersion");
+				$appsWithUpdates{"$application"}{"availableVersion"} =
+				  $latestVersions{"$application"}->{"version"};
+			}
+			else {
+				$log->debug("$subname: $application is up to date.");
+			}
+		}
+	}
+}
+
+########################################
 #CheckRequiredConfigItems              #
 ########################################
 sub checkRequiredConfigItems {
@@ -562,6 +878,48 @@ sub chownFile {
 }
 
 ########################################
+#clearJIRAPluginCache                  #
+########################################
+sub clearConfluencePluginCache {
+	my @cacheDirs = (
+		$globalConfig->param("confluence.dataDir") . "/bundled-plugins",
+		$globalConfig->param("confluence.dataDir") . "/plugins-cache",
+		$globalConfig->param("confluence.dataDir") . "/plugins-osgi-cache",
+		$globalConfig->param("confluence.dataDir") . "/plugins-temp",
+		$globalConfig->param("confluence.dataDir") . "/bundled-plugins_language"
+	);
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#remove init.d file
+	print "Clearing Confluence Plugin Cache, please wait...\n\n";
+
+	removeDirs(@cacheDirs);
+
+	print "Confluence Plugin Cache has been cleaned.\n\n";
+}
+
+########################################
+#clearJIRAPluginCache                  #
+########################################
+sub clearJIRAPluginCache {
+	my @cacheDirs = (
+		$globalConfig->param("jira.dataDir") . "/plugins/.bundled-plugins",
+		$globalConfig->param("jira.dataDir") . "/plugins/.osgi-plugins"
+	);
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#remove init.d file
+	print "Clearing JIRA Plugin Cache... please wait...\n\n";
+
+	removeDirs(@cacheDirs);
+	print "JIRA Plugin Cache has been cleaned.\n\n";
+}
+
+########################################
 #Compare two versions                  #
 #compareTwoVersions("current","new");  #
 ########################################
@@ -574,6 +932,8 @@ sub compareTwoVersions {
 	my $majorVersionStatus;
 	my $midVersionStatus;
 	my $minVersionStatus;
+	my $version1Delim;
+	my $version2Delim;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -585,8 +945,23 @@ sub compareTwoVersions {
 	dumpSingleVarToLog( "$subname" . "_version1", $version1 );
 	dumpSingleVarToLog( "$subname" . "_version2", $version2 );
 
-	@splitVersion1 = split( /\./, $version1 );
-	@splitVersion2 = split( /\./, $version2 );
+	if ( $version1 =~ m/.*-.*/ ) {
+		@splitVersion1 = split( /-/, $version1 );
+	}
+	else {
+
+		#assume original delimiter of a period
+		@splitVersion1 = split( /\./, $version1 );
+	}
+
+	if ( $version2 =~ m/.*-.*/ ) {
+		@splitVersion2 = split( /-/, $version2 );
+	}
+	else {
+
+		#assume original delimiter of a period
+		@splitVersion2 = split( /\./, $version2 );
+	}
 
 #Iterate through first array and test if the version provided is less than or equal to the second array
 	for ( $count = 0 ; $count <= 3 ; $count++ ) {
@@ -704,7 +1079,7 @@ sub compareTwoVersions {
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
-		$minVersionStatus eq "BOTHULL" )
+		$minVersionStatus eq "BOTHNULL" )
 	{
 		$log->info("$subname: Newer version is equal to old version.");
 		return "EQUAL";
@@ -863,13 +1238,13 @@ sub createOrUpdateLineInFile {
 	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
 	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
 	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
@@ -890,7 +1265,7 @@ sub createOrUpdateLineInFile {
 			#Otherwise add the new line after the found line
 			else {
 				$log->info(
-					"$subname: Replacing '$data[$index1]' with $newLine.");
+					"$subname: Adding '$newLine' after $data[$index1]'.");
 				splice( @data, $index1 + 1, 0, $newLine );
 			}
 		}
@@ -906,38 +1281,214 @@ sub createOrUpdateLineInFile {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 
 }
 
 ########################################
-#CreateOSUser                           #
+#createOrUpdateLineInXML               #
+#                                      #
 ########################################
-sub createOSUser {
-	my $osUser;
+sub createOrUpdateLineInXML {
+	my $inputFile;    #Must Be Absolute Path
+	my $newLine;
+	my $lineReference;
+	my $searchFor;
+	my $lineReference2;
+	my @data;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$osUser = $_[0];
+	$inputFile     = $_[0];
+	$lineReference = $_[1];    #the line we are looking for
+	$newLine       = $_[2];    #the line we want to add
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",     $inputFile );
+	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
+	dumpSingleVarToLog( "$subname" . "_newLine",       $newLine );
+	open( my $inputFileHandle, '<', $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+
+	# read file into an array
+	@data = <$inputFileHandle>;
+
+	close($inputFileHandle);
+
+	#Search for reference line
+	my ($index1) = grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+	my ($index2) = grep { $data[$_] =~ /^$newLine.*/ } 0 .. $#data;
+
+	#If you cant find the first reference try for the second reference
+	if ( !defined($index1) ) {
+		$log->info("$subname: First search term $lineReference not found.");
+		$log->logdie(
+			"No line containing \"$lineReference\" found in file $inputFile\n\n"
+		);
+	}
+	else {
+		if ( !defined($index2) ) {
+			$log->info("$subname: Adding '$newLine' after $data[$index1]'.");
+			splice( @data, $index1 + 1, 0, $newLine );
+		}
+	}
+
+	#Write out the updated file
+	open( my $outputFileHandle, '>', "$inputFile" )
+	  or $log->logdie("Unable to open file: $inputFile: $!");
+	print $outputFileHandle @data;
+	close $outputFileHandle;
+
+}
+
+########################################
+#CreateOSUser                          #
+########################################
+sub createOSUser {
+	my $osUser;
+	my @uidParameterNull;
+	my @gidParameterNull;
+	my $osUserUID;
+	my $osUserGID;
+	my $application;
+	my $lcApplication;
+	my $subname = ( caller(0) )[3];
+
+	#	my @chars = ("A".."Z", "a".."z", "0".."9");
+	#	my $password;
+	#	my $salt;
+	#	my $hashedPass;
+
+	$log->info("BEGIN: $subname");
+
+	$osUser        = $_[0];
+	$application   = $_[1];
+	$lcApplication = lc($application);
+
+	#	#Create random password and salt
+	#	$password .= $chars[rand @chars] for 1..16;
+	#	$salt     .= $chars[rand @chars] for 1..16;
+	#	$hashedPass = crypt("$password", "$salt");
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 
 	if ( !getpwnam($osUser) ) {
-		system("useradd $osUser");
-		if ( $? == -1 ) {
-			$log->logdie("could not create system user $osUser");
+		print
+"The system account '$osUser' does not exist. Creating the account.\n\n";
+
+#Check the configuration file for forced UIDs and GIDs for the system account
+#Note these can not be created via the GUI and must be added to the config file manually
+		@uidParameterNull = $globalConfig->param("$lcApplication.osUserUID");
+		@gidParameterNull = $globalConfig->param("$lcApplication.osUserGID");
+
+		if ( $#uidParameterNull == -1 ) {
+			$log->info("$subname: No GID specified in config for $osUser.");
+			$osUserUID = "";
 		}
 		else {
-			$log->info("System user $osUser added successfully.");
+			$osUserUID = $globalConfig->param("$lcApplication.osUserUID");
+			dumpSingleVarToLog( "$subname" . "_osUserUID", $osUserUID );
+
+		}
+
+		if ( $#gidParameterNull == -1 ) {
+			$log->info("$subname: No UID specified in config for $osUser.");
+			$osUserGID = "";
+		}
+		else {
+			$osUserGID = $globalConfig->param("$lcApplication.osUserGID");
+			dumpSingleVarToLog( "$subname" . "_osUserGID", $osUserGID );
+
+		}
+
+		#Check if group exists
+		system("grep $osUser /etc/group");
+		if ( $? != 0 ) {
+			$log->info(
+				"$subname: System group $osUser does not exist. Adding.");
+			print
+"The system group '$osUser' does not yet exist. Creating the group now: \n\n";
+
+			#Group does not exist therefore create
+			if ( $osUserGID eq "" ) {
+
+				#No GID has been specified in config, adding with default GID
+				system("groupadd $osUser");
+				if ( $? == -1 ) {
+					$log->logdie(
+						"$subname: Could not create system group '$osUser'");
+				}
+				else {
+					$log->info(
+						"$subname: System group '$osUser' created successfully"
+					);
+				}
+			}
+			else {
+
+				#GID has been specified in config, adding with specified GID
+				system("groupadd -g $osUserGID $osUser");
+				if ( $? == -1 ) {
+					$log->logdie(
+						"$subname: Could not create system group '$osUser'");
+				}
+				else {
+					$log->info(
+						"$subname: System group '$osUser' created successfully"
+					);
+				}
+			}
+		}
+		else {
+			$log->info("$subname: System group $osUser already exists.");
+		}
+
+		if ( $osUserUID eq "" ) {
+
+			#No UID has been specified in config, adding with default UID
+			system("useradd $osUser -g $osUser");
+			if ( $? == -1 ) {
+				$log->logdie(
+					"$subname: Could not create system user '$osUser'");
+			}
+			else {
+				$log->info(
+					"$subname: System user '$osUser' created successfully.");
+			}
+		}
+		else {
+
+			#UID has been specified in config, adding with specified UID
+			system("useradd -u $osUserUID $osUser -g $osUser");
+			if ( $? == -1 ) {
+				$log->logdie(
+					"$subname: Could not create system user '$osUser'");
+			}
+			else {
+				$log->info(
+					"$subname: System user '$osUser' created successfully.");
+			}
+		}
+
+		print
+"The system account '$osUser' has been created successfully. You must now enter a password for the new '$osUser' system account to be used if you wish to log in to it later: \n\n";
+		system("passwd $osUser");
+		if ( $? == -1 ) {
+			$log->info("$subname: Password creation failed for $osUser");
+			print
+"Password creation for '$osUser' has failed, as this is not fatal we will continue, however you will need to create a password manually later: \n\n";
+		}
+		else {
+			$log->info("$subname: Password created for $osUser successfully.");
 		}
 	}
 	else {
-		$log->info("System user $osUser already exists.");
+		$log->info("$subname: System user $osUser already exists.");
 	}
 }
 
@@ -980,30 +1531,15 @@ sub dirSize {
 sub displayQuickConfig {
 
 	my $subname = ( caller(0) )[3];
-	my $application;
 	my $menu;
 
 	# define the main menu as a multiline string
-	$menu = <<'END_TXT';
-
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      ******************
-      * Quick URL Menu *
-      ******************
-
-END_TXT
+	$menu = generateMenuHeader( "MINI", "Quick URL Menu", "" );
 
 	# print the main menu
 	print $menu;
 
-	foreach $application (@suiteApplications) {
+	foreach my $application (@suiteApplications) {
 		my $lcApplication = lc($application);
 		my @parameterNull =
 		  $globalConfig->param("$lcApplication.installedVersion");
@@ -1113,13 +1649,17 @@ sub downloadAtlassianInstaller {
 	dumpSingleVarToLog( "$subname" . "_version",      $version );
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
-	print "Beginning download of $lcApplication, please wait...\n\n";
+	print "Beginning download of $application, please wait...\n\n";
 
 	#Get the URL for the version we want to download
 	if ( $type eq "LATEST" ) {
-		$log->debug("$subname: Downloading latest version of $application");
-		@downloadDetails =
-		  getLatestDownloadURL( $lcApplication, $architecture );
+		$log->debug(
+"$subname: Grabbing latest version details for $application from cache"
+		);
+		@downloadDetails = (
+			$latestVersions{"$application"}->{"URL"},
+			$latestVersions{"$application"}->{"version"}
+		);
 	}
 	else {
 		$log->debug("$subname: Downloading version $version of $application");
@@ -1462,11 +2002,9 @@ sub downloadLatestAtlassianSuite {
 	dumpSingleVarToLog( "$subname" . "_architecture", $architecture );
 
 	#Configure all products in the suite
-	@suiteProducts =
-	  ( 'Crowd', 'Confluence', 'JIRA', 'Fisheye', 'Bamboo', 'Stash' );
 
 	#Iterate through each of the products, get the URL and download
-	foreach (@suiteProducts) {
+	foreach (@suiteApplications) {
 		@downloadDetails = getLatestDownloadURL( $_, $architecture );
 
 		$parsedURL = URI->new( $downloadDetails[0] );
@@ -1495,6 +2033,31 @@ sub downloadLatestAtlassianSuite {
 			);
 		}
 	}
+}
+
+########################################
+#dumpHashToFile                        #
+########################################
+sub dumpHashToFile {
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Code thanks go to Kyle on http://www.perlmonks.org/?node_id=704380
+
+	my ( $fileName, %hash_ref ) = @_;
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
+	dumpSingleVarToLog( "$subname" . "_hash_ref", %hash_ref );
+
+	open( my $outputFileHandle, '>', $fileName )
+	  or $log->logdie("Can't write to '$fileName': $!\n\n");
+	local $Data::Dumper::Terse = 1;    # no '$VAR1 = '
+	local $Data::Dumper::Useqq = 1;    # double quoted strings
+	print $outputFileHandle Dumper \%hash_ref;
+	close $outputFileHandle or log->logdie("Can't close '$fileName': $!\n\n");
+
 }
 
 ########################################
@@ -1539,9 +2102,9 @@ sub escapeFilePath {
 }
 
 ########################################
-#extractAndMoveDownload                #
+#extractAndMoveFile                #
 ########################################
-sub extractAndMoveDownload {
+sub extractAndMoveFile {
 	my $inputFile;
 	my $expectedFolderName;    #MustBeAbsolute
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
@@ -1775,6 +2338,35 @@ sub generateApplicationConfig {
 }
 
 ########################################
+#Generate Available Updates String     #
+########################################
+sub generateAvailableUpdatesString {
+	my $cfg;
+	my $configItem;
+	my $availCode;
+	my $configValue;
+	my $application;
+	my $lcApplication;
+	my $versionCompareResult;
+	my @parameterNull;
+	my $returnString;
+	my $input;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+	$returnString =
+"      There are updates available for one or more of your installed applications:\n";
+
+	foreach my $key ( keys %appsWithUpdates ) {
+
+		$returnString .=
+"      $key: $appsWithUpdates{$key}->{installedVersion} --> $appsWithUpdates{$key}->{availableVersion}\n";
+
+	}
+	$availableUpdatesString = $returnString;
+}
+
+########################################
 #Generate crowd.properties file        #
 ########################################
 sub generateCrowdPropertiesFile {
@@ -1794,16 +2386,17 @@ sub generateCrowdPropertiesFile {
 	dumpSingleVarToLog( "$subname" . "_filename",    $filename );
 	dumpSingleVarToLog( "$subname" . "_application", $application );
 
-	open FH, ">$filename"
+	open( my $outputFileHandle, '>', "$filename" )
 	  or $log->logdie("Unable to open $filename for writing.");
-	print FH "session.lastvalidation		session.lastvalidation\n";
-	print FH "session.isauthenticated		session.isauthenticated\n";
-	print FH "application.password		"
+	print $outputFileHandle "session.lastvalidation		session.lastvalidation\n";
+	print $outputFileHandle
+	  "session.isauthenticated		session.isauthenticated\n";
+	print $outputFileHandle "application.password		"
 	  . $globalConfig->param("$lcApplication.crowdApplicationPassword") . "\n";
-	print FH "application.name		"
+	print $outputFileHandle "application.name		"
 	  . $globalConfig->param("$lcApplication.crowdApplicationName") . "\n";
-	print FH "session.validationinterval		10\n";
-	print FH "session.tokenkey		session.tokenkey\n";
+	print $outputFileHandle "session.validationinterval		10\n";
+	print $outputFileHandle "session.tokenkey		session.tokenkey\n";
 
 	if ( $globalConfig->param("general.externalCrowdPort") eq "443" ) {
 		$protocol = "https";
@@ -1812,95 +2405,28 @@ sub generateCrowdPropertiesFile {
 		$protocol = "http";
 	}
 	if ( $globalConfig->param("general.externalCrowdInstance") eq "TRUE" ) {
-		print FH "crowd.server.url		$protocol\://"
+		print $outputFileHandle "crowd.server.url		$protocol\://"
 		  . $globalConfig->param("general.externalCrowdHostname") . ":"
 		  . $globalConfig->param("general.externalCrowdPort")
 		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
 		  . "/services/\n";
-		print FH "application.login.url		$protocol\://"
+		print $outputFileHandle "application.login.url		$protocol\://"
 		  . $globalConfig->param("general.externalCrowdHostname") . ":"
 		  . $globalConfig->param("general.externalCrowdPort")
 		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
 		  . "/services/\n";
 	}
 	else {
-		print FH "crowd.server.url		http://localhost:"
+		print $outputFileHandle "crowd.server.url		http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
 		  . getConfigItem( "crowd.appContext", $globalConfig )
 		  . "/services/\n";
-		print FH "application.login.url		http://localhost:"
+		print $outputFileHandle "application.login.url		http://localhost:"
 		  . $globalConfig->param("crowd.connectorPort")
 		  . getConfigItem( "crowd.appContext", $globalConfig ) . "/\n";
 
 	}
-	close FH;
-}
-
-########################################
-#Generate Generic Kickstart File       #
-########################################
-sub generateGenericKickstart {
-	my $filename;    #Must contain absolute path
-	my $mode;        #"INSTALL" or "UPGRADE"
-	my $application;
-	my $lcApplication;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$filename      = $_[0];
-	$mode          = $_[1];
-	$application   = $_[2];
-	$lcApplication = lc($application);
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_filename",      $filename );
-	dumpSingleVarToLog( "$subname" . "_mode",          $mode );
-	dumpSingleVarToLog( "$subname" . "_application",   $application );
-	dumpSingleVarToLog( "$subname" . "_lcApplication", $lcApplication );
-
-	open FH, ">$filename"
-	  or $log->logdie("Unable to open $filename for writing.");
-	print FH "#install4j response file for $application\n";
-	if ( $mode eq "UPGRADE" ) {
-		print FH 'backup' . "$application" . '$Boolean=false' . "\n";
-	}
-	if ( $mode eq "INSTALL" ) {
-		print FH 'rmiPort$Long='
-		  . $globalConfig->param( $lcApplication . ".serverPort" ) . "\n";
-		print FH "app.confHome="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-		  . "\n";
-	}
-	if ( $globalConfig->param( $lcApplication . ".runAsService" ) eq "TRUE" ) {
-		print FH 'app.install.service$Boolean=true' . "\n";
-	}
-	else {
-		print FH 'app.install.service$Boolean=false' . "\n";
-	}
-	print FH "existingInstallationDir="
-	  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "\n";
-
-	if ( $mode eq "UPGRADE" ) {
-		print FH "sys.confirmedUpdateInstallationString=true" . "\n";
-	}
-	else {
-		print FH "sys.confirmedUpdateInstallationString=false" . "\n";
-	}
-	print FH "sys.languageId=en" . "\n";
-	if ( $mode eq "INSTALL" ) {
-		print FH "sys.installationDir="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "\n";
-	}
-	print FH 'executeLauncherAction$Boolean=false' . "\n";
-	if ( $mode eq "INSTALL" ) {
-		print FH 'httpPort$Long='
-		  . $globalConfig->param( $lcApplication . ".connectorPort" ) . "\n";
-		print FH "portChoice=custom" . "\n";
-	}
-	close FH;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -1915,15 +2441,19 @@ sub generateInitD {
 	my $stopCmd;
 	my @initGeneric;
 	my @initSpecific;
+	my $grep1stParam;
+	my $grep2ndParam;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$application = $_[0];
-	$runUser     = $_[1];
-	$baseDir     = $_[2];
-	$startCmd    = $_[3];
-	$stopCmd     = $_[4];
+	$application  = $_[0];
+	$runUser      = $_[1];
+	$baseDir      = $_[2];
+	$startCmd     = $_[3];
+	$stopCmd      = $_[4];
+	$grep1stParam = $_[5];
+	$grep2ndParam = $_[6];
 
 	$lcApplication = lc($application);
 
@@ -1946,7 +2476,7 @@ sub generateInitD {
 		@initSpecific = (
 			"#!/bin/sh -e\n",
 			"### BEGIN INIT INFO\n",
-			"# Provides:          $lcApplication\n",
+			"# Provides:          $application\n",
 			"# Required-Start:    \n",
 			"# Required-Stop:     \n",
 			"# Default-Start:     2 3 4 5\n",
@@ -1959,23 +2489,54 @@ sub generateInitD {
 
 	@initGeneric = (
 		"\n",
-		"APP=" . $lcApplication . "\n",
+		"APP=" . $application . "\n",
+		"LCAPP=" . $lcApplication . "\n",
 		"USER=" . $runUser . "\n",
 		"BASE=" . $baseDir . "\n",
 		"STARTCOMMAND=\"" . $startCmd . "\"\n",
 		"STOPCOMMAND=\"" . $stopCmd . "\"\n",
+		"GREP1STPARAM=\"" . $grep1stParam . "\"\n",
+		"GREP2NDPARAM=\"" . $grep2ndParam . "\"\n",
+		"\n",
+		'for var in "$@"' . "\n",
+		'do' . "\n",
+		'  if [[ $var == "--disable-kill"  ]]; then' . "\n",
+		'    DISABLEKILL="TRUE"' . "\n",
+		'  else' . "\n",
+		'    DISABLEKILL="FALSE"' . "\n",
+		'  fi' . "\n",
+		'done' . "\n",
 		"\n",
 		'case "$1" in' . "\n",
 		"  # Start command\n",
 		"  start)\n",
 		'    echo "Starting $APP"' . "\n",
 		'    /bin/su -m $USER -c "$BASE/$STARTCOMMAND &> /dev/null"' . "\n",
+		'    echo "$APP started successfully"' . "\n",
 		"    ;;\n",
 		"  # Stop command\n",
 		"  stop)\n",
 		'    echo "Stopping $APP"' . "\n",
 		'    /bin/su -m $USER -c "$BASE/$STOPCOMMAND &> /dev/null"' . "\n",
-		'    echo "$APP stopped successfully"' . "\n",
+		'    if [[ $DISABLEKILL != "TRUE"  ]]; then' . "\n",
+'      echo "Sleeping for 20 seconds to ensure $APP has successfully stopped"'
+		  . "\n",
+		'      sleep 20' . "\n",
+		"\n",
+'      PIDS=`ps -ef | grep $GREP1STPARAM | grep $GREP2NDPARAM | grep -v \'ps -ef | grep\' | awk \'{print $2}\'`'
+		  . "\n",
+		"\n",
+		'      if [[ $PIDS == ""  ]]; then' . "\n",
+		'        echo "$APP stopped successfully"' . "\n",
+		'      else' . "\n",
+		'        echo "$APP still running... Killing the process..."' . "\n",
+		'        kill -9 $PIDS' . "\n",
+		'        echo "$APP killed successfully"' . "\n",
+		'      fi' . "\n",
+		'    else' . "\n",
+		'      echo "$APP stopped successfully"' . "\n",
+		'    fi' . "\n",
+		"\n",
 		"    ;;\n",
 		"   # Restart command\n",
 		"   restart)\n",
@@ -1984,7 +2545,7 @@ sub generateInitD {
 		'        $0 start' . "\n",
 		"        ;;\n",
 		"  *)\n",
-		'    echo "Usage: /etc/init.d/$APP {start|restart|stop}"' . "\n",
+		'    echo "Usage: /etc/init.d/$LCAPP {start|restart|stop}"' . "\n",
 		"    exit 1\n",
 		"    ;;\n",
 		"esac\n",
@@ -1996,15 +2557,321 @@ sub generateInitD {
 
 	#Write out file to /etc/init.d
 	$log->info("$subname: Writing out init.d file for $application.");
-	open FILE, ">/etc/init.d/$lcApplication"
+	open( my $outputFileHandle, '>', "/etc/init.d/$lcApplication" )
 	  or $log->logdie("Unable to open file /etc/init.d/$lcApplication: $!");
-	print FILE @initSpecific;
-	close FILE;
+	print $outputFileHandle @initSpecific;
+	close $outputFileHandle;
 
 	#Make the new init.d file executable
 	$log->info("$subname: Chmodding init.d file for $lcApplication.");
 	chmod 0755, "/etc/init.d/$lcApplication"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
+
+	#Always call an update to the main Atlassian init.d script
+	generateInitDforSuite();
+}
+
+########################################
+#GenerateInitDForSuite                 #
+########################################
+sub generateInitDforSuite {
+	my @initGeneric;
+	my @addToInitGeneric;
+	my @initSpecific;
+	my @stopCommands;
+	my @startCommands;
+	my @addToCommands;
+	my @enabledApps;
+
+	my $subname = ( caller(0) )[3];
+	my $isBambooInstalled;
+	my $isCrowdInstalled;
+	my $isConfluenceInstalled;
+	my $isFisheyeInstalled;
+	my $isJiraInstalled;
+	my $isStashInstalled;
+	my @parameterNull;
+	my $lcApplication;
+	my $application;
+	my $input;
+
+	$log->info("BEGIN: $subname");
+
+	#Get current suite install status
+	@parameterNull = $globalConfig->param("bamboo.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("bamboo.installedVersion") eq "" )
+	{
+		$isBambooInstalled = "FALSE";
+	}
+	else {
+		$isBambooInstalled = "TRUE";
+		push( @enabledApps, "Bamboo" );
+	}
+
+	@parameterNull = $globalConfig->param("confluence.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("confluence.installedVersion") eq "" )
+	{
+		$isConfluenceInstalled = "FALSE";
+	}
+	else {
+		$isConfluenceInstalled = "TRUE";
+		push( @enabledApps, "Confluence" );
+	}
+
+	@parameterNull = $globalConfig->param("crowd.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("crowd.installedVersion") eq "" )
+	{
+		$isCrowdInstalled = "FALSE";
+	}
+	else {
+		$isCrowdInstalled = "TRUE";
+		push( @enabledApps, "Crowd" );
+	}
+
+	@parameterNull = $globalConfig->param("fisheye.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("fisheye.installedVersion") eq "" )
+	{
+		$isFisheyeInstalled = "FALSE";
+	}
+	else {
+		$isFisheyeInstalled = "TRUE";
+		push( @enabledApps, "Fisheye" );
+	}
+
+	@parameterNull = $globalConfig->param("jira.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("jira.installedVersion") eq "" )
+	{
+		$isJiraInstalled = "FALSE";
+	}
+	else {
+		$isJiraInstalled = "TRUE";
+		push( @enabledApps, "JIRA" );
+	}
+
+	@parameterNull = $globalConfig->param("stash.installedVersion");
+	if ( ( $#parameterNull == -1 )
+		|| $globalConfig->param("stash.installedVersion") eq "" )
+	{
+		$isStashInstalled = "FALSE";
+	}
+	else {
+		$isStashInstalled = "TRUE";
+		push( @enabledApps, "Stash" );
+	}
+
+	if ( $distro eq "redhat" ) {
+		@initSpecific = (
+			"#!/bin/sh -e\n",
+			"# Atlassian Suite startup script\n",
+			, "#description: Atlassian stop/start/restart script. \n"
+		);
+	}
+	elsif ( $distro eq "debian" ) {
+		@initSpecific = (
+			"#!/bin/sh -e\n",
+			"### BEGIN INIT INFO\n",
+			"# Provides:          Atlassian Suite\n",
+			"# Required-Start:    \n",
+			"# Required-Stop:     \n",
+"# Short-Description: Control all installed Atlassian Suite apps with one command.\n",
+"# Description:       Control all installed Atlassian Suite apps with one command.\n",
+			"### END INIT INFO\n"
+		);
+	}
+
+	foreach (@enabledApps) {
+		undef(@addToCommands);
+		$application   = $_;
+		$lcApplication = lc($application);
+
+		@addToCommands = (
+			"    echo \"Stopping $application\"\n",
+"    if (service $lcApplication stop --disable-kill > /dev/null 2>\&1) ; then\n",
+			"        echo \"$application Stopped Successfully\"\n",
+			"    else\n",
+			"            APP_PID=`ps -ef | grep "
+			  . $globalConfig->param("$lcApplication.processSearchParameter1")
+			  . " | grep "
+			  . $globalConfig->param("$lcApplication.processSearchParameter2")
+			  . "| grep -v \'ps -ef | grep\' | awk \'{print \$2}\'`\n",
+			'        if (`ps -ef | grep -i '
+			  . $lcApplication
+			  . ' | grep -v "grep"` && $APP_PID != "") ; then' . "\n",
+"            echo 'Unable to stop $application gracefully therefore killing it'\n",
+			'            kill -9 $APP_PID' . "\n",
+			"            else\n",
+"                echo '$application does not appear to be running'\n",
+			"            echo \n",
+			"        fi\n",
+			"    fi\n",
+		);
+
+		push( @stopCommands, @addToCommands );
+		undef(@addToCommands);
+		@addToCommands = (
+			"    if service $lcApplication start > /dev/null 2>\&1; then\n",
+			"        echo $application Started Successfully\n",
+			"    else\n",
+"        echo 'Unable to start $application automagically. Please try to start it up manually'\n\n",
+			"    fi\n",
+		);
+
+		push( @startCommands, @addToCommands );
+		undef(@addToCommands);
+	}
+
+	@initGeneric = (
+		"\n",
+		'case "$1" in' . "\n",
+		"  # Start command\n",
+		"  start)\n", '    echo "Starting the Atlassian Suite"' . "\n"
+	);
+	push( @initGeneric, @startCommands );
+	@addToInitGeneric = (
+		'    echo "Atlassian Suite Started Successfully"' . "\n",
+		"    ;;\n",
+		"  # Stop command\n",
+		"  stop)\n",
+		'    echo "Stopping the Atlassian Suite"' . "\n"
+	);
+	push( @initGeneric, @addToInitGeneric );
+	push( @initGeneric, @stopCommands );
+	undef(@addToInitGeneric);
+	@addToInitGeneric = (
+		'    echo "Atlassian Suite stopped successfully"' . "\n",
+		"    ;;\n",
+		"   # Restart command\n",
+		"   restart)\n",
+		'    echo "Restarting Atlassian Suite"' . "\n"
+	);
+	push( @initGeneric, @addToInitGeneric );
+	push( @initGeneric, @stopCommands );
+	undef(@addToInitGeneric);
+	@addToInitGeneric = (
+'    echo "Sleeping for 20 seconds to allow services to stop gracefully"'
+		  . "\n",
+		"        sleep 20\n"
+	);
+	push( @initGeneric, @addToInitGeneric );
+	push( @initGeneric, @startCommands );
+	undef(@addToInitGeneric);
+	@addToInitGeneric = (
+		'    echo "Atlassian Suite restarted successfully"' . "\n",
+		"        ;;\n",
+		"  *)\n",
+		'    echo "Usage: /etc/init.d/atlassian {start|restart|stop}"' . "\n",
+		"    exit 1\n",
+		"    ;;\n",
+		"esac\n",
+		"\n",
+		"exit 0\n"
+	);
+
+	push( @initGeneric,  @addToInitGeneric );
+	push( @initSpecific, @initGeneric );
+
+	#Write out file to /etc/init.d
+	$log->info("$subname: Writing out init.d file for atlassian.");
+	open( my $outputFileHandle, '>', "/etc/init.d/atlassian" )
+	  or $log->logdie("Unable to open file /etc/init.d/atlassian: $!");
+	print $outputFileHandle @initSpecific;
+	close $outputFileHandle;
+
+	#Make the new init.d file executable
+	$log->info("$subname: Chmodding init.d file for atlassian.");
+	chmod 0755, "/etc/init.d/atlassian"
+	  or $log->logdie("Couldn't chmod /etc/init.d/atlassian: $!");
+}
+
+########################################
+#Generate Menu Header                  #
+########################################
+sub generateMenuHeader {
+	my $menuHead;
+	my $menuFooter;
+	my $menuTitle;
+	my $defaultMenuBodyText;
+	my $inputTitle;
+	my $expandedTitle;
+	my $mode;
+	my $inputBodyText;
+	my $titleLength;
+	my $fullMenu;
+	my $subname = ( caller(0) )[3];
+
+	$mode          = $_[0];    #FULL/MINI
+	$inputTitle    = $_[1];    #TITLE
+	$inputBodyText = $_[2];    #Body text to replace default body text
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_mode",          $mode );
+	dumpSingleVarToLog( "$subname" . "_inputTitle",    $inputTitle );
+	dumpSingleVarToLog( "$subname" . "_inputBodyText", $inputBodyText );
+
+	$log->info("BEGIN: $subname");
+
+	#MenuHead will always display as will MenuFooter and MenuTitle
+	#MenuBodyText is optional and will display based on input to this function
+	$menuHead = <<'END_HEAD';
+
+      Welcome to the ASM Script for Atlassian(R)
+
+      Copyright (C) 2012-2014  Stuart Ryan
+      
+END_HEAD
+
+	$defaultMenuBodyText = <<'END_BODY';
+      ###########################################################################################
+      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
+      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence.
+    
+      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
+      for sponsoring me with free hosting without which I would not have been able to write, 
+      and continue hosting the Atlassian Suite for my open source projects including this script.
+      ###########################################################################################
+
+END_BODY
+
+	$menuFooter = <<'END_FOOTER';
+      This program comes with ABSOLUTELY NO WARRANTY;
+      This is free software, and you are welcome to redistribute it
+      under certain conditions; read the COPYING file included for details.
+      
+END_FOOTER
+
+	$expandedTitle = "* " . $inputTitle . " *";
+
+	$titleLength = length($expandedTitle);
+
+	$menuTitle =
+	    "      "
+	  . "*" x $titleLength . "\n"
+	  . "      "
+	  . $expandedTitle . "\n"
+	  . "      "
+	  . "*" x $titleLength . "\n\n";
+
+	if ( $inputBodyText eq "" && $mode eq "FULL" ) {
+		$fullMenu = $menuHead . $defaultMenuBodyText . $menuFooter . $menuTitle;
+	}
+	elsif ( $inputBodyText eq "" && $mode eq "MINI" ) {
+		$fullMenu = $menuHead . $menuFooter . $menuTitle;
+	}
+	elsif ( $inputBodyText ne "" && $mode eq "FULL" ) {
+		$fullMenu = $menuHead . $inputBodyText . $menuFooter . $menuTitle;
+	}
+	elsif ( $inputBodyText ne "" && $mode eq "MINI" ) {
+		$fullMenu = $menuHead . $inputBodyText . $menuFooter . $menuTitle;
+	}
+	else {
+		$fullMenu = $menuHead . $defaultMenuBodyText . $menuFooter . $menuTitle;
+	}
+	return $fullMenu;
 }
 
 ########################################
@@ -2056,6 +2923,12 @@ sub genBooleanConfigItem {
 "$subname: Current parameter $configParam is FALSE, returning 'no'"
 				);
 			}
+			elsif ( $cfg->param($configParam) eq "" ) {
+				$defaultValue = $defaultInputValue;
+				$log->debug(
+"$subname: Current parameter $configParam is NULL, returning '$defaultInputValue'"
+				);
+			}
 		}
 		else {
 			$log->debug(
@@ -2065,6 +2938,8 @@ sub genBooleanConfigItem {
 		}
 	}
 	else {
+
+		#if we are not in update mode we expect this to be null
 		$log->debug(
 "$subname: Current parameter $configParam is undefined, returning '$defaultInputValue'"
 		);
@@ -2129,7 +3004,7 @@ sub genConfigItem {
 	dumpSingleVarToLog( "$subname" . "_validationFailureRegex",
 		$validationFailureMessage );
 
-	#Check if the paramater is null (undefined)
+	#Check if the parameter is null (undefined)
 	@parameterNull = $cfg->param($configParam);
 
 #Check if we are updating (get current value), or doing a fresh run (use default passed to this function)
@@ -2289,7 +3164,7 @@ sub generateSuiteConfig {
 				"general.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 
@@ -2308,6 +3183,15 @@ sub generateSuiteConfig {
 		}
 	}
 
+	#Should backups be compressed
+	genBooleanConfigItem(
+		$mode,
+		$cfg,
+		"general.compressBackups",
+"Do you wish compress backups (note this will take a lot longer to complete post upgrade tasks)? yes/no ",
+		"no"
+	);
+
 	#Get Crowd configuration
 	genBooleanConfigItem( $mode, $cfg, "crowd.enable",
 		"Do you wish to install/manage Crowd? yes/no ", "yes" );
@@ -2315,7 +3199,8 @@ sub generateSuiteConfig {
 	if ( $cfg->param("crowd.enable") eq "TRUE" ) {
 
 		$input = getBooleanInput(
-			"Do you wish to set up/update the Crowd configuration now? [no]: ");
+			"Do you wish to set up/update the Crowd configuration now? [no]: "
+		);
 
 		if ( $input eq "yes" ) {
 			print "\n";
@@ -2339,7 +3224,7 @@ sub generateSuiteConfig {
 				"general.externalCrowdHostname",
 "Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
 			);
 
@@ -2507,6 +3392,9 @@ sub generateSuiteConfig {
 			$log->info("$subname: Database arch selected is Oracle");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "Oracle" );
+			print
+"You have selected to use the Oracle database. Some of the Atlassian products no longer include the JDBC driver due to licensing. If you would like to automagically copy the JDBC driver over please download it manually and update the settings.cfg file to add general.dbJDBCJar=/path/to/ojdbc6.jar under the general config section. Please press enter to continue...\n";
+			$input = <STDIN>;
 		}
 		elsif (( lc $input ) eq "4"
 			|| ( lc $input ) eq "microsoft sql server"
@@ -2591,6 +3479,63 @@ sub generateSuiteConfig {
 }
 
 ########################################
+#Get all the latest download URLs      #
+########################################
+sub getAllLatestDownloadURLs {
+	my @returnArray;
+	my @downloadArray;
+	my $application;
+	my $decoded_json;
+	my $lcApplication;
+	my $refreshNeeded = "TRUE";
+	my $menuText;
+
+	my $subname = ( caller(0) )[3];
+
+	# define the main menu as a multiline string
+	$menuText = generateMenuHeader( "MINI",
+		"Please Wait... Getting latest version details from Atlassian", "" );
+
+	# print the main menu
+	system 'clear';
+	print $menuText;
+
+	$log->info("BEGIN: $subname");
+
+	if ( -e $latestVersionsCacheFile ) {
+
+		#Has file been modified within the last 24 hours?
+		if ( 1 < -M $latestVersionsCacheFile ) {
+
+			#file is older than 24 hours, refresh needed
+			$refreshNeeded = "TRUE";
+		}
+		else {
+
+			#file has been modified within the last 24 hours - use it as a cache
+			%latestVersions = readHashFromFile($latestVersionsCacheFile);
+			$refreshNeeded  = "FALSE";
+		}
+	}
+
+	if ( $refreshNeeded eq "TRUE" ) {
+		undef(%latestVersions);
+		foreach (@suiteApplications) {
+			$application   = $_;
+			$lcApplication = lc($application);
+			@downloadArray = getLatestDownloadURL( $application, $globalArch );
+
+			$latestVersions{"$application"}{'URL'}     = $downloadArray[0];
+			$latestVersions{"$application"}{'version'} = $downloadArray[1];
+
+		}
+
+		#outputAsACache
+		dumpHashToFile( $latestVersionsCacheFile, %latestVersions );
+	}
+}
+
+########################################
 #GetBooleanInput                       #
 ########################################
 sub getBooleanInput {
@@ -2644,15 +3589,23 @@ sub getConfigItem {
 #This function can be used if a config item may have a NULL defined deliberately to return the correct value.
 	my $configItem;
 	my $cfg;
+	my @parameterNull;
 
 	$configItem = $_[0];
 	$cfg        = $_[1];
 
-	if ( $cfg->param($configItem) eq "NULL" ) {
+	@parameterNull = $cfg->param($configItem);
+
+	if ( ( $#parameterNull == -1 ) ) {
 		return "";
 	}
 	else {
-		return $cfg->param($configItem);
+		if ( $cfg->param($configItem) eq "NULL" ) {
+			return "";
+		}
+		else {
+			return $cfg->param($configItem);
+		}
 	}
 }
 
@@ -2660,8 +3613,14 @@ sub getConfigItem {
 #getEnvironmentDebugInfo               #
 ########################################
 sub getEnvironmentDebugInfo {
+
+	my @modules;
+	my $installedModules;
+
 	if ( $log->is_debug() ) {
-		$log->debug("BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO");
+		$log->debug(
+"BEGIN DUMPING ENVIRONMENTAL DEBUGGING INFO FOR SCRIPT VERSION $scriptVersion"
+		);
 		$log->debug("DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN OS VERSION");
 		if ( -e "/etc/redhat-release" ) {
 			system("cat /etc/redhat-release >> $logFile");
@@ -2689,7 +3648,8 @@ sub getEnvironmentDebugInfo {
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END CPUINFO CONFIG");
 		$log->debug(
-			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX ENV VARIABLES");
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN LINUX ENV VARIABLES"
+		);
 		system("env >> $logFile");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END LINUX ENV VARIABLES");
@@ -2714,6 +3674,20 @@ sub getEnvironmentDebugInfo {
 		system("perl -v >> $logFile 2>&1");
 		$log->debug(
 			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL VERSION OUTPUT");
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - BEGIN PERL MODULES OUTPUT"
+		);
+		$installedModules = ExtUtils::Installed->new();
+
+		@modules = $installedModules->modules();
+
+		$log->debug( sprintf "%-30s %-20s", "Module", "Version" );
+		foreach (@modules) {
+			$log->debug( sprintf "%-30s %-20s",
+				$_, $installedModules->version($_) );
+		}
+		$log->debug(
+			"DUMPING ENVIRONMENTAL DEBUGGING INFO - END PERL MODULES OUTPUT");
 	}
 }
 
@@ -2738,13 +3712,13 @@ sub getEnvironmentVars {
 	dumpSingleVarToLog( "$subname" . "_referenceVar", $referenceVar );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for the definition of the provided variable
 	$searchFor = "$referenceVar=";
@@ -2850,7 +3824,7 @@ sub getExistingSuiteConfig {
 				"general.apacheProxyHost",
 "Please enter the base URL that the suite currently resides on (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 
@@ -2892,7 +3866,7 @@ sub getExistingSuiteConfig {
 				"general.externalCrowdHostname",
 "Please enter the hostname that the external Crowd instance runs on. (eg crowd.yourdomain.com)",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of yourdomain.com or subdomain.yourdomain.com, please try again.\n\n"
 			);
 
@@ -3117,13 +4091,13 @@ sub getJavaMemParameter {
 		$referenceParameter );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	$searchFor = $referenceVariable;
 
@@ -3175,6 +4149,10 @@ sub getLatestDownloadURL {
 	my @returnArray;
 	my $decoded_json;
 	my $lcApplication;
+	my $jsonField;
+	my $descriptionSearchString;
+	my $platformSearchString;
+	my $urlSearchString;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3192,26 +4170,37 @@ sub getLatestDownloadURL {
 	my $versionurl = "https://my.atlassian.com/download/feeds/current/"
 	  . $lcApplication . ".json";
 	dumpSingleVarToLog( "$subname" . "_versionurl", $versionurl );
-	my $searchString;
 
 #For each application define the file type that we are looking for in the json feed
 	if ( $lcApplication eq "confluence" ) {
-		$searchString = ".*Linux.*$architecture.*";
+		$descriptionSearchString = ".*standalone.*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "jira" ) {
-		$searchString = ".*Linux.*$architecture.*";
+		$descriptionSearchString = ".*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "stash" ) {
-		$searchString = ".*TAR.*";
+		$descriptionSearchString = ".*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "fisheye" ) {
-		$searchString = ".*FishEye.*";
+		$descriptionSearchString = ".*fisheye.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*zip";
 	}
 	elsif ( $lcApplication eq "crowd" ) {
-		$searchString = ".*TAR.*";
+		$descriptionSearchString = ".*standalone.*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	elsif ( $lcApplication eq "bamboo" ) {
-		$searchString = ".*TAR\.GZ.*";
+		$descriptionSearchString = ".*tar.gz.*";
+		$platformSearchString    = ".*unix.*";
+		$urlSearchString         = ".*tar.gz";
 	}
 	else {
 		print
@@ -3219,7 +4208,11 @@ sub getLatestDownloadURL {
 		exit 2;
 	}
 
-	dumpSingleVarToLog( "$subname" . "_searchString", $searchString );
+	dumpSingleVarToLog( "$subname" . "_descriptionSearchString",
+		$descriptionSearchString );
+	dumpSingleVarToLog( "$subname" . "_platformSearchString",
+		$platformSearchString );
+	dumpSingleVarToLog( "$subname" . "_urlSearchString", $urlSearchString );
 
 	print
 "Downloading and parsing the Atlassian feed for the latest version of $application please wait...\n\n";
@@ -3239,8 +4232,11 @@ sub getLatestDownloadURL {
 
   #Loop through the feed and find the specific file we want for this application
 	for my $item ( @{ $decoded_json->{downloads} } ) {
-		foreach ( $item->{description} ) {
-			if (/$searchString/) {
+		foreach ($item) {
+			if ( ( lc( $item->{"description"} ) =~ /$descriptionSearchString/ )
+				&& ( lc( $item->{"platform"} ) =~ /$platformSearchString/ )
+				&& ( lc( $item->{"zipUrl"} )   =~ /$urlSearchString/ ) )
+			{
 				@returnArray = ( $item->{zipUrl}, $item->{version} );
 				dumpSingleVarToLog( "$subname" . "_zipUrl",  $item->{zipUrl} );
 				dumpSingleVarToLog( "$subname" . "_version", $item->{version} );
@@ -3272,13 +4268,13 @@ sub getLineFromFile {
 	dumpSingleVarToLog( "$subname" . "_inputFile",     $inputFile );
 	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
 	dumpSingleVarToLog( "$subname" . "_valueRegex",    $valueRegex );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	my ($index1) =
@@ -3335,13 +4331,13 @@ sub getLineFromBambooWrapperConf {
 	dumpSingleVarToLog( "$subname" . "_variableReference", $variableReference );
 	dumpSingleVarToLog( "$subname" . "_parameterReference",
 		$parameterReference );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	($index1) =
@@ -3397,76 +4393,9 @@ sub getPIDList {
 	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
 
-	open( PIDLIST,
-"/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v 'ps -ef | grep' |"
-	);
-	$i = 0;
-	while (<PIDLIST>) {
-		$line = $_;
-		chomp $line;
-		dumpSingleVarToLog( "$subname" . "_line_$i", $line );
-		$PIDs[$i] = $line;
-		$i++;
-	}
-	close PIDLIST;
+	@PIDs =
+`/bin/ps -ef | grep $grep1stParam | grep $grep2ndParam | grep -v 'ps -ef | grep'`;
 	return @PIDs;
-}
-
-########################################
-#GetUserCreatedByInstaller             #
-#The atlassian BIN installers for      #
-#Confluence and JIRA currently create  #
-#their own users, we need to get this  #
-#following installation so that we can #
-#chmod files correctly.                #
-########################################
-sub getUserCreatedByInstaller {
-	my $configParameterName
-	  ;    #the name of the config parameter the install DIR is stored in
-	my $lineReference;
-	my $searchFor;
-	my @data;
-	my $fileName;
-	my $userName;
-	my $cfg;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$configParameterName = $_[0];
-	$lineReference       = $_[1];
-	$cfg                 = $_[2];
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_configParameterName",
-		$configParameterName );
-	dumpSingleVarToLog( "$subname" . "_lineReference", $lineReference );
-
-	$fileName = $cfg->param($configParameterName) . "/bin/user.sh";
-
-	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
-
-	open( FILE, $fileName )
-	  or $log->logdie("Unable to open file: $fileName.");
-
-	# read file into an array
-	@data = <FILE>;
-
-	close(FILE);
-
-	#Search for reference line
-	my ($index1) =
-	  grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
-
-	if ( !defined($index1) ) {
-		return "NOTFOUND";
-	}
-	else {
-		if ( $data[$index1] =~ /.*=\"(.*?)\".*/ ) {
-			my $result1 = $1;
-			return $result1;
-		}
-	}
 }
 
 ########################################
@@ -3489,7 +4418,9 @@ sub getUserUidGid {
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
 
 	( $login, $pass, $uid, $gid ) = getpwnam($osUser)
-	  or $log->logdie("$osUser not in passwd file");
+	  or $log->logdie(
+"$osUser not in passwd file. This is not good and is kinda fatal. Please contact support with a copy of your logs."
+	  );
 
 	@return = ( $uid, $gid );
 	dumpSingleVarToLog( "$subname" . "_uid", $uid );
@@ -3532,17 +4463,12 @@ sub getVersionDownloadURL {
 
 #For each application generate the file name based on known information and input data
 	if ( $lcApplication eq "confluence" ) {
-		$fileExt = "bin";
-		$filename =
-		    "atlassian-confluence-" 
-		  . $version . "-x"
-		  . $architecture . "."
-		  . $fileExt;
+		$fileExt  = "tar.gz";
+		$filename = "atlassian-confluence-" . $version . "." . $fileExt;
 	}
 	elsif ( $lcApplication eq "jira" ) {
-		$fileExt = "bin";
-		$filename =
-		  "atlassian-jira-" . $version . "-x" . $architecture . "." . $fileExt;
+		$fileExt  = "tar.gz";
+		$filename = "atlassian-jira-" . $version . "." . $fileExt;
 	}
 	elsif ( $lcApplication eq "stash" ) {
 		$fileExt  = "tar.gz";
@@ -3641,6 +4567,7 @@ sub installGeneric {
 	my @webappParameterNull;
 	my $tomcatDir;
 	my $webappDir;
+	my $removeDownloadedDataAnswer;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -3651,7 +4578,7 @@ sub installGeneric {
 
 	$lcApplication = lc($application);
 
-#Iterate through required config items, if an are missing force an update of configuration
+#Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		$log->info(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
@@ -3667,10 +4594,10 @@ sub installGeneric {
 	#Otherwise provide the option to update the configuration before proceeding
 	else {
 		$input = getBooleanInput(
-"Would you like to review the $application config before installing? Yes/No [yes]: "
+"Would you like to review the $application config before installing? Yes/No [no]: "
 		);
 		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
+		if ( $input eq "yes" ) {
 			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
@@ -3701,17 +4628,11 @@ sub installGeneric {
 
 	}
 
-	#Get the user the application will run as
-	$osUser = $globalConfig->param("$lcApplication.osUser");
-
-	#Check the user exists or create if not
-	createOSUser($osUser);
-
 	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param("lcApplication.serverPort") );
+	  isPortAvailable( $globalConfig->param("$lcApplication.serverPort") );
 
 	$connectorPortAvailCode =
-	  isPortAvailable( $globalConfig->param("lcApplication.connectorPort") );
+	  isPortAvailable( $globalConfig->param("$lcApplication.connectorPort") );
 
 	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
 		$log->info(
@@ -3791,11 +4712,42 @@ is currently in use. We will continue however there is a good chance $applicatio
 		}
 	}
 
+	#Check if user wants to remove the downloaded archive
+	$removeDownloadedDataAnswer = getBooleanInput(
+"Do you wish to delete the downloaded archive after the installation is complete? [no]: "
+	);
+	print "\n";
+
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	#Check the user exists or create if not
+	createOSUser( $osUser, $application );
+
+	print "\n";
+
+	print "We now have enough information to complete the install. \n\n";
+
+	print
+"When you are ready to proceed with the install press enter. If you wish to cancel the upgrade please type 'q' and press return. ";
+	$input = <STDIN>;
+	print "\n\n";
+
+	chomp($input);
+	if ( lc($input) eq "q" ) {
+
+		#Bail out and cancel the install.
+		print "Install has been cancelled, this script will now terminate.\n\n";
+		$input = <STDIN>;
+		print "\n\n";
+		exit 0;
+	}
+
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
+		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
 		$version = $downloadDetails[1];
 
 	}
@@ -3804,23 +4756,18 @@ is currently in use. We will continue however there is a good chance $applicatio
 	else {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
+		  downloadAtlassianInstaller( $mode, $application, $version,
 			$globalArch );
 	}
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
-	extractAndMoveDownload( $downloadDetails[2],
+	extractAndMoveFile( $downloadDetails[2],
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "" );
 
-	#Check if user wants to remove the downloaded archive
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded archive "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
+	#Remove downloaded data if user opted to do so
+	if ( $removeDownloadedDataAnswer eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -3923,437 +4870,54 @@ is currently in use. We will continue however there is a good chance $applicatio
 }
 
 ########################################
-#Install Generic Atlassian Binary      #
+#Check if port is defined elsewhere    #
 ########################################
-sub installGenericAtlassianBinary {
-	my $input;
-	my $mode;
-	my $version;
+sub isPortDefinedElsewhere {
 	my $application;
 	my $lcApplication;
-	my @downloadDetails;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my $connectorPortAvailCode;
-	my $serverPortAvailCode;
-	my $varfile;
-	my @requiredConfigItems;
-	my $downloadArchivesUrl;
-	my $configUser;
+	my $lcApplicationToCheck;
+	my $applicationToCheck;
 	my @parameterNull;
-	my $javaOptsValue;
-	my $serverXMLFile;
+	my @portTypes = ( "serverPort", "connectorPort" );
+	my $portType;
+	my @returnDetails;
+	my $port;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
-	$application         = $_[0];
-	$downloadArchivesUrl = $_[1];
-	$configUser =
-	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
-	@requiredConfigItems = @{ $_[3] };
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
-		$downloadArchivesUrl );
-	dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
-	dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
-		@requiredConfigItems );
-
+	$application   = $_[0];
+	$port          = $_[1];
 	$lcApplication = lc($application);
-	$varfile =
-	    escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
-	  . $lcApplication
-	  . "-install.varfile";
-	dumpSingleVarToLog( "$subname" . "_varfile", $varfile );
 
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info(
-"$subname: Some of the config parameters are invalid or null. Forcing generation"
-		);
-		print
-"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
-		generateApplicationConfig( $application, "UPDATE", $globalConfig );
-	}
-
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		$input = getBooleanInput(
-"Would you like to review the $application config before installing? Yes/No [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-				"$subname: User opted to update config prior to installation."
-			);
-			generateApplicationConfig( $application, "UPDATE", $globalConfig );
-		}
-	}
-
-	$serverPortAvailCode =
-	  isPortAvailable( $globalConfig->param( $lcApplication . ".serverPort" ) );
-
-	$connectorPortAvailCode = isPortAvailable(
-		$globalConfig->param( $lcApplication . ".connectorPort" ) );
-
-	if ( $serverPortAvailCode == 0 || $connectorPortAvailCode == 0 ) {
-		$log->info(
-"$subname: ServerPortAvailCode=$serverPortAvailCode, ConnectorPortAvailCode=$connectorPortAvailCode. Whichever one equals 0 
-is currently in use. Unfortunately with the Atlassian binary installers we cannot proceed as they will fail. 
-Therefore script is terminating, please ensure port configuration is correct and no services are actively using the ports."
-		);
-		$log->logdie(
-"One or more of the ports configured for $application are currently in use. Cannot continue installing. "
-			  . "Please ensure the ports configured are available and not in use.\n\n"
-		);
-	}
-
-	$input = getBooleanInput(
-		"Would you like to install the latest version? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info(
-			"$subname: User opted to install latest version of $application");
-		$mode = "LATEST";
-	}
-	else {
-		$log->info(
-			"$subname: User opted to install specific version of $application"
-		);
-		$mode = "SPECIFIC";
-	}
-
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
-
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
-			dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
-
-			#Check that the input version actually exists
-			print
-"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
-
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
-			$ua->show_progress(0);
-
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$VERSIONLOOP = 0;
-				$log->info(
-"$subname: User selected to install version $version of $application"
-				);
-				print "$application version $version found. Continuing...\n\n";
-			}
-			else {
-				$log->warn(
-"$subname: User selected to install version $version of $application. No such version exists, asking for input again."
-				);
-				print
-"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
+	foreach (@suiteApplications) {
+		$applicationToCheck   = $_;
+		$lcApplicationToCheck = lc($applicationToCheck);
+		if ( $application ne $applicationToCheck ) {
+			foreach (@portTypes) {
+				my $portType = $_;
+				@parameterNull =
+				  $globalConfig->param("$lcApplicationToCheck.$portType");
+				if ( $#parameterNull == -1 ) {
+					$log->info(
+"$subname: Port $port is not in use by $application. Continuing..."
+					);
+				}
+				else {
+					if ( $globalConfig->param("$lcApplicationToCheck.$portType")
+						eq "$port" )
+					{
+						$log->info(
+"$subname: Port $port is already defined for use by $lcApplication.$portType."
+						);
+						push( @returnDetails,
+							$applicationToCheck . " - " . $portType );
+					}
+				}
 			}
 		}
 	}
-
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		$log->info("$subname: Downloading latest version of $application");
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
-		$version = $downloadDetails[1];
-	}
-
-	#Download a specific version
-	else {
-		$log->info("$subname: Downloading version $version of $application");
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			$globalArch );
-	}
-
-	#chmod the file to be executable
-	$log->info("$subname: Making $downloadDetails[2] excecutable ");
-	chmod 0755, $downloadDetails[2]
-	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
-
-	#Generate the kickstart as we have all the information necessary
-	$log->info(
-		"$subname: Generating kickstart file for $application at $varfile");
-	generateGenericKickstart( $varfile, "INSTALL", $application );
-
-	if (
-		-d escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) )
-	{
-		$input = getBooleanInput(
-			"The current installation directory ("
-			  . escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-			  )
-			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-"$subname: Current install directory for $application exists, user has selected to back this up."
-			);
-			backupDirectoryAndChown(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				),
-				"root"
-			  )
-			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
-		}
-		else {
-			$log->logdie(
-"Cannot proceed installing $application if the directory already has an install, please remove this manually and try again.\n\n"
-			);
-		}
-	}
-
-	if ( -d escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) ) {
-		$input =
-		  getBooleanInput( "The current installation directory ("
-			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-			  . ") exists.\nIf you are sure there is not another version installed here would you like to move it to a backup? [yes]: "
-		  );
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-"$subname: Current data directory for $application exists, user has selected to back this up."
-			);
-			backupDirectoryAndChown(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.dataDir")
-				),
-				"root"
-			  )
-			  ; #we have to use root here as due to the way Atlassian Binaries do installs there is no way to know if user exists or not.
-		}
-		else {
-			$log->logdie(
-				"Cannot proceed installing $application if the data directory ("
-				  . escapeFilePath(
-					$globalConfig->param("$lcApplication.dataDir")
-				  )
-				  . ")already has data from a previous install, please remove this manually and try again.\n\n"
-			);
-		}
-	}
-
-	#install
-	$log->info(
-		"$subname: Running " . $downloadDetails[2] . " -q -varfile $varfile" );
-	system( $downloadDetails[2] . " -q -varfile $varfile" );
-
-	if ( $? == -1 ) {
-		$log->logdie(
-"$application install did not complete successfully. Please check the install logs and try again: $!\n"
-		);
-	}
-
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser = getUserCreatedByInstaller( $lcApplication . ".installDir",
-		$configUser, $globalConfig );
-	if ( $osUser eq "NOTFOUND" ) {
-
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
-			"",
-			'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
-	}
-	else {
-		$log->info("$subname: OS User created by installer is: $osUser");
-		$globalConfig->param( $lcApplication . ".osUser", $osUser );
-	}
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#Stop the application so we can apply additional configuration
-	print
-"Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-	sleep(60);
-	$log->info(
-"$subname: Stopping $application so that we can apply the additional configuration options."
-	);
-	if (
-		stopService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		) eq "FAIL"
-	  )
-	{
-		$log->warn(
-"$subname: Could not stop $application successfully. Please make sure you restart manually following the end of installation"
-		);
-		warn
-"Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
-	}
-
-	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-	if (   ( $#parameterNull == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq ""
-		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
-	{
-		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-	}
-	else {
-		$javaOptsValue = "CONFIGSPECIFIED";
-	}
-
-	#Apply the JavaOpts configuration (if any)
-	print "Applying Java_Opts configuration to install...\n\n";
-	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateJavaOpts(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
-		);
-	}
-
-	#Check if user wants to remove the downloaded installer
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded installer "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
-		$log->info("$subname: User opted to delete downloaded installer.");
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
-
-#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
-
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
-"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		$log->info(
-"$subname: Copying MySQL JDBC connector to $application install directory."
-		);
-		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-
-		#Chown the files again
-		$log->info(
-			"$subname: Chowning "
-			  . escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-			  )
-			  . "/lib/"
-			  . " to $osUser following MySQL JDBC install."
-		);
-		chownRecursive( $osUser,
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-
-	}
-
-	print "Applying configuration settings to the install, please wait...\n\n";
-
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		$osUser
-	);
-
-	print "Applying the configured application context...\n\n";
-	$log->info( "$subname: Applying application context to "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml" );
-
-	updateXMLAttribute(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig )
-	);
-
-	#Update the server config with reverse proxy configuration
-	$serverXMLFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/server.xml";
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverXMLFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
-		{
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("general.apacheProxyHost") );
-
-			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "ProxyPort",
-				$globalConfig->param("general.apacheProxyPort") );
-		}
-		else {
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("$lcApplication.apacheProxyHost") );
-
-			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
-				"TRUE" )
-			{
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
-				$globalConfig->param("$lcApplication.apacheProxyPort") );
-		}
-	}
-
-	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
-	$globalConfig->param( $lcApplication . ".installedVersion", $version );
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+	return @returnDetails;
 }
 
 ########################################
@@ -4699,236 +5263,12 @@ sub postInstallGeneric {
 		}
 	}
 
-	print
-"The $application install has completed. Please visit the web interface and follow the steps to complete the web install wizard. When you have completed this please press enter to continue...";
-	$input = <STDIN>;
-}
-
-########################################
-#PostInstallGenericAtlassianBinary     #
-########################################
-sub postInstallGenericAtlassianBinary {
-	my $application;
-	my $lcApplication;
-	my $input;
-	my $url;
-	my $subname = ( caller(0) )[3];
-
-	$application   = $_[0];
-	$lcApplication = lc($application);
-
-	print "Configuration settings have been applied successfully.\n\n";
-
-	$input = getBooleanInput(
-		"Do you wish to start the $application service? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to start application service.");
-		my $processReturnCode = startService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		);
-		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
-			warn
-"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-			print "\n\n";
-		}
-
-		if ( $processReturnCode eq "SUCCESS" ) {
-			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
-					"TRUE" )
-				{
-					if ( $globalConfig->param("general.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						    "https://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						    "http://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				else {
-					if (
-						$globalConfig->param("$lcApplication.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						  "https://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						  "http://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				print "\n"
-				  . "$application can now be accessed on $url" . ".\n\n";
-			}
-			else {
-				print "\n"
-				  . "$application can now be accessed on http://localhost:"
-				  . $globalConfig->param("$lcApplication.connectorPort")
-				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-				  . ".\n\n";
-			}
-		}
-		else {
-			print
-"\n The service could not be started correctly please ensure you do this manually.\n\n";
-		}
-	}
+	#refresh some details within the script
+	checkForAvailableUpdates();
+	generateAvailableUpdatesString();
 
 	print
 "The $application install has completed. Please visit the web interface and follow the steps to complete the web install wizard. When you have completed this please press enter to continue...";
-	$input = <STDIN>;
-}
-
-########################################
-#PostUpgradeGenericAtlassianBinary     #
-########################################
-sub postUpgradeGenericAtlassianBinary {
-	my $application;
-	my $lcApplication;
-	my $input;
-	my $url;
-	my $subname = ( caller(0) )[3];
-
-	$application   = $_[0];
-	$lcApplication = lc($application);
-
-	print "Configuration settings have been applied successfully.\n\n";
-
-	$input = getBooleanInput(
-		"Do you wish to start the $application service? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info("$subname: User opted to start application service.");
-		my $processReturnCode = startService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		);
-		if ( $processReturnCode eq "FAIL" | $processReturnCode eq "WARN" ) {
-			warn
-"Could not start $application successfully. Please make sure to do this manually as the service is currently stopped: $!\n\n";
-			print "\n\n";
-		}
-
-		if ( $processReturnCode eq "SUCCESS" ) {
-			if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-				if ( $globalConfig->param("general.apacheProxySingleDomain") eq
-					"TRUE" )
-				{
-					if ( $globalConfig->param("general.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						    "https://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						    "http://"
-						  . $globalConfig->param("general.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param("general.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				else {
-					if (
-						$globalConfig->param("$lcApplication.apacheProxySSL") eq
-						"TRUE" )
-					{
-						$url =
-						  "https://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-					else {
-						$url =
-						  "http://"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyHost")
-						  . ":"
-						  . $globalConfig->param(
-							"$lcApplication.apacheProxyPort")
-						  . getConfigItem( "$lcApplication.appContext",
-							$globalConfig );
-					}
-				}
-				print "\n"
-				  . "$application can now be accessed on $url" . ".\n\n";
-			}
-			else {
-				print "\n"
-				  . "$application can now be accessed on http://localhost:"
-				  . $globalConfig->param("$lcApplication.connectorPort")
-				  . getConfigItem( "$lcApplication.appContext", $globalConfig )
-				  . ".\n\n";
-			}
-		}
-		else {
-			print
-"\n The service could not be started correctly please ensure you do this manually.\n\n";
-		}
-	}
-
-	print
-"The $application upgrade has completed successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
 }
 
@@ -5049,9 +5389,68 @@ sub postUpgradeGeneric {
 		}
 	}
 
+	#refresh some details within the script
+	checkForAvailableUpdates();
+	generateAvailableUpdatesString();
+
 	print
 "The $application upgrade has completed successfully. Please press enter to return to the main menu.";
 	$input = <STDIN>;
+}
+
+########################################
+#readHashFromFile                      #
+########################################
+sub readHashFromFile {
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	#Code below - thanks go to Kyle on http://www.perlmonks.org/?node_id=704380
+
+	my ($fileName) = @_;
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_fileName", $fileName );
+
+	open my $fh, '<', $fileName
+	  or die "Can't read '$fileName': $!";
+	local $/ = undef;    # read whole file
+	my $dumped = <$fh>;
+	close $fh or log->logdie("Can't close '$fileName': $!\n\n");
+	return %{ eval $dumped };
+}
+
+########################################
+#RemoveDirector(ies)                   #
+#Takes an array of directories in      #
+########################################
+sub removeDirs {
+	my $directory;
+	my $escapedDirectory;
+	my $subname = ( caller(0) )[3];
+	my @directoryList;
+
+	$log->info("BEGIN: $subname");
+
+	@directoryList = @_;
+
+	foreach (@directoryList) {
+		$directory        = $_;
+		$escapedDirectory = escapeFilePath($directory);
+
+		#removeDirectories
+		$log->info( "$subname: Removing " . $escapedDirectory );
+		if ( -d $escapedDirectory ) {
+			rmtree( [$escapedDirectory] );
+		}
+		else {
+			$log->info( "$subname: Unable to remove "
+				  . $escapedDirectory
+				  . ". Directory does not exist." );
+		}
+	}
+
 }
 
 ########################################
@@ -5111,10 +5510,36 @@ sub restoreApplicationBackup {
 	my $application;
 	my $lcApplication;
 	my $input;
+	my $compressedInstallDirBackup;
+	my $compressedDataDirBackup;
+	my $installDirFolder;
+	my $dataDirFolder;
+	my $installDirPath;
+	my $dataDirPath;
+	my $installDirBackupLocation;
+	my $dataDirBackupLocation;
 
 	$log->info("BEGIN: $subname");
 	$application   = $_[0];
 	$lcApplication = lc($application);
+
+	#set up some parameters
+	$installDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirFolder =
+	  basename(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
+	$installDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
+	$dataDirPath =
+	  dirname(
+		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
+	$installDirBackupLocation =
+	  $globalConfig->param("$lcApplication.latestInstallDirBackupLocation");
+	$dataDirBackupLocation =
+	  $globalConfig->param("$lcApplication.latestDataDirBackupLocation");
 
 	print
 "You have selected to restore the previous backup for $application. Please be aware this will NOT restore your database and this MUST be done separately.\n";
@@ -5136,47 +5561,98 @@ sub restoreApplicationBackup {
 		  . "\""
 	);
 
-	if ( -d $globalConfig->param("$lcApplication.latestDataDirBackupLocation")
-		&& -d $globalConfig->param(
-			"$lcApplication.latestInstallDirBackupLocation") )
-	{
+	if ( $dataDirBackupLocation =~ /.*\.tar\.gz$/ ) {
+		$compressedDataDirBackup = "TRUE";
+		unless ( -e $dataDirBackupLocation ) {
+			$log->logdie(
+"The Data Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
+	}
+	else {
+		$compressedDataDirBackup = "FALSE";
+		unless ( -d $dataDirBackupLocation ) {
+			$log->logdie(
+"The Data Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
+	}
 
-		#Move broken install directories
-		moveDirectory( $globalConfig->param("$lcApplication.installDir"),
-			$globalConfig->param("$lcApplication.installDir")
-			  . "_prerestore_$date" );
-		moveDirectory( $globalConfig->param("$lcApplication.dataDir"),
-			$globalConfig->param("$lcApplication.dataDir")
-			  . "_prerestore_$date" );
-
-		#Copy back last backup
-		moveDirectory(
-			$globalConfig->param(
-				"$lcApplication.latestInstallDirBackupLocation"),
-			$globalConfig->param("$lcApplication.installDir")
-		);
-		moveDirectory(
-			$globalConfig->param("$lcApplication.latestDataDirBackupLocation"),
-			$globalConfig->param("$lcApplication.dataDir")
-		);
+	if ( $installDirBackupLocation =~ /.*\.tar\.gz$/ ) {
+		$compressedInstallDirBackup = "TRUE";
+		unless ( -e $installDirBackupLocation ) {
+			$log->logdie(
+"The Installation Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
 
 	}
 	else {
-		$log->logdie(
-"Either the Data Directory backup or Application Installation Directory backup do not exist. Unfortunately we are unable to proceed."
-		);
+		$compressedInstallDirBackup = "FALSE";
+		unless ( -d $installDirBackupLocation ) {
+			$log->logdie(
+"The Installation Directory backup does not exist. Unfortunately we are unable to proceed. The script will now terminate."
+			);
+		}
 	}
 
-	#Null out as the directory no longer exists
-	$globalConfig->param( "$lcApplication.latestInstallDirBackupLocation", "" );
+	#Move broken install directories
+	moveDirectory( $globalConfig->param("$lcApplication.installDir"),
+		$globalConfig->param("$lcApplication.installDir")
+		  . "_prerestore_$date" );
+	moveDirectory( $globalConfig->param("$lcApplication.dataDir"),
+		$globalConfig->param("$lcApplication.dataDir") . "_prerestore_$date" );
 
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
+	if ( $compressedDataDirBackup eq "TRUE" ) {
+
+		#Set up extract object
+		my $ae = Archive::Extract->new( archive => $dataDirBackupLocation );
+
+		print "Extracting $dataDirBackupLocation. Please wait...\n\n";
+		$log->info("$subname: Extracting $dataDirBackupLocation");
+
+		#Extract
+		$ae->extract( to => escapeFilePath($dataDirPath) );
+		if ( $ae->error ) {
+			$log->logdie(
+"Unable to extract $dataDirBackupLocation. The following error was encountered: $ae->error\n\n"
+			);
+		}
+	}
+	else {
+
+		#Copy back last backup
+		copyDirectory( $dataDirBackupLocation,
+			$globalConfig->param("$lcApplication.dataDir") );
+	}
+
+	if ( $compressedInstallDirBackup eq "TRUE" ) {
+
+		#Set up extract object
+		my $ae = Archive::Extract->new( archive => $installDirBackupLocation );
+
+		print "Extracting $installDirBackupLocation. Please wait...\n\n";
+		$log->info("$subname: Extracting $installDirBackupLocation");
+
+		#Extract
+		$ae->extract( to => escapeFilePath($installDirPath) );
+		if ( $ae->error ) {
+			$log->logdie(
+"Unable to extract $installDirBackupLocation. The following error was encountered: $ae->error\n\n"
+			);
+		}
+	}
+	else {
+
+		#Copy back last backup
+		copyDirectory( $installDirBackupLocation,
+			$globalConfig->param("$lcApplication.installDir") );
+	}
+
 	print
-"$application has now been restored successfully. Please restore your database and then start up the services manually.";
+"$application has now been restored successfully. Please restore your database and then start up the services manually.\n\n";
 	print
-"Please note that the backup has been MOVED back into place, not copied, so cannot be restored a second time. Please press enter to return to the menu...\n";
+"Please note that the backup has been copied back into place, therefore subsequent restores are still possible. Please press enter to return to the menu...\n";
 	$input = <STDIN>;
 }
 
@@ -5398,7 +5874,7 @@ sub stopService {
 			print "Attempting to stop the $application service.\n\n";
 			$log->info(
 				"$subname: Attempting to stop the $application service.");
-			system( "service " . $serviceName . " stop" );
+			system( "service " . $serviceName . " stop --disable-kill" );
 			print
 "Stop command completed successfully. Sleeping for 20 seconds before testing to ensure process has died.\n\n";
 			$log->info(
@@ -5579,6 +6055,140 @@ sub testOSArchitecture {
 }
 
 ########################################
+#updateCATALINAOPTS                    #
+########################################
+sub updateCatalinaOpts {
+	my $inputFile;    #Must Be Absolute Path
+	my $catalinaOpts;
+	my $searchFor;
+	my $baseReferenceLine;
+	my $referenceVariable;
+	my @data;
+	my $application;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	$application       = $_[0];
+	$inputFile         = $_[1];
+	$referenceVariable = $_[2];
+	$catalinaOpts      = $_[3];
+
+#As none of the applications setenv.sh files currently have CATALINA_OPTS we need to define
+#a line that will always exist for each application to insert CATALINA_OPTS after
+
+	if ( $application eq "Confluence" ) {
+		$baseReferenceLine = "JAVA_OPTS=";
+	}
+	elsif ( $application eq "JIRA" ) {
+		$baseReferenceLine = "JVM_REQUIRED_ARGS=";
+	}
+	elsif ( $application eq "Bamboo" ) {
+		$baseReferenceLine = "JVM_REQUIRED_ARGS=";
+	}
+	elsif ( $application eq "Crowd" ) {
+		$baseReferenceLine = "JAVA_OPTS=";
+	}
+	elsif ( $application eq "Stash" ) {
+		$baseReferenceLine = "JVM_REQUIRED_ARGS=";
+	}
+
+#If no catalinaOpts parameters defined we get an undefined variable. This accounts for that.
+	if ( !defined $catalinaOpts ) {
+		$catalinaOpts = "";
+	}
+
+	#LogInputParams if in Debugging Mode
+	dumpSingleVarToLog( "$subname" . "_inputFile",    $inputFile );
+	dumpSingleVarToLog( "$subname" . "_catalinaOpts", $catalinaOpts );
+
+	#Try to open the provided file
+	open( my $inputFileHandle, '<', $inputFile )
+	  or $log->logdie("Unable to open file: $inputFile");
+
+	# read file into an array
+	@data = <$inputFileHandle>;
+
+	close($inputFileHandle);
+
+	$searchFor = $referenceVariable;
+
+	#Search for the provided string in the file array
+	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+	if ( !defined($index1) ) {
+		$log->info("$subname: $searchFor not found. Adding it in.");
+		my ($index0) =
+		  grep { $data[$_] =~ /^$baseReferenceLine.*/ } 0 .. $#data;
+
+		splice( @data, $index0 + 1, 0,
+			    'CATALINA_OPTS="$CATALINA_OPTS $ATLASMGR_CATALINA_OPTS"'
+			  . "\nexport CATALINA_OPTS\n" );
+		($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+	}
+
+#See how many times ATLASMGR_CATALINA_OPTS occurs in file, this will be in the existing
+#CATALINA_OPTS parameter as a variable (if it exists).
+#If it doesn't exist this splits up the string so that we can insert it as a new variable
+	my $count = grep( /.*ATLASMGR_CATALINA_OPTS.*/, $data[$index1] );
+	if ( $count == 0 ) {
+		$log->info(
+"$subname: ATLASMGR_CATALINA_OPTS does not yet exist, splitting string to insert it."
+		);
+		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
+			my $result1 = $1;
+			my $result2 = $2;
+			my $result3 = $3;
+
+			if ( substr( $result2, -1, 1 ) eq " " ) {
+				$data[$index1] =
+				    $result1 . '"' 
+				  . $result2
+				  . '$ATLASMGR_CATALINA_OPTS "'
+				  . $result3 . "\n";
+			}
+			else {
+				$data[$index1] =
+				    $result1 . '"' 
+				  . $result2
+				  . ' $ATLASMGR_CATALINA_OPTS"'
+				  . $result3 . "\n";
+			}
+		}
+	}
+
+#Search for the definition of the variable ATLASMGR_CATALINA_OPTS which can be used to add
+#additional parameters to the main JAVA_OPTS variable
+	$searchFor = "ATLASMGR_CATALINA_OPTS=";
+	my ($index2) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
+
+#If no result is found insert a new line before the line found above which contains the CATALINA_OPTS variable
+	my ($index3) = grep { $data[$_] =~ /^$referenceVariable.*/ } 0 .. $#data;
+	if ( !defined($index2) ) {
+		$log->info(
+			"$subname: ATLASMGR_CATALINA_OPTS= not found. Adding it in.");
+
+		splice( @data, $index3, 0,
+			"ATLASMGR_CATALINA_OPTS=\"" . $catalinaOpts . "\"\n" );
+	}
+
+	#Else update the line to have the new parameters that have been specified
+	else {
+		$log->info(
+"$subname: ATLASMGR_CATALINA_OPTS= exists, adding new javaOpts parameters."
+		);
+		$data[$index2] = "ATLASMGR_CATALINA_OPTS=\"" . $catalinaOpts . "\"\n";
+	}
+
+	#Try to open file, output the lines that are in memory and close
+	open( my $outputFileHandle, '>', "$inputFile" )
+	  or $log->logdie("Unable to open file $inputFile $!");
+	print $outputFileHandle @data;
+	close $outputFileHandle;
+
+}
+
+########################################
 #updateEnvironmentVars                 #
 ########################################
 sub updateEnvironmentVars {
@@ -5601,13 +6211,13 @@ sub updateEnvironmentVars {
 	dumpSingleVarToLog( "$subname" . "_newValue",     $newValue );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for the definition of the provided variable
 	$searchFor = "$referenceVar=";
@@ -5629,10 +6239,10 @@ sub updateEnvironmentVars {
 	}
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -5662,13 +6272,13 @@ sub updateJavaMemParameter {
 	dumpSingleVarToLog( "$subname" . "_newValue", $newValue );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	$searchFor = $referenceVariable;
 
@@ -5741,10 +6351,10 @@ sub updateJavaMemParameter {
 		"$subname: Value updated, outputting new line to file $inputFile.");
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -5774,13 +6384,13 @@ sub updateJavaOpts {
 	dumpSingleVarToLog( "$subname" . "_javaOpts",  $javaOpts );
 
 	#Try to open the provided file
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	$searchFor = $referenceVariable;
 
@@ -5839,10 +6449,10 @@ sub updateJavaOpts {
 	}
 
 	#Try to open file, output the lines that are in memory and close
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file $inputFile $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 
 }
 
@@ -5949,7 +6559,6 @@ sub updateLineInBambooWrapperConf {
 	my $newValue;
 	my @data;
 	my $index1;
-	my $line;
 	my $newLine;
 	my $count   = 0;
 	my $subname = ( caller(0) )[3];
@@ -5967,13 +6576,13 @@ sub updateLineInBambooWrapperConf {
 	dumpSingleVarToLog( "$subname" . "_parameterReference",
 		$parameterReference );
 	dumpSingleVarToLog( "$subname" . "_newValue", $newValue );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	($index1) =
@@ -5983,9 +6592,9 @@ sub updateLineInBambooWrapperConf {
 "$subname: Line with $parameterReference not found. Going to add it."
 		);
 
-#Find the number of paramaters already existing to get the next number
+#Find the number of parameters already existing to get the next number
 #This is not ideal however I expect this will be deprecated soon when Bamboo moves off Jetty.
-		foreach $line (@data) {
+		foreach my $line (@data) {
 			if ( $line =~ /^$variableReference.*/ ) {
 				$count++;
 			}
@@ -6038,10 +6647,10 @@ sub updateLineInBambooWrapperConf {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -6068,13 +6677,13 @@ sub updateLineInFile {
 	dumpSingleVarToLog( "$subname" . "_lineReference",  $lineReference );
 	dumpSingleVarToLog( "$subname" . "_newLine",        $newLine );
 	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Search for reference line
 	my ($index1) =
@@ -6112,10 +6721,10 @@ sub updateLineInFile {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -6153,13 +6762,13 @@ sub updateSeraphConfig {
 	dumpSingleVarToLog( "$subname" . "_lineReference2", $lineReference2 );
 
 	$lcApplication = lc($application);
-	open( FILE, $inputFile )
+	open( my $inputFileHandle, '<', $inputFile )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
 
 	# read file into an array
-	@data = <FILE>;
+	@data = <$inputFileHandle>;
 
-	close(FILE);
+	close($inputFileHandle);
 
 	#Remove windows newlines to get around Bamboo config file funnies
 	s/\r\n/\n/g for (@data);
@@ -6228,10 +6837,10 @@ sub updateSeraphConfig {
 	}
 
 	#Write out the updated file
-	open FILE, ">$inputFile"
+	open( my $outputFileHandle, '>', "$inputFile" )
 	  or $log->logdie("Unable to open file: $inputFile: $!");
-	print FILE @data;
-	close FILE;
+	print $outputFileHandle @data;
+	close $outputFileHandle;
 }
 
 ########################################
@@ -6380,75 +6989,6 @@ sub uninstallGeneric {
 }
 
 ########################################
-#UninstallGenericAtlassianBinary       #
-########################################
-sub uninstallGenericAtlassianBinary {
-	my $application;
-	my $lcApplication;
-	my $input;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$application = $_[0];
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-
-	$lcApplication = lc($application);
-
-	print
-"This will uninstall $application using the Atlassian provided uninstall script.\n";
-	print
-"You have been warned, proceed only if you have backed up your installation as there is no turning back.\n\n";
-	$input = getBooleanInput("Do you really want to continue? yes/no [no]: ");
-	print "\n";
-	if ( $input eq "yes" ) {
-
-		system(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/uninstall -q" );
-		if ( $? == -1 ) {
-			$log->logdie(
-"$application uninstall did not complete successfully. Please check the logs and complete manually: $!\n"
-			);
-		}
-
-		#Check if you REALLY want to remove data directory
-		$input = getBooleanInput(
-"We will now remove the data directory ($application home directory). Are you REALLY REALLY REALLY (REALLY) sure you want to do this? (not recommended) yes/no [no]: \n"
-		);
-		print "\n";
-		if ( $input eq "yes" ) {
-			rmtree(
-				[
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.dataDir")
-					)
-				]
-			);
-		}
-		else {
-			print
-"The data directory has not been deleted and is still available at "
-			  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-			  . ".\n\n";
-		}
-
-		#Update config to reflect that no version is installed
-		$globalConfig->param( "$lcApplication.installedVersion", "" );
-		$globalConfig->param( "$lcApplication.enable",           "FALSE" );
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-
-		print
-"$application has been uninstalled successfully and the config file updated to reflect $application as disabled. Press enter to continue...\n\n";
-		$input = <STDIN>;
-	}
-}
-
-########################################
 #UpgradeGeneric                        #
 ########################################
 sub upgradeGeneric {
@@ -6458,7 +6998,6 @@ sub upgradeGeneric {
 	my $application;
 	my $lcApplication;
 	my @downloadDetails;
-	my @downloadVersionCheck;
 	my $downloadArchivesUrl;
 	my @requiredConfigItems;
 	my $archiveLocation;
@@ -6471,6 +7010,7 @@ sub upgradeGeneric {
 	my $connectorPortAvailCode;
 	my @tomcatParameterNull;
 	my @webappParameterNull;
+	my $removeDownloadedDataAnswer;
 	my $tomcatDir;
 	my $webappDir;
 	my $subname = ( caller(0) )[3];
@@ -6483,7 +7023,7 @@ sub upgradeGeneric {
 
 	$lcApplication = lc($application);
 
-#Iterate through required config items, if an are missing force an update of configuration
+#Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 		$log->info(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
@@ -6500,10 +7040,10 @@ sub upgradeGeneric {
 	else {
 
 		$input = getBooleanInput(
-"Would you like to review the $application config before upgrading? Yes/No [yes]: "
+"Would you like to review the $application config before upgrading? Yes/No [no]: "
 		);
 		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
+		if ( $input eq "yes" ) {
 			$log->info(
 				"$subname: User opted to update config prior to installation."
 			);
@@ -6552,12 +7092,6 @@ sub upgradeGeneric {
 		$webappDir = $globalConfig->param("$lcApplication.webappDir");
 
 	}
-
-	#Get the user the application will run as
-	$osUser = $globalConfig->param("$lcApplication.osUser");
-
-	#Check the user exists or create if not
-	createOSUser($osUser);
 
 	$input = getBooleanInput(
 		"Would you like to upgrade to the latest version? yes/no [yes]: ");
@@ -6617,14 +7151,13 @@ sub upgradeGeneric {
 	if ( $mode eq "LATEST" ) {
 		print
 "Checking to ensure the latest version is newer than the installed version. Please wait...\n\n";
-		@downloadVersionCheck =
-		  getLatestDownloadURL( $lcApplication, $globalArch );
 		my $versionSupported = compareTwoVersions(
 			$globalConfig->param("$lcApplication.installedVersion"),
-			$downloadVersionCheck[1] );
+			$latestVersions{"$application"}->{"version"}
+		);
 		if ( $versionSupported eq "GREATER" ) {
 			$log->logdie( "The version of $application to be downloaded ("
-				  . $downloadVersionCheck[1]
+				  . $latestVersions{"$application"}->{"version"}
 				  . ") is older than the currently installed version ("
 				  . $globalConfig->param("$lcApplication.installedVersion")
 				  . "). Downgrading is not supported and this script will now exit.\n\n"
@@ -6649,11 +7182,43 @@ sub upgradeGeneric {
 		}
 	}
 
+	#Get the user the application will run as
+	$osUser = $globalConfig->param("$lcApplication.osUser");
+
+	#Check the user exists or create if not
+	createOSUser( $osUser, $application );
+
+	#Check if user wants to remove the downloaded archive
+	$removeDownloadedDataAnswer = getBooleanInput(
+"Do you wish to delete the downloaded archive after the upgrade is complete? [no]: "
+	);
+	print "\n";
+
+	print
+"We now have enough information to complete the upgrade. As part of the upgrade this script will only backup your application and data directories.\n"
+	  . "It is imperative that you take a backup of your database in case the upgrade fails. You should do so now. If you attempt a rollback with this script, you must still MANUALLY\n"
+	  . "restore your database. This script DOES NOT BACKUP OR RESTORE YOUR DATABASE!!!\n\n";
+
+	print
+"When you are ready to proceed with the upgrade press enter (this will stop the existing $application services). If you wish to cancel the upgrade please type 'q' and press return. ";
+	$input = <STDIN>;
+	print "\n\n";
+
+	chomp($input);
+	if ( lc($input) eq "q" ) {
+
+		#Bail out and cancel the install.
+		print "Upgrade has been cancelled, this script will now terminate.\n\n";
+		$input = <STDIN>;
+		print "\n\n";
+		exit 0;
+	}
+
 	#Download the latest version
 	if ( $mode eq "LATEST" ) {
 		$log->info("$subname: Downloading latest version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
+		  downloadAtlassianInstaller( $mode, $application, "", $globalArch );
 		$version = $downloadDetails[1];
 	}
 
@@ -6661,16 +7226,12 @@ sub upgradeGeneric {
 	else {
 		$log->info("$subname: Downloading version $version of $application");
 		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
+		  downloadAtlassianInstaller( $mode, $application, $version,
 			$globalArch );
 	}
 
-	#Prompt user to stop existing service
+	#Stop the existing service
 	$log->info("$subname: Stopping existing $application service...");
-	print
-"We will now stop the existing $application service, please press enter to continue...";
-	$input = <STDIN>;
-	print "\n";
 	$processReturnCode = stopService(
 		$application,
 		"\""
@@ -6694,17 +7255,12 @@ sub upgradeGeneric {
 
 	#Extract the download and move into place
 	$log->info("$subname: Extracting $downloadDetails[2]...");
-	extractAndMoveDownload( $downloadDetails[2],
+	extractAndMoveFile( $downloadDetails[2],
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
 		$osUser, "UPGRADE" );
 
-	#Check if user wants to remove the downloaded archive
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded archive "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
+	#Remove the download if user opted to do so
+	if ( $removeDownloadedDataAnswer eq "yes" ) {
 		$log->info("$subname: User opted to delete downloaded installer.");
 		unlink $downloadDetails[2]
 		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
@@ -6811,618 +7367,6 @@ sub upgradeGeneric {
 }
 
 ########################################
-#UpgradeGenericAtlassianBinary         #
-########################################
-sub upgradeGenericAtlassianBinary {
-	my $input;
-	my $mode;
-	my $version;
-	my $application;
-	my @downloadDetails;
-	my @downloadVersionCheck;
-	my $archiveLocation;
-	my $osUser;
-	my $VERSIONLOOP = 1;
-	my @uidGid;
-	my @parameterNull;
-	my @parameterNull2;
-	my $javaOptsValue;
-	my $varfile;
-	my @requiredConfigItems;
-	my $downloadArchivesUrl;
-	my $configUser;
-	my $lcApplication;
-	my $serverXMLFile;
-	my $subname = ( caller(0) )[3];
-	my $processReturnCode;
-
-	$log->info("BEGIN: $subname");
-
-	$application         = $_[0];
-	$downloadArchivesUrl = $_[1];
-	$configUser =
-	  $_[2];   #Note this is the param name used in the bin/user.sh file we need
-	@requiredConfigItems = @{ $_[3] };
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-	dumpSingleVarToLog( "$subname" . "_downloadArchivesUrl",
-		$downloadArchivesUrl );
-	dumpSingleVarToLog( "$subname" . "_configUser", $configUser );
-	dumpSingleVarToLog( "$subname" . "_requiredConfigItems",
-		@requiredConfigItems );
-
-	$lcApplication = lc($application);
-	$varfile =
-	    escapeFilePath( $globalConfig->param("general.rootInstallDir") ) . "/"
-	  . $lcApplication
-	  . "-install.varfile";
-	dumpSingleVarToLog( "$subname" . "_varfile", $varfile );
-
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info(
-"$subname: Some of the config parameters are invalid or null. Forcing generation"
-		);
-		print
-"Some of the $application config parameters are incomplete. You must review the $application configuration before continuing: \n\n";
-		generateApplicationConfig( $application, "UPDATE", $globalConfig );
-	}
-
-	#Otherwise provide the option to update the configuration before proceeding
-	else {
-		$input = getBooleanInput(
-"Would you like to review the $application config before upgrading? Yes/No [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$log->info(
-				"$subname: User opted to update config prior to installation."
-			);
-			generateApplicationConfig( $application, "UPDATE", $globalConfig );
-		}
-	}
-
-	#Set up list of config items that are requred for this install to run
-	@requiredConfigItems = ("$lcApplication.installedVersion");
-
-#Iterate through required config items, if an are missing force an update of configuration
-	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->warn(
-"There is no current version of JIRA listed in the config file. Asking for input of current installed version."
-		);
-		genConfigItem(
-			"UPDATE",
-			$globalConfig,
-			"$lcApplication.installedVersion",
-"There is no version listed in the config file for the currently installed version of $application . Please enter the version of $application that is CURRENTLY installed.",
-			"",
-			"",
-			""
-		);
-		$log->info("Writing out config file to disk.");
-		$globalConfig->write($configFile);
-		loadSuiteConfig();
-	}
-
-	#Back up the Crowd configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Backing up Crowd configuration files.");
-		print "Backing up the Crowd configuration files...\n\n";
-		if ( $lcApplication eq "jira" ) {
-			if ( -e $globalConfig->param("$lcApplication.installDir")
-				. "/atlassian-jira/WEB-INF/classes/crowd.properties" )
-			{
-				copyFile(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
-					"$Bin/working/crowd.properties.$lcApplication"
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application, will not copy.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application, will not copy."
-				);
-			}
-
-		}
-		elsif ( $lcApplication eq "confluence" ) {
-			if ( -e $globalConfig->param("$lcApplication.installDir")
-				. "/confluence/WEB-INF/classes/crowd.properties" )
-			{
-				copyFile(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/crowd.properties",
-					"$Bin/working/crowd.properties.$lcApplication"
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application, will not copy.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application, will not copy."
-				);
-			}
-		}
-	}
-
-	#We are upgrading, get the latest version
-	$input = getBooleanInput(
-		"Would you like to upgrade to the latest version? yes/no [yes]: ");
-	print "\n";
-	if ( $input eq "default" || $input eq "yes" ) {
-		$log->info(
-			"$subname: User opted to install latest version of $application");
-		$mode = "LATEST";
-	}
-	else {
-		$log->info(
-			"$subname: User opted to install specific version of $application"
-		);
-		$mode = "SPECIFIC";
-	}
-
-	#If a specific version is selected, ask for the version number
-	if ( $mode eq "SPECIFIC" ) {
-		while ( $VERSIONLOOP == 1 ) {
-			print
-			  "Please enter the version number you would like. i.e. 4.2.2 []: ";
-
-			$version = <STDIN>;
-			print "\n";
-			chomp $version;
-			dumpSingleVarToLog( "$subname" . "_versionEntered", $version );
-
-			#Check that the input version actually exists
-			print
-"Please wait, checking that version $version of $application exists (may take a few moments)... \n\n";
-
-			#get the version specific URL to test
-			@downloadDetails =
-			  getVersionDownloadURL( $lcApplication, $globalArch, $version );
-			$ua->show_progress(0);
-
-			#Try to get the header of the version URL to ensure it exists
-			if ( head( $downloadDetails[0] ) ) {
-				$log->info(
-"$subname: User selected to install version $version of $application"
-				);
-				$VERSIONLOOP = 0;
-				print "$application version $version found. Continuing...\n\n";
-			}
-			else {
-				$log->warn(
-"$subname: User selected to install version $version of $application. No such version exists, asking for input again."
-				);
-				print
-"No such version of $application exists. Please visit $downloadArchivesUrl and pick a valid version number and try again.\n\n";
-			}
-		}
-	}
-
-	#Get the URL for the version we want to download
-	if ( $mode eq "LATEST" ) {
-		$log->info("$subname: Downloading latest version of $application");
-		@downloadVersionCheck =
-		  getLatestDownloadURL( $lcApplication, $globalArch );
-		my $versionSupported = compareTwoVersions(
-			$globalConfig->param("$lcApplication.installedVersion"),
-			$downloadVersionCheck[1] );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded ("
-				  . $downloadVersionCheck[1]
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("$lcApplication.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-	elsif ( $mode eq "SPECIFIC" && ( $enableEAPDownloads != 1 ) ) {
-		my $versionSupported = compareTwoVersions(
-			$globalConfig->param("$lcApplication.installedVersion"), $version );
-		if ( $versionSupported eq "GREATER" ) {
-			$log->logdie( "The version to be downloaded (" 
-				  . $version
-				  . ") is older than the currently installed version ("
-				  . $globalConfig->param("$lcApplication.installedVersion")
-				  . "). Downgrading is not supported and this script will now exit.\n\n"
-			);
-		}
-	}
-
-	#Download the latest version
-	if ( $mode eq "LATEST" ) {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, "", $globalArch );
-		$version = $downloadDetails[1];
-
-	}
-
-	#Download a specific version
-	else {
-		@downloadDetails =
-		  downloadAtlassianInstaller( $mode, $lcApplication, $version,
-			$globalArch );
-	}
-
-	#Prompt user to stop existing service
-	$log->info("$subname: Stopping existing $application service...");
-	print
-"We will now stop the existing $application service, please press enter to continue...";
-	$input = <STDIN>;
-	print "\n";
-	$processReturnCode = stopService(
-		$application,
-		"\""
-		  . $globalConfig->param( $lcApplication . ".processSearchParameter1" )
-		  . "\"",
-		"\""
-		  . $globalConfig->param( $lcApplication . ".processSearchParameter2" )
-		  . "\""
-	);
-
-	if ( $processReturnCode eq "FAIL" ) {
-		print
-"We were unable to stop the $application process therefore the upgrade cannot go ahead, please try stopping manually and trying again.\n\n";
-		$log->logdie(
-"$subname: We were unable to stop the process therefore the upgrade for $application cannot succeed."
-		);
-	}
-
-	#Backup the existing install
-	backupApplication($application);
-
-	#chmod the file to be executable
-	$log->info("$subname: Making $downloadDetails[2] excecutable ");
-	chmod 0755, $downloadDetails[2]
-	  or $log->logdie( "Couldn't chmod " . $downloadDetails[2] . ": $!" );
-
-	#Generate the kickstart as we have all the information necessary
-	$log->info(
-		"$subname: Generating kickstart file for $application at $varfile");
-	generateGenericKickstart( $varfile, "UPGRADE", $application );
-
-	#upgrade
-	$log->info(
-		"$subname: Running " . $downloadDetails[2] . " -q -varfile $varfile" );
-	system( $downloadDetails[2] . " -q -varfile $varfile" );
-	if ( $? == -1 ) {
-		$log->logdie(
-"$application upgrade did not complete successfully. Please check the install logs and try again: $!\n"
-		);
-	}
-
-	#getTheUserItWasInstalledAs - Write to config and reload
-	$osUser =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", $configUser,
-		$globalConfig );
-	if ( $osUser eq "NOTFOUND" ) {
-
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$globalConfig,
-			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application installed itself under.",
-			"",
-			'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
-	}
-	else {
-		$log->info("$subname: OS User created by installer is: $osUser");
-		$globalConfig->param( $lcApplication . ".osUser", $osUser );
-	}
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#Stop the application so we can apply additional configuration
-	$log->info(
-"$subname: Stopping $application so that we can apply the additional configuration options."
-	);
-	print
-"Stopping $application so that we can apply additional config. Sleeping for 60 seconds to ensure $application has completed initial startup. Please wait...\n\n";
-	sleep(60);
-	if (
-		my $processReturnCode = stopService(
-			$application,
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter1"
-			  )
-			  . "\"",
-			"\""
-			  . $globalConfig->param(
-				$lcApplication . ".processSearchParameter2"
-			  )
-			  . "\""
-		) eq "FAIL"
-	  )
-	{
-		$log->warn(
-"$subname: Could not stop $application successfully. Please make sure you restart manually following the end of installation"
-		);
-		warn
-"Could not stop $application successfully. Please make sure you restart manually following the end of installation: $!\n\n";
-	}
-
-	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
-	$globalConfig->param( "$lcApplication.installedVersion", $version );
-	$log->info("Writing out config file to disk.");
-	$globalConfig->write($configFile);
-	loadSuiteConfig();
-
-	#Check if user wants to remove the downloaded installer
-	$input =
-	  getBooleanInput( "Do you wish to delete the downloaded installer "
-		  . $downloadDetails[2]
-		  . "? [no]: " );
-	print "\n";
-	if ( $input eq "yes" ) {
-		$log->info("$subname: User opted to delete downloaded installer.");
-		unlink $downloadDetails[2]
-		  or warn "Could not delete " . $downloadDetails[2] . ": $!";
-	}
-
-	@parameterNull2 = $globalConfig->param("$lcApplication.javaParams");
-	if (   ( $#parameterNull2 == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq ""
-		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
-	{
-		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-	}
-	else {
-		$javaOptsValue = "CONFIGSPECIFIED";
-	}
-
-	#Apply the JavaOpts configuration (if any)
-	print "Applying Java_Opts configuration to install...\n\n";
-	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateJavaOpts(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
-		);
-	}
-
-	#Restore the Crowd configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Restoring Crowd configuration files.");
-		print "Restoring the Crowd configuration files...\n\n";
-		if ( $lcApplication eq "jira" ) {
-			if (
-				-e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-				)
-			  )
-			{
-				backupFile(
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-					),
-					$osUser
-				);
-			}
-			if (
-				-e escapeFilePath(
-					"$Bin/working/crowd.properties.$lcApplication") )
-			{
-				copyFile(
-					escapeFilePath(
-						"$Bin/working/crowd.properties.$lcApplication"),
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-					)
-				);
-
-				chownFile(
-					$osUser,
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
-					)
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
-				);
-			}
-		}
-		elsif ( $lcApplication eq "confluence" ) {
-			if (
-				-e escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/crowd.properties"
-				)
-			  )
-			{
-				backupFile(
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/confluence/WEB-INF/classes/crowd.properties"
-					),
-					$osUser
-				);
-			}
-			if (
-				-e escapeFilePath(
-					"$Bin/working/crowd.properties.$lcApplication") )
-			{
-				copyFile(
-					escapeFilePath(
-						"$Bin/working/crowd.properties.$lcApplication"),
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/confluence/WEB-INF/classes/crowd.properties"
-					)
-				);
-				chownFile(
-					$osUser,
-					escapeFilePath(
-						$globalConfig->param("$lcApplication.installDir")
-						  . "/confluence/WEB-INF/classes/crowd.properties"
-					)
-				);
-			}
-			else {
-				print
-"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
-				$log->info(
-"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
-				);
-			}
-		}
-	}
-
-	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
-		if ( $lcApplication eq "jira" ) {
-			backupFile(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
-				),
-				$osUser
-			);
-			updateSeraphConfig(
-				$application,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
-				),
-				"com.atlassian.jira.security.login.SSOSeraphAuthenticator",
-				"com.atlassian.jira.security.login.JiraSeraphAuthenticator"
-			);
-		}
-		elsif ( $lcApplication eq "confluence" ) {
-			backupFile(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/seraph-config.xml"
-				),
-				$osUser
-			);
-			updateSeraphConfig(
-				$application,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/confluence/WEB-INF/classes/seraph-config.xml"
-				),
-				"com.atlassian.confluence.user.ConfluenceCrowdSSOAuthenticator",
-				"com.atlassian.confluence.user.ConfluenceAuthenticator"
-			);
-		}
-	}
-
-#If MySQL is the Database, Atlassian apps do not come with the driver so copy it
-
-	if ( $globalConfig->param("general.targetDBType") eq "MySQL" ) {
-		print
-"Database is configured as MySQL, copying the JDBC connector to $application install.\n\n";
-		$log->info(
-"$subname: Copying MySQL JDBC connector to $application install directory."
-		);
-		copyFile( $globalConfig->param("general.dbJDBCJar"),
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-
-		#Chown the files again
-		$log->info(
-			"$subname: Chowning "
-			  . escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-			  )
-			  . "/lib/"
-		);
-		chownRecursive( $osUser,
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/lib/" );
-	}
-
-	print "Applying configuration settings to the install, please wait...\n\n";
-
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
-
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		$osUser
-	);
-
-	print "Applying the configured application context...\n\n";
-	$log->info( "$subname: Applying application context to "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml" );
-
-	#Update the server config with reverse proxy configuration
-	$serverXMLFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/server.xml";
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverXMLFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
-		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
-		{
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("general.apacheProxyHost") );
-
-			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
-				$globalConfig->param("general.apacheProxyPort") );
-		}
-		else {
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
-				$globalConfig->param("$lcApplication.apacheProxyHost") );
-
-			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
-				"TRUE" )
-			{
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"https" );
-			}
-			else {
-				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
-					"http" );
-			}
-			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
-				"false" );
-			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
-				$globalConfig->param("$lcApplication.apacheProxyPort") );
-		}
-	}
-
-	#Update the server config with the configured connector port
-	updateXMLAttribute(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/conf/server.xml",
-		"//////Context",
-		"path",
-		getConfigItem( "$lcApplication.appContext", $globalConfig )
-	);
-}
-
-########################################
 #WhichApplicationArchitecture          #
 ########################################
 sub whichApplicationArchitecture {
@@ -7454,7 +7398,11 @@ sub bootStrapper {
 	my @parameterNull;
 	my @proxyParameterNull;
 	my @requiredConfigItems;
+	my $applicationToCheck;
+	my $lcApplicationToCheck;
 	my $input;
+	my $configChange = "FALSE";
+	my $configResult;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -7498,13 +7446,13 @@ sub bootStrapper {
 		@requiredConfigItems = (
 			"general.rootDataDir",  "general.rootInstallDir",
 			"general.targetDBType", "general.force32Bit",
-			"general.apacheProxy"
+			"general.apacheProxy",  "general.compressBackups"
 		);
 		if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
 			$log->info(
 				"Some config items missing, kicking off config generation");
 			print
-"There are some global configuration items that are incomplete or missing. This may be due to new features or new config items.\n\nThe global config manager will now run to get all items, please press return/enter to begin.\n\n";
+"There are some global configuration items that are incomplete or missing. This is likely due to new features or new config items.\n\nThe global config manager will now run to get all items, please press return/enter to begin.\n\n";
 			$input = <STDIN>;
 			generateSuiteConfig();
 		}
@@ -7544,6 +7492,14 @@ sub bootStrapper {
 
 	#Set the architecture once on startup
 	$globalArch = whichApplicationArchitecture();
+
+	#Prepare some standard details before looking at command line parameters
+	getAllLatestDownloadURLs();
+	checkForAvailableUpdates();
+	generateAvailableUpdatesString();
+
+	#check for and apply any bugfixes since the last version
+	checkASMPatchLevel();
 
 	my $help                = '';    #commandOption
 	my $gen_config          = '';    #commandOption
@@ -7690,6 +7646,146 @@ sub bootStrapper {
 }
 
 ########################################
+#Display Advanced Menu                 #
+########################################
+sub displayAdvancedMenu {
+	my $choice;
+	my $main_menu;
+	my $menuOptions;
+	my $subname = ( caller(0) )[3];
+
+	$log->info("BEGIN: $subname");
+
+	my $LOOP = 1;
+	while ( $LOOP == 1 ) {
+
+		# define the main menu as a multiline string
+		$main_menu = generateMenuHeader( "FULL", "ASM Advanced Menu", "" );
+
+		$menuOptions = <<'END_TXT';
+      Please select from the following options:
+
+      1) Force refresh of latest Atlassian suite application versions cache file
+      2) Clear Confluence Plugin Cache
+      3) Clear JIRA Plugin Cache
+      4) Pre-download the latest versions of all suite products (immediately, no confirmation)
+      5) Command Line Parameters Overview
+      6) Force UID and GID on account creation
+      7) Additional advanced documentation
+      Q) Return to Main Menu
+
+END_TXT
+
+		# print the main menu
+		system 'clear';
+		print $main_menu . $menuOptions;
+
+		# prompt for user's choice
+		printf( "%s", "Please enter your selection: " );
+
+		# capture the choice
+		$choice = <STDIN>;
+		dumpSingleVarToLog( "$subname" . "_choiceEntered", $choice );
+
+		# and finally print it
+		#print "You entered: ",$choice;
+		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
+			system 'clear';
+			$LOOP = 0;
+		}
+		elsif ( lc($choice) eq "1\n" ) {
+			system 'clear';
+			print generateMenuHeader( "FULL",
+				"Refreshing application versions cache file. Please wait...",
+				"" );
+			if ( -e $latestVersionsCacheFile ) {
+				print "Deleting cache file...\n\n";
+				rmtree( [ escapeFilePath($latestVersionsCacheFile) ] );
+				print "Refreshing the cache...\n\n";
+				getAllLatestDownloadURLs();
+
+				print
+				  "Cache refresh completed. Please press enter to continue\n\n";
+				my $test = <STDIN>;
+
+			}
+			else {
+				print
+"No cache file currently exists - proceeding with refresh...\n\n";
+				getAllLatestDownloadURLs();
+				print
+				  "Cache refresh completed. Please press enter to continue\n\n";
+				my $test = <STDIN>;
+			}
+		}
+		elsif ( lc($choice) eq "2\n" ) {
+			system 'clear';
+			clearConfluencePluginCache();
+			print "Please press enter to return to the menu.\n\n";
+			my $test = <STDIN>;
+		}
+		elsif ( lc($choice) eq "3\n" ) {
+			system 'clear';
+			clearJIRAPluginCache();
+			print "Please press enter to return to the menu.\n\n";
+			my $test = <STDIN>;
+		}
+		elsif ( lc($choice) eq "4\n" ) {
+			system 'clear';
+			downloadLatestAtlassianSuite($globalArch);
+		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			print generateMenuHeader( "FULL", "ASM Command Line Parameters",
+				"" );
+			print
+"The following command line parameters are currently available for use in ASM:\n";
+			print "1. Enable EAP Downloads:\n";
+			print "   Command Line Parameter: '--enable-eap'\n";
+			print
+"   Description: can be used by app developers to skip version checks and allow installation 
+                of EAP versions of Atlassian products. Please note, you can only install or upgrade to these 
+                once, following that you will need to uninstall the application and 
+                re-install. Atlassian does not support upgrades of EAP versions and ASM 
+                follows this logic. You can attempt this but it is likely to break.\n"
+			  ;
+
+			print "\n";
+			print "To return to the menu please press enter...";
+			my $test = <STDIN>;
+		}
+		elsif ( lc($choice) eq "6\n" ) {
+			system 'clear';
+			print generateMenuHeader( "FULL",
+				"Forcing UID/GIDs on Account Creation", "" );
+			print
+"If you would like to force specific UID/GIDs for new account creations please see the documentation at:\n";
+			print
+"http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Force+UID+and+GID+on+account+creation:\n";
+
+			print "\n";
+			print "To return to the menu please press enter...";
+			my $test = <STDIN>;
+
+		}
+		elsif ( lc($choice) eq "7\n" ) {
+			system 'clear';
+			print generateMenuHeader( "FULL",
+				"Additional Advanced Documentation", "" );
+			print
+"There are additional advanced functions and features documented on the main wiki. Please see the documentation at:\n";
+			print
+"http://technicalnotebook.com/wiki/display/ATLASSIANMGR/Advanced+ASM+Usage:\n";
+
+			print "\n";
+			print "To return to the menu please press enter...";
+			my $test = <STDIN>;
+
+		}
+	}
+}
+
+########################################
 #Display Inital Config Menu            #
 ########################################
 sub displayInitialConfigMenu {
@@ -7703,20 +7799,8 @@ sub displayInitialConfigMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
-
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      ************************
-      * Initial Config Menu  *
-      ************************
-      
+		$menuText = generateMenuHeader( "MINI", "Initial Config Menu", "" );
+		$menuText .= <<'END_TXT';
       No configuration file has been found. Please select from the following options:
 
       1) Existing install: Gather configuration (one or more products already installed)
@@ -7741,7 +7825,6 @@ END_TXT
 		if ( $choice eq "Q\n" || $choice eq "q\n" ) {
 			system 'clear';
 			$LOOP = 0;
-			exit 0;
 		}
 		elsif ( lc($choice) eq "1\n" ) {
 			system 'clear';
@@ -7851,34 +7934,10 @@ sub displayInstallMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
+		$menuText = generateMenuHeader( "FULL", "ASM Install Menu", "" );
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      *********************
-      * ASM Install Menu  *
-      *********************
-      
-      Please select from the following options:
-
-END_TXT
-
+		$menuText =
+		  $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Install Bamboo $bambooAdditionalText\n";
 		$menuText =
@@ -8028,35 +8087,27 @@ sub displayMainMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$main_menu = <<'END_TXT';
+		$main_menu = generateMenuHeader( "FULL", "ASM Main Menu", "" );
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      ******************
-      * ASM Main Menu  *
-      ******************
-      
+		$main_menu .= <<'END_TXT';
       Please select from the following options:
 
       1) Install a new application
-      2) Upgrade an existing application
+END_TXT
+
+		if (%appsWithUpdates) {
+
+			#if there are values in the hash list that updates are available
+			$main_menu .=
+"      2) Upgrade an existing application - *** New versions available ***\n";
+		}
+		else {
+			$main_menu .= "      2) Upgrade an existing application\n";
+		}
+		$main_menu .= <<'END_TXT';
       3) Uninstall an application
       4) Recover backup after failed upgrade
+      5) Display advanced settings menu 
       U) Display URLs for each installed application (inc. ports)
       G) Generate Suite Config
       Q) Quit
@@ -8097,6 +8148,10 @@ END_TXT
 			system 'clear';
 			displayRestoreMenu();
 		}
+		elsif ( lc($choice) eq "5\n" ) {
+			system 'clear';
+			displayAdvancedMenu();
+		}
 		elsif ( lc($choice) eq "u\n" ) {
 			system 'clear';
 			displayQuickConfig();
@@ -8105,14 +8160,8 @@ END_TXT
 			system 'clear';
 			generateSuiteConfig();
 		}
-		elsif ( lc($choice) eq "d\n" ) {
-			system 'clear';
-			downloadLatestAtlassianSuite($globalArch);
-		}
 		elsif ( lc($choice) eq "t\n" ) {
 			system 'clear';
-
-			print $logFile;
 			my $test = <STDIN>;
 		}
 	}
@@ -8221,32 +8270,11 @@ sub displayRestoreMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
+		$menuText =
+		  generateMenuHeader( "FULL", "ASM Restore Failed Upgrades Menu", "" );
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      *************************************
-      * ASM Restore Failed Upgrades Menu  *
-      *************************************
-      
-END_TXT
-
+		$menuText =
+		  $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Restore Bamboo $bambooAdditionalText\n";
 		$menuText =
@@ -8458,34 +8486,10 @@ sub displayUninstallMenu {
 	while ( $LOOP == 1 ) {
 
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
+		$menuText = generateMenuHeader( "FULL", "ASM Uninstall Menu", "" );
 
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      ***********************
-      * ASM Uninstall Menu  *
-      ***********************
-      
-      Please select from the following options:
-
-END_TXT
-
+		$menuText =
+		  $menuText . "      Please select from the following options:\n\n";
 		$menuText =
 		  $menuText . "      1) Uninstall Bamboo $bambooAdditionalText\n";
 		$menuText = $menuText
@@ -8646,102 +8650,122 @@ sub displayUpgradeMenu {
 
 	$log->info("BEGIN: $subname");
 
-	#Set up suite current install status
-	@parameterNull = $globalConfig->param("bamboo.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("bamboo.installedVersion") eq "" )
-	{
-		$isBambooInstalled    = "FALSE";
-		$bambooAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isBambooInstalled = "TRUE";
-	}
-
-	@parameterNull = $globalConfig->param("confluence.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("confluence.installedVersion") eq "" )
-	{
-		$isConfluenceInstalled    = "FALSE";
-		$confluenceAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isConfluenceInstalled = "TRUE";
-	}
-
-	@parameterNull = $globalConfig->param("crowd.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("crowd.installedVersion") eq "" )
-	{
-		$isCrowdInstalled    = "FALSE";
-		$crowdAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isCrowdInstalled = "TRUE";
-	}
-
-	@parameterNull = $globalConfig->param("fisheye.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("fisheye.installedVersion") eq "" )
-	{
-		$isFisheyeInstalled    = "FALSE";
-		$fisheyeAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isFisheyeInstalled = "TRUE";
-	}
-
-	@parameterNull = $globalConfig->param("jira.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("jira.installedVersion") eq "" )
-	{
-		$isJiraInstalled    = "FALSE";
-		$jiraAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isJiraInstalled = "TRUE";
-	}
-
-	@parameterNull = $globalConfig->param("stash.installedVersion");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("stash.installedVersion") eq "" )
-	{
-		$isStashInstalled    = "FALSE";
-		$stashAdditionalText = " (Disabled - Not Currently Installed)";
-	}
-	else {
-		$isStashInstalled = "TRUE";
-	}
-
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
 
+		checkForAvailableUpdates();
+
+		#Set up suite current install status
+		@parameterNull = $globalConfig->param("bamboo.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("bamboo.installedVersion") eq "" )
+		{
+			$isBambooInstalled    = "FALSE";
+			$bambooAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isBambooInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Bamboo"} ) {
+				$bambooAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Bamboo"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Bamboo"}->{availableVersion};
+			}
+		}
+
+		@parameterNull = $globalConfig->param("confluence.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("confluence.installedVersion") eq "" )
+		{
+			$isConfluenceInstalled    = "FALSE";
+			$confluenceAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isConfluenceInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Confluence"} ) {
+				$confluenceAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Confluence"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Confluence"}->{availableVersion};
+			}
+		}
+
+		@parameterNull = $globalConfig->param("crowd.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("crowd.installedVersion") eq "" )
+		{
+			$isCrowdInstalled    = "FALSE";
+			$crowdAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isCrowdInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Crowd"} ) {
+				$crowdAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Crowd"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Crowd"}->{availableVersion};
+			}
+		}
+
+		@parameterNull = $globalConfig->param("fisheye.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("fisheye.installedVersion") eq "" )
+		{
+			$isFisheyeInstalled    = "FALSE";
+			$fisheyeAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isFisheyeInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Fisheye"} ) {
+				$fisheyeAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Fisheye"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Fisheye"}->{availableVersion};
+			}
+		}
+
+		@parameterNull = $globalConfig->param("jira.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("jira.installedVersion") eq "" )
+		{
+			$isJiraInstalled    = "FALSE";
+			$jiraAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isJiraInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"JIRA"} ) {
+				$jiraAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"JIRA"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"JIRA"}->{availableVersion};
+			}
+		}
+
+		@parameterNull = $globalConfig->param("stash.installedVersion");
+		if ( ( $#parameterNull == -1 )
+			|| $globalConfig->param("stash.installedVersion") eq "" )
+		{
+			$isStashInstalled    = "FALSE";
+			$stashAdditionalText = " (Disabled - Not Currently Installed)";
+		}
+		else {
+			$isStashInstalled = "TRUE";
+			if ( exists $appsWithUpdates{"Stash"} ) {
+				$stashAdditionalText =
+				    ": installed "
+				  . $appsWithUpdates{"Stash"}->{installedVersion}
+				  . " --> available "
+				  . $appsWithUpdates{"Stash"}->{availableVersion};
+			}
+		}
+
 		# define the main menu as a multiline string
-		$menuText = <<'END_TXT';
-
-      Welcome to the ASM Script for Atlassian(R)
-
-      Copyright (C) 2012-2013  Stuart Ryan
-      
-      ###########################################################################################
-      I would like to thank Atlassian for providing me with complimentary OpenSource licenses to
-      CROWD, JIRA, Fisheye, Confluence, Greenhopper and Team Calendars for Confluence
-    
-      I would also like to say a massive thank you to Turnkey Internet (www.turnkeyinternet.net)
-      for sponsoring me with significantly discounted hosting without which I would not have been
-      able to write, and continue hosting the Atlassian Suite for my open source projects and
-      this script.
-      ###########################################################################################
-      
-      This program comes with ABSOLUTELY NO WARRANTY;
-      This is free software, and you are welcome to redistribute it
-      under certain conditions; read the COPYING file included for details.
-
-      *********************
-      * ASM Upgrade Menu  *
-      *********************
-      
-END_TXT
+		$menuText = generateMenuHeader( "FULL", "ASM Upgrade Menu", "" );
 
 		$menuText =
 		  $menuText . "      1) Upgrade Bamboo $bambooAdditionalText\n";
@@ -8795,9 +8819,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeConfluence();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "3\n" ) {
@@ -8809,9 +8839,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeCrowd();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "4\n" ) {
@@ -8823,9 +8859,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeFisheye();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "5\n" ) {
@@ -8837,9 +8879,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeJira();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "6\n" ) {
@@ -8851,9 +8899,15 @@ END_TXT
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeStash();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 	}
@@ -8878,6 +8932,10 @@ sub getExistingBambooConfig {
 	my $lcApplication = lc($application);
 	my $subname       = ( caller(0) )[3];
 	my $serverConfigFile;
+	my $serverJettyConfigFile;
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $javaMemParameterFile;
 	my $input;
 	my @parameterNull;
 	my $externalCrowdInstance;
@@ -8937,7 +8995,17 @@ sub getExistingBambooConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -8952,7 +9020,7 @@ sub getExistingBambooConfig {
 			"bamboo.apacheProxyHost",
 "Please enter the base URL Bamboo currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -8970,9 +9038,26 @@ sub getExistingBambooConfig {
 		);
 	}
 
-	$serverConfigFile =
-	  escapeFilePath( $cfg->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.serverPort",
+"Please enter the SERVER port Bamboo will run on (note this is the control port not the port you access in a browser).",
+		"8007",
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+	);
+
+	checkConfiguredPort( $application, "bamboo.serverPort", $cfg );
+
+	#Set up some defaults for Bamboo
+	$cfg->param( "bamboo.tomcatDir", "" )
+	  ;    #we leave these blank deliberately due to the way Bamboo works
+	$cfg->param( "bamboo.webappDir", "" )
+	  ;    #we leave these blank deliberately due to the way Bamboo works
+	$cfg->param( "bamboo.processSearchParameter1", "java" );
+	$cfg->param( "bamboo.processSearchParameter2",
+		$cfg->param("bamboo.installDir") );
 
 	genBooleanConfigItem(
 		$mode,
@@ -9013,214 +9098,577 @@ sub getExistingBambooConfig {
 		$cfg->param( "bamboo.crowdSSO",         "FALSE" );
 	}
 
-	print
+	if (
+		compareTwoVersions( $cfg->param("$lcApplication.installedVersion"),
+			"5.1.0" ) ne "GREATER"
+	  )
+	{
+		$serverConfigFile =
+		  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
+
+		$serverJettyConfigFile =
+		  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+		  . "/webapp/WEB-INF/classes/jetty.xml";
+
+		print
 "Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
-	$log->info(
+		$log->info(
 "$subname: Attempting to get $application data directory from config file $serverConfigFile."
-	);
+		);
 
-	#get data/home directory
-	$returnValue = getLineFromFile(
-		escapeFilePath( $cfg->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		"bamboo.home=", ".*=(.*)"
-	);
+		#get data/home directory
+		$returnValue = getLineFromFile(
+			escapeFilePath( $cfg->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			"bamboo.home=", ".*=(.*)"
+		);
 
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
 "$subname: Unable to locate $application data directory. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.dataDir",
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.dataDir",
 "Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
-			  . "'s data is *currently* stored in.",
-			"",
-			'(?!^.*/$)^(/.*)',
+				  . "'s data is *currently* stored in.",
+				"",
+				'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
-			  . "leading '/' and NO trailing '/'.\n\n"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.dataDir", $returnValue );
-		print
+				  . "leading '/' and NO trailing '/'.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.dataDir", $returnValue );
+			print
 "$application data directory has been found successfully and added to the config file...\n\n";
-		$log->info(
-			"$subname: $application data directory found and added to config."
-		);
-	}
+			$log->info(
+"$subname: $application data directory found and added to config."
+			);
+		}
 
-	#getContextFromFile
-	$returnValue = "";
+		#getContextFromFile
+		$returnValue = "";
 
-	print
+		print
 "Please wait, attempting to get the $application context from it's config files...\n\n";
-	$log->info(
+		$log->info(
 "$subname: Attempting to get $application context from config file $serverConfigFile."
-	);
-	$returnValue =
-	  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.4=",
-		".*=(.*)" );
+		);
+		$returnValue =
+		  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.4=",
+			".*=(.*)" );
 
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
 "$subname: Unable to locate $application context. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.appContext",
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.appContext",
 "Unable to find the context in the expected location in the $application config. Please enter the context that $application *currently* runs under (i.e. /bamboo). Write NULL to blank out the context.",
-			"/bamboo",
-			'(?!^.*/$)^(/.*)',
+				"/bamboo",
+				'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
-			  . "leading '/' and NO trailing '/'.\n\n"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.appContext", $returnValue );
-		print
+				  . "leading '/' and NO trailing '/'.\n\n"
+			);
+		}
+		else {
+			if ( $returnValue eq "" ) {
+				$returnValue = "NULL";
+			}
+			$cfg->param( "$lcApplication.appContext", $returnValue );
+			print
 "$application context has been found successfully and added to the config file...\n\n";
-		$log->info("$subname: $application context found and added to config.");
-	}
+			$log->info(
+				"$subname: $application context found and added to config.");
+		}
 
-	$returnValue = "";
+		$returnValue = "";
 
-	print
+		print
 "Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
-	$log->info(
+		$log->info(
 "$subname: Attempting to get $application connectorPort from config file $serverConfigFile."
-	);
+		);
 
-	#Get connector port from file
-	$returnValue =
-	  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.2",
-		".*=(.*)" );
+		#Get connector port from file
+		$returnValue =
+		  getLineFromFile( $serverConfigFile, "wrapper.app.parameter.2",
+			".*=(.*)" );
 
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
 "$subname: Unable to locate $application connectorPort. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.connectorPort",
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.connectorPort",
 "Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you access in the browser OR proxy to with another web server).",
-			"8085",
-			'^([0-9]*)$',
+				"8085",
+				'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.connectorPort", $returnValue );
-		print
-"$application connectorPort has been found successfully and added to the config file...\n\n";
-		$log->info(
-			"$subname: $application connectorPort found and added to config.");
-	}
+			);
 
-	$returnValue = "";
+			$returnValue = "";
 
-	print
+			print
 "Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
-	$log->info(
+			$log->info(
 "$subname: Attempting to get $application Xms java memory parameter from config file $serverConfigFile."
-	);
-	$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
-		"wrapper.java.additional.", "-Xms" );
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
+			);
+			$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
+				"wrapper.java.additional.", "-Xms" );
+			if ( $returnValue eq "NOTFOUND" ) {
+				$log->info(
 "$subname: Unable to locate $application Xms memory parameter. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.javaMinMemory",
+				);
+				genConfigItem(
+					$mode,
+					$cfg,
+					"$lcApplication.javaMinMemory",
 "Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory *currently* assigned to $application.",
-			"256m",
-			'^([0-9]*m)$',
+					"256m",
+					'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
-		print
+				);
+			}
+			else {
+				$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+				print
 "$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
-		$log->info(
+				$log->info(
 "$subname: $application Xms java memory parameter found and added to config."
-		);
-	}
+				);
+			}
+		}
+		else {
+			$cfg->param( "$lcApplication.connectorPort", $returnValue );
+			print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application connectorPort found and added to config."
+			);
+		}
 
-	$returnValue = "";
+		$returnValue = "";
 
-	print
+		print
 "Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
-	$log->info(
+		$log->info(
 "$subname: Attempting to get $application Xmx java memory parameter from config file $serverConfigFile."
-	);
-	$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
-		"wrapper.java.additional.", "-Xmx" );
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
+		);
+		$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
+			"wrapper.java.additional.", "-Xmx" );
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
 "$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.javaMaxMemory",
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.javaMaxMemory",
 "Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
-			"512m",
-			'^([0-9]*m)$',
+				"512m",
+				'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
-		print
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+			print
 "$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
-		$log->info(
+			$log->info(
 "$subname: $application Xmx java memory parameter found and added to config."
-		);
-	}
+			);
+		}
 
-	$returnValue = "";
+		$returnValue = "";
 
-	print
+		print
 "Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
-	$log->info(
-"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
-	);
-	$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
-		"wrapper.java.additional.", "-XX:MaxPermSize=" );
-	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $serverConfigFile."
+		);
+		$returnValue = getLineFromBambooWrapperConf( $serverConfigFile,
+			"wrapper.java.additional.", "-XX:MaxPermSize=" );
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
 "$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.javaMaxPermSize",
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.javaMaxPermSize",
 "Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
-			"256m",
-			'^([0-9]*m)$',
+				"256m",
+				'^([0-9]*m)$',
 "The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
-		);
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+			print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+			);
+		}
+
 	}
 	else {
-		$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+
+		#Do Install for Bamboo Version 5.1.0 or newer
+		$serverXMLFile =
+		  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+		  . "/conf/server.xml";
+		$initPropertiesFile =
+		    escapeFilePath( $cfg->param("$lcApplication.installDir") )
+		  . $cfg->param("$lcApplication.webappDir")
+		  . "/WEB-INF/classes/$lcApplication-init.properties";
+		$javaMemParameterFile =
+		  escapeFilePath( $cfg->param("$lcApplication.installDir") )
+		  . "/bin/setenv.sh";
+
 		print
-"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+"Please wait, attempting to get the $application data/home directory from it's config files...\n\n";
 		$log->info(
-"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+"$subname: Attempting to get $application data directory from config file."
 		);
+
+		#get data/home directory
+		$returnValue = getLineFromFile(
+			escapeFilePath( $cfg->param("$lcApplication.installDir") )
+			  . "/atlassian-bamboo/WEB-INF/classes/bamboo-init.properties",
+			"bamboo.home=", ".*=(.*)"
+		);
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application data directory. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.dataDir",
+"Unable to find the data directory in the expected location in the $application config. Please enter the directory $application"
+				  . "'s data is *currently* stored in.",
+				"",
+				'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
+				  . "leading '/' and NO trailing '/'.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.dataDir", $returnValue );
+			print
+"$application data directory has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application data directory found and added to config."
+			);
+		}
+
+		#getContextFromFile
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the $application context from it's config files...\n\n";
+		$log->info(
+			"$subname: Attempting to get $application context from config file."
+		);
+		$returnValue =
+		  getXMLAttribute( $serverXMLFile, "//////Context", "path" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application context. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.appContext",
+"Unable to find the context in the expected location in the $application config. Please enter the context that $application *currently* runs under (i.e. /bamboo). Write NULL to blank out the context.",
+				"/bamboo",
+				'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+				  . "leading '/' and NO trailing '/'.\n\n"
+			);
+		}
+		else {
+			if ( $returnValue eq "" ) {
+				$returnValue = "NULL";
+			}
+			$cfg->param( "$lcApplication.appContext", $returnValue );
+			print
+"$application context has been found successfully and added to the config file...\n\n";
+			$log->info(
+				"$subname: $application context found and added to config.");
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the $application connectorPort from it's config files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application connectorPort from config file $serverXMLFile."
+		);
+
+		#Get connector port from file
+		$returnValue =
+		  getXMLAttribute( $serverXMLFile, "///Connector", "port" );
+
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application connectorPort. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.connectorPort",
+"Unable to find the connector port in the expected location in the $application config. Please enter the Connector port $application *currently* runs on (note this is the port you access in the browser OR proxy to with another web server).",
+				"8085",
+				'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.connectorPort", $returnValue );
+			print
+"$application connectorPort has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application connectorPort found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the $application Xms java memory parameter from it's config files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application Xms java memory parameter from config file $javaMemParameterFile."
+		);
+		$returnValue =
+		  getLineFromFile( $javaMemParameterFile, "JVM_MINIMUM_MEMORY",
+			".*\\s?=\\s?(.*)" );
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application Xms memory parameter. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.javaMinMemory",
+"Unable to find the java Xms memory parameter in the expected location in the $application config. Please enter the minimum amount of memory *currently* assigned to $application.",
+				"256m",
+				'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.javaMinMemory", $returnValue );
+			print
+"$application Xms java memory parameter has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application Xms java memory parameter found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the $application Xmx java memory parameter from it's config files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application Xmx java memory parameter from config file $javaMemParameterFile."
+		);
+		$returnValue =
+		  getLineFromFile( $javaMemParameterFile, "JVM_MAXIMUM_MEMORY",
+			".*\\s?=\\s?(.*)" );
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application Xmx memory parameter. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.javaMaxMemory",
+"Unable to find the java Xmx memory parameter in the expected location in the $application config. Please enter the maximum amount of memory *currently* assigned to $application.",
+				"512m",
+				'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.javaMaxMemory", $returnValue );
+			print
+"$application Xmx java memory parameter has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application Xmx java memory parameter found and added to config."
+			);
+		}
+
+		$returnValue = "";
+
+		print
+"Please wait, attempting to get the $application XX:MaxPermSize java memory parameter from it's config files...\n\n";
+		$log->info(
+"$subname: Attempting to get $application XX:MaxPermSize java memory parameter from config file $javaMemParameterFile."
+		);
+		$returnValue =
+		  getLineFromFile( $javaMemParameterFile, "BAMBOO_MAX_PERM_SIZE",
+			".*\\s?=\\s?(.*)" );
+		if ( $returnValue eq "NOTFOUND" ) {
+			$log->info(
+"$subname: Unable to locate $application XX:MaxPermSize memory parameter. Asking user for input."
+			);
+			genConfigItem(
+				$mode,
+				$cfg,
+				"$lcApplication.javaMaxPermSize",
+"Unable to find the java XX:MaxPermSize memory parameter in the expected location in the $application config. Please enter the maximum amount of permGen memory *currently* assigned to $application.",
+				"256m",
+				'^([0-9]*m)$',
+"The memory value you entered is in an invalid format. Please ensure you use the format '1234m'. (i.e. '256m')"
+			);
+		}
+		else {
+			$cfg->param( "$lcApplication.javaMaxPermSize", $returnValue );
+			print
+"$application XX:MaxPermSize java memory parameter has been found successfully and added to the config file...\n\n";
+			$log->info(
+"$subname: $application XX:MaxPermSize java memory parameter found and added to config."
+			);
+		}
+
+		if (   $cfg->param("general.apacheProxy") eq "TRUE"
+			&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
+		{
+			$returnValue = "";
+
+			print
+"Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
+			$log->info(
+"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+			);
+			$returnValue =
+			  getXMLAttribute( $serverConfigFile, "///Connector", "proxyName" );
+
+			if ( $returnValue eq "NOTFOUND" ) {
+				$log->info(
+"$subname: Unable to locate $application proxyName. Asking user for input."
+				);
+				genConfigItem(
+					$mode,
+					$cfg,
+					"$lcApplication.apacheProxyHost",
+"Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
+					"",
+					$hostnameRegex,
+"The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
+				);
+			}
+			else {
+				$cfg->param( "$lcApplication.apacheProxyHost", $returnValue );
+				print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+				$log->info(
+"$subname: $application base hostname found and added to config."
+				);
+			}
+
+			$returnValue = "";
+
+			print
+"Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
+			$log->info(
+"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+			);
+			$returnValue =
+			  getXMLAttribute( $serverConfigFile, "///Connector", "scheme" );
+
+			if ( $returnValue eq "NOTFOUND" ) {
+				$log->info(
+"$subname: Unable to locate $application proxy scheme. Asking user for input."
+				);
+				genBooleanConfigItem(
+					$mode,
+					$cfg,
+					"$lcApplication.apacheProxySSL",
+"Unable to locate the Apache proxy scheme configuration in $application config. Will you be running $application over SSL.",
+					"no"
+				);
+			}
+			else {
+				if ( $returnValue eq "http" ) {
+					$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+					);
+					$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+				}
+				elsif ( $returnValue eq "https" ) {
+					$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+					);
+					$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+				}
+				else {
+					$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+					);
+					$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+				}
+
+				print
+"$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
+				$log->info(
+"$subname: $application proxy scheme found and added to config."
+				);
+			}
+
+			$returnValue = "";
+
+			print
+"Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
+			$log->info(
+"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+			);
+			$returnValue =
+			  getXMLAttribute( $serverConfigFile, "///Connector", "proxyPort" );
+
+			if ( $returnValue eq "NOTFOUND" ) {
+				$log->info(
+"$subname: Unable to locate $application proxyPort. Asking user for input."
+				);
+				genConfigItem(
+					$mode,
+					$cfg,
+					"$lcApplication.apacheProxyPort",
+"Unable to find the Apache proxy port attribute in the expected location in the $application config. Please enter the port number that Apache currently serves on (80 for HTTP, 443 for HTTPS in standard situations).",
+					"80/443",
+					'^([0-9]*)$',
+"The input you entered was not a valid port number, please try again.\n\n"
+				);
+			}
+			else {
+				$cfg->param( "$lcApplication.apacheProxyPort", $returnValue );
+				print
+"$application base hostname has been found successfully and added to the config file...\n\n";
+				$log->info(
+"$subname: $application base hostname found and added to config."
+				);
+			}
+		}
+
 	}
 
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -9228,8 +9676,9 @@ sub getExistingBambooConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
@@ -9257,16 +9706,6 @@ sub getExistingBambooConfig {
 
 	}
 
-	#Set up some defaults for Bamboo
-	$cfg->param( "bamboo.tomcatDir", "" )
-	  ;    #we leave these blank deliberately due to the way Bamboo works
-	$cfg->param( "bamboo.webappDir", "" )
-	  ;    #we leave these blank deliberately due to the way Bamboo works
-	$cfg->param( "bamboo.processSearchParameter1", "java" );
-	$cfg->param(
-		"bamboo.processSearchParameter2",
-		"com.atlassian.bamboo.server.Server"
-	);
 	$cfg->param( "$lcApplication.enable", "TRUE" );
 
 	$cfg->write($configFile);
@@ -9287,7 +9726,8 @@ sub generateBambooConfig {
 	my $defaultValue;
 	my @parameterNull;
 	my $externalCrowdInstance;
-	my $subname = ( caller(0) )[3];
+	my $application = "Bamboo";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -9347,13 +9787,35 @@ sub generateBambooConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "bamboo.connectorPort", $cfg );
+	checkConfiguredPort( $application, "bamboo.connectorPort", $cfg );
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.serverPort",
+"Please enter the SERVER port Bamboo will run on (note this is the control port not the port you access in a browser).",
+		"8007",
+		'^([0-9]*)$',
+"The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
+	);
+
+	checkConfiguredPort( $application, "bamboo.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"bamboo.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"bamboo.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -9398,7 +9860,7 @@ sub generateBambooConfig {
 			"bamboo.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -9453,13 +9915,11 @@ sub generateBambooConfig {
 	#Set up some defaults for Bamboo
 	$cfg->param( "bamboo.tomcatDir", "" )
 	  ;    #we leave these blank deliberately due to the way Bamboo works
-	$cfg->param( "bamboo.webappDir", "" )
+	$cfg->param( "bamboo.webappDir", "/atlassian-bamboo" )
 	  ;    #we leave these blank deliberately due to the way Bamboo works
 	$cfg->param( "bamboo.processSearchParameter1", "java" );
-	$cfg->param(
-		"bamboo.processSearchParameter2",
-		"com.atlassian.bamboo.server.Server"
-	);
+	$cfg->param( "bamboo.processSearchParameter2",
+		$cfg->param("bamboo.installDir") );
 
 	$cfg->param( "bamboo.enable", "TRUE" );
 }
@@ -9482,10 +9942,19 @@ sub installBamboo {
 	my @requiredCrowdConfigItems;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
+	my $tomcatDir;
 	my $WrapperDownloadFile;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
+
+	#New variables for installs above Bamboo version 5.1.0
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $serverXLMLFile;
+
+	#End new variables
 
 	$log->info("BEGIN: $subname");
 
@@ -9498,7 +9967,8 @@ sub installBamboo {
 		"bamboo.connectorPort",           "bamboo.javaMinMemory",
 		"bamboo.javaMaxMemory",           "bamboo.javaMaxPermSize",
 		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2",
-		"bamboo.crowdIntegration"
+		"bamboo.crowdIntegration",        "bamboo.webappDir",
+		"bamboo.serverPort"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -9511,185 +9981,450 @@ sub installBamboo {
 		}
 	}
 
+	#Force config regeneration if bamboo process search parameter is out of date
+	if ( $globalConfig->param("bamboo.processSearchParameter2") ne
+		$globalConfig->param("bamboo.installDir") )
+	{
+
+#Below we push a completely invalid required config item, it will never exist therefore it will force config generation
+		push( @requiredConfigItems,
+			"bamboo.thisConfigWillNeverExistThereforeForceConfigGeneration" );
+	}
+
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param(
+		"$lcApplication.processSearchParameter2",
+		$globalConfig->param("$lcApplication.installDir")
+	);
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
-	$serverConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
+#Check if we are installing version below 5.1.0 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.1.0" )
+		ne "GREATER"
+	  )
+	{
+		$serverConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
 
-	$serverJettyConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/webapp/WEB-INF/classes/jetty.xml";
+		$serverJettyConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/webapp/WEB-INF/classes/jetty.xml";
 
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
+		print "Creating backup of config files...\n\n";
+		$log->info("$subname: Backing up config files.");
 
-	backupFile( $serverConfigFile, $osUser );
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		$osUser
-	);
-	$javaMemParameterFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
-	backupFile( $javaMemParameterFile, $osUser );
+		backupFile( $serverConfigFile, $osUser );
+		backupFile(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			$osUser
+		);
+		$javaMemParameterFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
+		backupFile( $javaMemParameterFile, $osUser );
 
-	print "Applying port numbers to server config...\n\n";
+		print "Applying port numbers to server config...\n\n";
 
-	updateLineInFile(
-		$serverConfigFile,
-		"wrapper.app.parameter.2",
-		"wrapper.app.parameter.2="
-		  . $globalConfig->param("$lcApplication.connectorPort"),
-		""
-	);
-
-	my $bambooContext;
-	if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
-		$bambooContext = "/";
-	}
-	else {
-		$bambooContext = $globalConfig->param("$lcApplication.appContext");
-	}
-
-	#Apply application context
-	updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
-		"wrapper.app.parameter.4=" . $bambooContext, "" );
-
-	#Edit Bamboo config file to reference homedir
-	$log->info( "$subname: Applying homedir in "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
-	print "Applying home directory to config...\n\n";
-	updateLineInFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		"bamboo.home",
-		"$lcApplication.home="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
-		"#bamboo.home=C:/bamboo/bamboo-home"
-	);
-
-	#Update the server config with reverse proxy configuration
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverConfigFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		updateLineInFile(
 			$serverConfigFile,
 			"wrapper.app.parameter.2",
-			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
-			"wrapper.app.parameter.2"
+			"wrapper.app.parameter.2="
+			  . $globalConfig->param("$lcApplication.connectorPort"),
+			""
 		);
 
+		my $bambooContext;
+		if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
+			$bambooContext = "/";
+		}
+		else {
+			$bambooContext = $globalConfig->param("$lcApplication.appContext");
+		}
+
+		#Apply application context
+		updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
+			"wrapper.app.parameter.4=" . $bambooContext, "" );
+
+		#Edit Bamboo config file to reference homedir
+		$log->info(
+			"$subname: Applying homedir in "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties"
+		);
+		print "Applying home directory to config...\n\n";
 		updateLineInFile(
-			$serverConfigFile,                    "wrapper.app.parameter.3",
-			"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			"bamboo.home",
+			"$lcApplication.home="
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.dataDir") ),
+			"#bamboo.home=C:/bamboo/bamboo-home"
 		);
 
-		updateLineInFile(
-			$serverConfigFile,            "wrapper.app.parameter.4",
-			"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
-		);
+		#Update the server config with reverse proxy configuration
+		$log->info( "$subname: Updating the reverse proxy configuration in "
+			  . $serverConfigFile );
+		print "Applying Apache proxy parameters to config...\n\n";
+		if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+			updateLineInFile(
+				$serverConfigFile,
+				"wrapper.app.parameter.2",
+				"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
+				"wrapper.app.parameter.2"
+			);
 
-		updateXMLAttribute(
-			$serverJettyConfigFile,
+			updateLineInFile( $serverConfigFile, "wrapper.app.parameter.3",
+				"#wrapper.app.parameter.3=../webapp",
+				"wrapper.app.parameter.3" );
+
+			updateLineInFile(
+				$serverConfigFile,            "wrapper.app.parameter.4",
+				"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
+			);
+
+			updateXMLAttribute(
+				$serverJettyConfigFile,
 "/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
-			"default",
-			$globalConfig->param("$lcApplication.connectorPort")
-		);
+				"default",
+				$globalConfig->param("$lcApplication.connectorPort")
+			);
 
-		updateXMLTextValue(
-			$serverJettyConfigFile,
+			updateXMLTextValue(
+				$serverJettyConfigFile,
 "/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
-			$globalConfig->param("$lcApplication.appContext")
-		);
+				$globalConfig->param("$lcApplication.appContext")
+			);
 
-	}
+			createOrUpdateLineInXML(
+				$serverJettyConfigFile,
+				".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+				"                <Set name=\"forwarded\">true</Set>\n"
+			);
 
-	print "Applying Java memory configuration to install...\n\n";
-	$log->info( "$subname: Applying Java memory parameters to "
-		  . $javaMemParameterFile );
+		}
 
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xms",
-		$globalConfig->param("$lcApplication.javaMinMemory") );
+		print "Applying Java memory configuration to install...\n\n";
+		$log->info( "$subname: Applying Java memory parameters to "
+			  . $javaMemParameterFile );
 
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xmx",
-		$globalConfig->param("$lcApplication.javaMaxMemory") );
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xms",
+			$globalConfig->param("$lcApplication.javaMinMemory") );
 
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-XX:MaxPermSize=",
-		$globalConfig->param("$lcApplication.javaMaxPermSize") );
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xmx",
+			$globalConfig->param("$lcApplication.javaMaxMemory") );
 
-	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-	if (   ( $#parameterNull == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq ""
-		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
-	{
-		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-	}
-	else {
-		$javaOptsValue = "CONFIGSPECIFIED";
-	}
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-XX:MaxPermSize=",
+			$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	#Apply the JavaOpts configuration (if any)
-	print "Applying Java_Opts configuration to install...\n\n";
-	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateLineInBambooWrapperConf(
-			$javaMemParameterFile,
-			"wrapper.java.additional.",
-			$globalConfig->param("$lcApplication.javaParams"),
-			$globalConfig->param("$lcApplication.javaParams")
-		);
-	}
+		@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.javaParams") eq ""
+			|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+		{
+			$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$javaOptsValue = "CONFIGSPECIFIED";
+		}
 
-	print "Configuration settings have been applied successfully.\n\n";
+		#Apply the JavaOpts configuration (if any)
+		print "Applying Java_Opts configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+			updateLineInBambooWrapperConf(
+				$javaMemParameterFile,
+				"wrapper.java.additional.",
+				$globalConfig->param("$lcApplication.javaParams"),
+				$globalConfig->param("$lcApplication.javaParams")
+			);
+		}
 
-	#Run any additional steps
-	if ( $globalArch eq "64" ) {
-		$WrapperDownloadFile = downloadFileAndChown(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-			$WrapperDownloadUrlFor64Bit, $osUser
-		);
+		print "Configuration settings have been applied successfully.\n\n";
 
-		rmtree(
-			[
+		#Run any additional steps
+		if ( $globalArch eq "64" ) {
+			$WrapperDownloadFile = downloadFileAndChown(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				),
+				$WrapperDownloadUrlFor64Bit,
+				$osUser
+			);
+
+			rmtree(
+				[
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+					  )
+					  . "/wrapper"
+				]
+			);
+
+			extractAndMoveFile(
+				$WrapperDownloadFile,
 				escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
 				  )
-				  . "/wrapper"
-			]
+				  . "/wrapper",
+				$osUser, ""
+			);
+		}
+
+		#Generate the init.d file
+		print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+		$log->info("$subname: Generating init.d file for $application.");
+
+		generateInitD(
+			$application,
+			$osUser,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			"bamboo.sh start",
+			"bamboo.sh stop",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
 		);
 
-		extractAndMoveDownload(
-			$WrapperDownloadFile,
+	}
+	else {
+
+		#Do Install for Bamboo Version 5.1.0 or newer
+		$serverXMLFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/server.xml";
+		$initPropertiesFile =
+		    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . $globalConfig->param("$lcApplication.webappDir")
+		  . "/WEB-INF/classes/$lcApplication-init.properties";
+		$javaMemParameterFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/bin/setenv.sh";
+
+		print "Creating backup of config files...\n\n";
+		$log->info("$subname: Backing up config files.");
+
+		backupFile( $serverXMLFile, $osUser );
+
+		backupFile( $initPropertiesFile, $osUser );
+
+		backupFile( $javaMemParameterFile, $osUser );
+
+		print "Applying custom context to $application...\n\n";
+		$log->info(
+			"$subname: Applying application context to "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
+			  . "/conf/server.xml"
+		);
+
+		updateXMLAttribute(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/wrapper",
+			  . "/conf/server.xml",
+			"//////Context",
+			"path",
+			getConfigItem( "$lcApplication.appContext", $globalConfig )
+		);
+
+		print "Applying port numbers to server config...\n\n";
+
+		#Update the server config with the configured connector port
+		$log->info(
+			"$subname: Updating the connector port in " . $serverXMLFile );
+		updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+			$globalConfig->param("$lcApplication.connectorPort") );
+
+		#Update the server config with the configured server port
+		$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+		updateXMLAttribute( $serverXMLFile, "/Server", "port",
+			$globalConfig->param("$lcApplication.serverPort") );
+
+		#Update the server config with reverse proxy configuration
+		$log->info( "$subname: Updating the reverse proxy configuration in "
+			  . $serverXMLFile );
+		print "Applying Apache proxy parameters to config...\n\n";
+		if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+			if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+					$globalConfig->param("general.apacheProxyHost") );
+
+				if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" )
+				{
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "https" );
+				}
+				else {
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "http" );
+				}
+				updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+					"false" );
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+					$globalConfig->param("general.apacheProxyPort") );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+					$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+				if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+					"TRUE" )
+				{
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "https" );
+				}
+				else {
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "http" );
+				}
+				updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+					"false" );
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+					$globalConfig->param("$lcApplication.apacheProxyPort") );
+			}
+		}
+
+		print "Applying home directory location to config...\n\n";
+
+		#Edit Bamboo config file to reference homedir
+		$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+		print "Applying home directory to config...\n\n";
+		updateLineInFile(
+			$initPropertiesFile,
+			"bamboo.home",
+			"$lcApplication.home="
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.dataDir") ),
+			"#bamboo.home=C:/bamboo/bamboo-home"
+		);
+
+		@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.javaParams") eq ""
+			|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+		{
+			$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$javaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		@parameterNull = $globalConfig->param( $lcApplication . ".tomcatDir" );
+		if ( $#parameterNull == -1 ) {
+			$tomcatDir = "";
+		}
+		else {
+			$tomcatDir = $globalConfig->param( $lcApplication . ".tomcatDir" );
+		}
+
+		#Apply the JavaOpts configuration (if any)
+		print "Applying Java_Opts configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+			updateJavaOpts(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir
+				  . "/bin/setenv.sh",
+				"JAVA_OPTS",
+				getConfigItem( "$lcApplication.javaParams", $globalConfig )
+			);
+		}
+
+		#Apply CATALINA_OPTS to install
+		@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq
+			"default" )
+		{
+			$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$catalinaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		print "Applying CATALINA_OPTS configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+			updateCatalinaOpts(
+				$application,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir
+				  . "/bin/setenv.sh",
+				"CATALINA_OPTS=",
+				getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
+			);
+		}
+
+		#Update Java Memory Parameters
+		print "Applying Java memory configuration to install...\n\n";
+		$log->info( "$subname: Applying Java memory parameters to "
+			  . $javaMemParameterFile );
+
+		createOrUpdateLineInFile(
+			$javaMemParameterFile,
+			"JVM_MINIMUM_MEMORY=",
+			"JVM_MINIMUM_MEMORY=" . '"'
+			  . $globalConfig->param("$lcApplication.javaMinMemory") . '"',
+			"JVM_SUPPORT_RECOMMENDED_ARGS="
+		);
+
+		createOrUpdateLineInFile(
+			$javaMemParameterFile,
+			"JVM_MAXIMUM_MEMORY=",
+			"JVM_MAXIMUM_MEMORY=" . '"'
+			  . $globalConfig->param("$lcApplication.javaMaxMemory") . '"',
+			"JVM_SUPPORT_RECOMMENDED_ARGS="
+		);
+
+		createOrUpdateLineInFile(
+			$javaMemParameterFile,
+			"BAMBOO_MAX_PERM_SIZE=",
+			"BAMBOO_MAX_PERM_SIZE=" . '"'
+			  . $globalConfig->param("$lcApplication.javaMaxPermSize") . '"',
+			"JVM_SUPPORT_RECOMMENDED_ARGS="
+		);
+
+		print "Configuration settings have been applied successfully.\n\n";
+
+		#Generate the init.d file
+		print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+		$log->info("$subname: Generating init.d file for $application.");
+
+		generateInitD(
+			$application,
 			$osUser,
-			""
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/",
+			"start-bamboo.sh",
+			"stop-bamboo.sh",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
 		);
 	}
-
-	#Generate the init.d file
-	print
-"Setting up initd files and run as a service (if configured) please wait...\n\n";
-	$log->info("$subname: Generating init.d file for $application.");
-
-	generateInitD(
-		$lcApplication, $osUser,
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"bamboo.sh start",
-		"bamboo.sh stop"
-	);
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -9721,9 +10456,18 @@ sub upgradeBamboo {
 	my $WrapperDownloadFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
+	my $tomcatDir;
 	my $WrapperDownloadUrlFor64Bit =
 "https://confluence.atlassian.com/download/attachments/289276785/Bamboo_64_Bit_Wrapper.zip?version=1&modificationDate=1346435557878&api=v2";
 	my $subname = ( caller(0) )[3];
+
+	#New variables for upgrades above Bamboo version 5.1.0
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my $serverXLMLFile;
+
+	#End new variables
 
 	$log->info("BEGIN: $subname");
 
@@ -9736,7 +10480,7 @@ sub upgradeBamboo {
 		"bamboo.connectorPort",           "bamboo.javaMinMemory",
 		"bamboo.javaMaxMemory",           "bamboo.javaMaxPermSize",
 		"bamboo.processSearchParameter1", "bamboo.processSearchParameter2",
-		"bamboo.crowdIntegration"
+		"bamboo.crowdIntegration",        "bamboo.serverPort"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -9749,27 +10493,79 @@ sub upgradeBamboo {
 		}
 	}
 
-	#Back up the Crowd configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Backing up Crowd configuration files.");
-		print "Backing up the Crowd configuration files...\n\n";
-		if ( -e $globalConfig->param("$lcApplication.installDir")
-			. "/webapp/WEB-INF/classes/crowd.properties" )
+	#Force config regeneration if bamboo process search parameter is out of date
+	if ( $globalConfig->param("bamboo.processSearchParameter2") ne
+		$globalConfig->param("bamboo.installDir") )
+	{
+
+#Below we push a completely invalid required config item, it will never exist therefore it will force config generation
+		push( @requiredConfigItems,
+			"bamboo.thisConfigWillNeverExistThereforeForceConfigGeneration" );
+	}
+
+#Check if we are installing version below 5.1.0 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.1.0" )
+		ne "GREATER"
+	  )
+	{
+
+		#Back up the Crowd configuration files
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
 		{
-			copyFile(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/webapp/WEB-INF/classes/crowd.properties",
-				"$Bin/working/crowd.properties.$lcApplication"
-			);
-		}
-		else {
-			print
+			$log->info("$subname: Backing up Crowd configuration files.");
+			print "Backing up the Crowd configuration files...\n\n";
+			if ( -e $globalConfig->param("$lcApplication.installDir")
+				. "/webapp/WEB-INF/classes/crowd.properties" )
+			{
+				copyFile(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties",
+					"$Bin/working/crowd.properties.$lcApplication"
+				);
+			}
+			else {
+				print
 "No crowd.properties currently exists for $application, will not copy.\n\n";
-			$log->info(
+				$log->info(
 "$subname: No crowd.properties currently exists for $application, will not copy."
-			);
+				);
+			}
 		}
 	}
+	else {
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
+		{
+			$log->info("$subname: Backing up Crowd configuration files.");
+			print "Backing up the Crowd configuration files...\n\n";
+			if ( -e $globalConfig->param("$lcApplication.installDir")
+				. "/atlassian-bamboo/WEB-INF/classes/crowd.properties" )
+			{
+				copyFile(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-bamboo/WEB-INF/classes/crowd.properties",
+					"$Bin/working/crowd.properties.$lcApplication"
+				);
+			}
+			else {
+				print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+				$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+				);
+			}
+		}
+	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param(
+		"$lcApplication.processSearchParameter2",
+		$globalConfig->param("$lcApplication.installDir")
+	);
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -9779,209 +10575,261 @@ sub upgradeBamboo {
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
 
-	$serverConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
+#Check if we are installing version below 5.1.0 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.1.0" )
+		ne "GREATER"
+	  )
+	{
+		$serverConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
 
-	$serverJettyConfigFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/webapp/WEB-INF/classes/jetty.xml";
+		$serverJettyConfigFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/webapp/WEB-INF/classes/jetty.xml";
 
-	print "Creating backup of config files...\n\n";
-	$log->info("$subname: Backing up config files.");
+		print "Creating backup of config files...\n\n";
+		$log->info("$subname: Backing up config files.");
 
-	backupFile( $serverConfigFile, $osUser );
-	backupFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		$osUser
-	);
-	$javaMemParameterFile =
-	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-	  . "/conf/wrapper.conf";
-	backupFile( $javaMemParameterFile, $osUser );
+		backupFile( $serverConfigFile, $osUser );
+		backupFile(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			$osUser
+		);
+		$javaMemParameterFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/wrapper.conf";
+		backupFile( $javaMemParameterFile, $osUser );
 
-	print "Applying port numbers to server config...\n\n";
+		print "Applying port numbers to server config...\n\n";
 
-	updateLineInFile(
-		$serverConfigFile,
-		"wrapper.app.parameter.2",
-		"wrapper.app.parameter.2="
-		  . $globalConfig->param("$lcApplication.connectorPort"),
-		""
-	);
-
-	my $bambooContext;
-	if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
-		$bambooContext = "/";
-	}
-	else {
-		$bambooContext = $globalConfig->param("$lcApplication.appContext");
-	}
-
-	#Apply application context
-	updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
-		"wrapper.app.parameter.4=" . $bambooContext, "" );
-
-	#Update the server config with reverse proxy configuration
-	$log->info( "$subname: Updating the reverse proxy configuration in "
-		  . $serverConfigFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
 		updateLineInFile(
 			$serverConfigFile,
 			"wrapper.app.parameter.2",
-			"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
-			"wrapper.app.parameter.2"
+			"wrapper.app.parameter.2="
+			  . $globalConfig->param("$lcApplication.connectorPort"),
+			""
 		);
 
-		updateLineInFile(
-			$serverConfigFile,                    "wrapper.app.parameter.3",
-			"#wrapper.app.parameter.3=../webapp", "wrapper.app.parameter.3"
-		);
-
-		updateLineInFile(
-			$serverConfigFile,            "wrapper.app.parameter.4",
-			"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
-		);
-
-		updateXMLAttribute(
-			$serverJettyConfigFile,
-"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
-			"default",
-			$globalConfig->param("$lcApplication.connectorPort")
-		);
-
-		updateXMLTextValue(
-			$serverJettyConfigFile,
-"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
-			$globalConfig->param("$lcApplication.appContext")
-		);
-	}
-
-	#Edit Bamboo config file to reference homedir
-	$log->info( "$subname: Applying homedir in "
-		  . escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties" );
-	print "Applying home directory to config...\n\n";
-	updateLineInFile(
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-		  . "/webapp/WEB-INF/classes/bamboo-init.properties",
-		"bamboo.home",
-		"$lcApplication.home="
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
-		"#bamboo.home=C:/bamboo/bamboo-home"
-	);
-
-	print "Applying Java memory configuration to install...\n\n";
-	$log->info( "$subname: Applying Java memory parameters to "
-		  . $javaMemParameterFile );
-	print "Applying Apache proxy parameters to config...\n\n";
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xms",
-		$globalConfig->param("$lcApplication.javaMinMemory") );
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-Xmx",
-		$globalConfig->param("$lcApplication.javaMaxMemory") );
-
-	updateLineInBambooWrapperConf( $javaMemParameterFile,
-		"wrapper.java.additional.", "-XX:MaxPermSize=",
-		$globalConfig->param("$lcApplication.javaMaxPermSize") );
-
-	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
-	if ( ( $#parameterNull == -1 )
-		|| $globalConfig->param("$lcApplication.javaParams") eq "" )
-	{
-		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
-	}
-	else {
-		$javaOptsValue = "CONFIGSPECIFIED";
-	}
-
-	#Apply the JavaOpts configuration (if any)
-	print "Applying Java_Opts configuration to install...\n\n";
-	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
-		updateLineInBambooWrapperConf(
-			$javaMemParameterFile,
-			"wrapper.java.additional.",
-			$globalConfig->param("$lcApplication.javaParams"),
-			$globalConfig->param("$lcApplication.javaParams")
-		);
-	}
-
-	#Restore the Crowd configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Restoring Crowd configuration files.");
-		print "Restoring the Crowd configuration files...\n\n";
-		if (
-			-e escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/webapp/WEB-INF/classes/crowd.properties"
-			)
-		  )
-		{
-			backupFile(
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/webapp/WEB-INF/classes/crowd.properties"
-				),
-				$osUser
-			);
-		}
-		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
-		{
-			copyFile(
-				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/webapp/WEB-INF/classes/crowd.properties"
-				)
-			);
-
-			chownFile(
-				$osUser,
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-					  . "/webapp/WEB-INF/classes/crowd.properties"
-				)
-			);
+		my $bambooContext;
+		if ( $globalConfig->param("$lcApplication.appContext") eq "NULL" ) {
+			$bambooContext = "/";
 		}
 		else {
-			print
-"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
-			$log->info(
-"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			$bambooContext = $globalConfig->param("$lcApplication.appContext");
+		}
+
+		#Apply application context
+		updateLineInFile( $serverConfigFile, "wrapper.app.parameter.4",
+			"wrapper.app.parameter.4=" . $bambooContext, "" );
+
+		#Edit Bamboo config file to reference homedir
+		$log->info(
+			"$subname: Applying homedir in "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties"
+		);
+		print "Applying home directory to config...\n\n";
+		updateLineInFile(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/webapp/WEB-INF/classes/bamboo-init.properties",
+			"bamboo.home",
+			"$lcApplication.home="
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.dataDir") ),
+			"#bamboo.home=C:/bamboo/bamboo-home"
+		);
+
+		#Update the server config with reverse proxy configuration
+		$log->info( "$subname: Updating the reverse proxy configuration in "
+			  . $serverConfigFile );
+		print "Applying Apache proxy parameters to config...\n\n";
+		if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+			updateLineInFile(
+				$serverConfigFile,
+				"wrapper.app.parameter.2",
+				"wrapper.app.parameter.2=webapp/WEB-INF/classes/jetty.xml",
+				"wrapper.app.parameter.2"
+			);
+
+			updateLineInFile( $serverConfigFile, "wrapper.app.parameter.3",
+				"#wrapper.app.parameter.3=../webapp",
+				"wrapper.app.parameter.3" );
+
+			updateLineInFile(
+				$serverConfigFile,            "wrapper.app.parameter.4",
+				"#wrapper.app.parameter.4=/", "wrapper.app.parameter.4"
+			);
+
+			updateXMLAttribute(
+				$serverJettyConfigFile,
+"/Configure/*[\@name='addConnector']/Arg/New/Set[\@name='port']/Property",
+				"default",
+				$globalConfig->param("$lcApplication.connectorPort")
+			);
+
+			updateXMLTextValue(
+				$serverJettyConfigFile,
+"/Configure/*[\@name='setHandler']/Arg/New/Arg[\@name='contextPath']",
+				$globalConfig->param("$lcApplication.appContext")
+			);
+
+			createOrUpdateLineInXML(
+				$serverJettyConfigFile,
+				".*org.eclipse.jetty.server.nio.SelectChannelConnector.*",
+				"                <Set name=\"forwarded\">true</Set>\n"
+			);
+
+		}
+
+		print "Applying Java memory configuration to install...\n\n";
+		$log->info( "$subname: Applying Java memory parameters to "
+			  . $javaMemParameterFile );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xms",
+			$globalConfig->param("$lcApplication.javaMinMemory") );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-Xmx",
+			$globalConfig->param("$lcApplication.javaMaxMemory") );
+
+		updateLineInBambooWrapperConf( $javaMemParameterFile,
+			"wrapper.java.additional.", "-XX:MaxPermSize=",
+			$globalConfig->param("$lcApplication.javaMaxPermSize") );
+
+		@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.javaParams") eq ""
+			|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+		{
+			$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$javaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		#Apply the JavaOpts configuration (if any)
+		print "Applying Java_Opts configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+			updateLineInBambooWrapperConf(
+				$javaMemParameterFile,
+				"wrapper.java.additional.",
+				$globalConfig->param("$lcApplication.javaParams"),
+				$globalConfig->param("$lcApplication.javaParams")
 			);
 		}
-	}
 
-	#Restore the Crowd Seraph configuration files
-	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
-		$log->info("$subname: Restoring Crowd Seraph configuration.");
-		print "Restoring the Crowd configuration files...\n\n";
-		backupFile(
-			escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/webapp/WEB-INF/classes/atlassian-user.xml"
-			),
-			$osUser
+		print "Configuration settings have been applied successfully.\n\n";
+
+		#Run any additional steps
+		if ( $globalArch eq "64" ) {
+			$WrapperDownloadFile = downloadFileAndChown(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				),
+				$WrapperDownloadUrlFor64Bit,
+				$osUser
+			);
+
+			rmtree(
+				[
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+					  )
+					  . "/wrapper"
+				]
+			);
+
+			extractAndMoveFile(
+				$WrapperDownloadFile,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/wrapper",
+				$osUser, ""
+			);
+		}
+
+		#Generate the init.d file
+		print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+		$log->info("$subname: Generating init.d file for $application.");
+
+		generateInitD(
+			$application,
+			$osUser,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+			"bamboo.sh start",
+			"bamboo.sh stop",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
 		);
-		updateSeraphConfig(
-			"Bamboo",
-			escapeFilePath(
-				$globalConfig->param("$lcApplication.installDir")
-				  . "/webapp/WEB-INF/classes/atlassian-user.xml"
-			),
-			"key=\"crowd\"",
-			"key=\"hibernateRepository\""
-		);
-		if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+
+		#Restore the Crowd configuration files
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
+		{
+			$log->info("$subname: Restoring Crowd configuration files.");
+			print "Restoring the Crowd configuration files...\n\n";
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/webapp/WEB-INF/classes/crowd.properties"
+				)
+			  )
+			{
+				backupFile(
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/webapp/WEB-INF/classes/crowd.properties"
+					),
+					$osUser
+				);
+			}
+			if (
+				-e escapeFilePath(
+					"$Bin/working/crowd.properties.$lcApplication") )
+			{
+				copyFile(
+					escapeFilePath(
+						"$Bin/working/crowd.properties.$lcApplication"),
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/webapp/WEB-INF/classes/crowd.properties"
+					)
+				);
+
+				chownFile(
+					$osUser,
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/webapp/WEB-INF/classes/crowd.properties"
+					)
+				);
+			}
+			else {
+				print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+				$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+				);
+			}
+		}
+
+		#Restore the Crowd Seraph configuration files
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
+		{
+			$log->info("$subname: Restoring Crowd Seraph configuration.");
+			print "Restoring the Crowd configuration files...\n\n";
 			backupFile(
 				escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
-					  . "/webapp/WEB-INF/classes/seraph-config.xml"
+					  . "/webapp/WEB-INF/classes/atlassian-user.xml"
 				),
 				$osUser
 			);
@@ -9989,52 +10837,351 @@ sub upgradeBamboo {
 				"Bamboo",
 				escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
-					  . "/webapp/WEB-INF/classes/seraph-config.xml"
+					  . "/webapp/WEB-INF/classes/atlassian-user.xml"
 				),
-				"com.atlassian.crowd.integration.seraph.*BambooAuthenticator",
-				"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
+				"key=\"crowd\"",
+				"key=\"hibernateRepository\""
 			);
+			if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+				backupFile(
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/webapp/WEB-INF/classes/seraph-config.xml"
+					),
+					$osUser
+				);
+				updateSeraphConfig(
+					"Bamboo",
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/webapp/WEB-INF/classes/seraph-config.xml"
+					),
+"com.atlassian.crowd.integration.seraph.*BambooAuthenticator",
+"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
+				);
+			}
+		}
+
+	}
+	else {
+
+		#Do Install for Bamboo Version 5.1.0 or newer
+		$serverXMLFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/conf/server.xml";
+		$initPropertiesFile =
+		    escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . $globalConfig->param("$lcApplication.webappDir")
+		  . "/WEB-INF/classes/$lcApplication-init.properties";
+		$javaMemParameterFile =
+		  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+		  . "/bin/setenv.sh";
+
+		print "Creating backup of config files...\n\n";
+		$log->info("$subname: Backing up config files.");
+
+		backupFile( $serverXMLFile, $osUser );
+
+		backupFile( $initPropertiesFile, $osUser );
+
+		backupFile( $javaMemParameterFile, $osUser );
+
+		print "Applying custom context to $application...\n\n";
+		$log->info(
+			"$subname: Applying application context to "
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+			  )
+			  . "/conf/server.xml"
+		);
+
+		updateXMLAttribute(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/conf/server.xml",
+			"//////Context",
+			"path",
+			getConfigItem( "$lcApplication.appContext", $globalConfig )
+		);
+
+		print "Applying port numbers to server config...\n\n";
+
+		#Update the server config with the configured connector port
+		$log->info(
+			"$subname: Updating the connector port in " . $serverXMLFile );
+		updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+			$globalConfig->param("$lcApplication.connectorPort") );
+
+		#Update the server config with the configured server port
+		$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+		updateXMLAttribute( $serverXMLFile, "/Server", "port",
+			$globalConfig->param("$lcApplication.serverPort") );
+
+		#Update the server config with reverse proxy configuration
+		$log->info( "$subname: Updating the reverse proxy configuration in "
+			  . $serverXMLFile );
+		print "Applying Apache proxy parameters to config...\n\n";
+		if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+			if ( $globalConfig->param("general.apacheProxySingleDomain") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+					$globalConfig->param("general.apacheProxyHost") );
+
+				if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" )
+				{
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "https" );
+				}
+				else {
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "http" );
+				}
+				updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+					"false" );
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+					$globalConfig->param("general.apacheProxyPort") );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+					$globalConfig->param("$lcApplication.apacheProxyHost") );
+
+				if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+					"TRUE" )
+				{
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "https" );
+				}
+				else {
+					updateXMLAttribute( $serverXMLFile, "///Connector",
+						"scheme", "http" );
+				}
+				updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+					"false" );
+				updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+					$globalConfig->param("$lcApplication.apacheProxyPort") );
+			}
+		}
+
+		print "Applying home directory location to config...\n\n";
+
+		#Edit Bamboo config file to reference homedir
+		$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+		print "Applying home directory to config...\n\n";
+		updateLineInFile(
+			$initPropertiesFile,
+			"bamboo.home",
+			"$lcApplication.home="
+			  . escapeFilePath(
+				$globalConfig->param("$lcApplication.dataDir") ),
+			"#bamboo.home=C:/bamboo/bamboo-home"
+		);
+
+		@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.javaParams") eq ""
+			|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+		{
+			$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$javaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		@parameterNull = $globalConfig->param( $lcApplication . ".tomcatDir" );
+		if ( $#parameterNull == -1 ) {
+			$tomcatDir = "";
+		}
+		else {
+			$tomcatDir = $globalConfig->param( $lcApplication . ".tomcatDir" );
+		}
+
+		#Apply the JavaOpts configuration (if any)
+		print "Applying Java_Opts configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+			updateJavaOpts(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir
+				  . "/bin/setenv.sh",
+				"JAVA_OPTS",
+				getConfigItem( "$lcApplication.javaParams", $globalConfig )
+			);
+		}
+
+		#Apply CATALINA_OPTS to install
+		@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+		if (   ( $#parameterNull == -1 )
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+			|| $globalConfig->param("$lcApplication.catalinaOpts") eq
+			"default" )
+		{
+			$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+		}
+		else {
+			$catalinaOptsValue = "CONFIGSPECIFIED";
+		}
+
+		print "Applying CATALINA_OPTS configuration to install...\n\n";
+		if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+			updateCatalinaOpts(
+				$application,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . $tomcatDir
+				  . "/bin/setenv.sh",
+				"CATALINA_OPTS=",
+				getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
+			);
+		}
+
+		#Update Java Memory Parameters
+		print "Applying Java memory configuration to install...\n\n";
+		$log->info( "$subname: Applying Java memory parameters to "
+			  . $javaMemParameterFile );
+
+		createOrUpdateLineInFile(
+			$javaMemParameterFile,
+			"JVM_MINIMUM_MEMORY=",
+			"JVM_MINIMUM_MEMORY=" . '"'
+			  . $globalConfig->param("$lcApplication.javaMinMemory") . '"',
+			"JVM_SUPPORT_RECOMMENDED_ARGS="
+		);
+
+		createOrUpdateLineInFile(
+			$javaMemParameterFile,
+			"JVM_MAXIMUM_MEMORY=",
+			"JVM_MAXIMUM_MEMORY=" . '"'
+			  . $globalConfig->param("$lcApplication.javaMaxMemory") . '"',
+			"JVM_SUPPORT_RECOMMENDED_ARGS="
+		);
+
+		createOrUpdateLineInFile(
+			$javaMemParameterFile,
+			"BAMBOO_MAX_PERM_SIZE=",
+			"BAMBOO_MAX_PERM_SIZE=" . '"'
+			  . $globalConfig->param("$lcApplication.javaMaxPermSize") . '"',
+			"JVM_SUPPORT_RECOMMENDED_ARGS="
+		);
+
+		print "Configuration settings have been applied successfully.\n\n";
+
+		#Generate the init.d file
+		print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+		$log->info("$subname: Generating init.d file for $application.");
+
+		generateInitD(
+			$application,
+			$osUser,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/",
+			"start-bamboo.sh",
+			"stop-bamboo.sh",
+			$globalConfig->param("$lcApplication.processSearchParameter1"),
+			$globalConfig->param("$lcApplication.processSearchParameter2")
+		);
+
+		#Restore the Crowd configuration files
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
+		{
+			$log->info("$subname: Restoring Crowd configuration files.");
+			print "Restoring the Crowd configuration files...\n\n";
+			if (
+				-e escapeFilePath(
+					    $globalConfig->param("$lcApplication.installDir")
+					  . $globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/crowd.properties"
+				)
+			  )
+			{
+				backupFile(
+					escapeFilePath(
+						    $globalConfig->param("$lcApplication.installDir")
+						  . $globalConfig->param("$lcApplication.webappDir")
+						  . "/WEB-INF/classes/crowd.properties"
+					),
+					$osUser
+				);
+			}
+			if (
+				-e escapeFilePath(
+					"$Bin/working/crowd.properties.$lcApplication") )
+			{
+				copyFile(
+					escapeFilePath(
+						"$Bin/working/crowd.properties.$lcApplication"),
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/atlassian-bamboo/WEB-INF/classes/crowd.properties"
+					)
+				);
+
+				chownFile(
+					$osUser,
+					escapeFilePath(
+						$globalConfig->param("$lcApplication.installDir")
+						  . "/atlassian-bamboo/WEB-INF/classes/crowd.properties"
+					)
+				);
+			}
+			else {
+				print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+				$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+				);
+			}
+		}
+
+		#Restore the Crowd Seraph configuration files
+		if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" )
+		{
+			$log->info("$subname: Restoring Crowd Seraph configuration.");
+			print "Restoring the Crowd configuration files...\n\n";
+			backupFile(
+				escapeFilePath(
+					    $globalConfig->param("$lcApplication.installDir")
+					  . $globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/atlassian-user.xml"
+				),
+				$osUser
+			);
+			updateSeraphConfig(
+				"Bamboo",
+				escapeFilePath(
+					    $globalConfig->param("$lcApplication.installDir")
+					  . $globalConfig->param("$lcApplication.webappDir")
+					  . "/WEB-INF/classes/atlassian-user.xml"
+				),
+				"key=\"crowd\"",
+				"key=\"hibernateRepository\""
+			);
+			if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+				backupFile(
+					escapeFilePath(
+						    $globalConfig->param("$lcApplication.installDir")
+						  . $globalConfig->param("$lcApplication.webappDir")
+						  . "/WEB-INF/classes/seraph-config.xml"
+					),
+					$osUser
+				);
+				updateSeraphConfig(
+					"Bamboo",
+					escapeFilePath(
+						    $globalConfig->param("$lcApplication.installDir")
+						  . $globalConfig->param("$lcApplication.webappDir")
+						  . "/WEB-INF/classes/seraph-config.xml"
+					),
+"com.atlassian.crowd.integration.seraph.*BambooAuthenticator",
+"com.atlassian.bamboo.user.authentication.BambooAuthenticator"
+				);
+			}
 		}
 	}
 
 	print "Configuration settings have been applied successfully.\n\n";
-
-	#Run any additional steps
-	if ( $globalArch eq "64" ) {
-		$WrapperDownloadFile = downloadFileAndChown(
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-			$WrapperDownloadUrlFor64Bit, $osUser
-		);
-
-		rmtree(
-			[
-				escapeFilePath(
-					$globalConfig->param("$lcApplication.installDir")
-				  )
-				  . "/wrapper"
-			]
-		);
-
-		extractAndMoveDownload(
-			$WrapperDownloadFile,
-			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
-			  . "/wrapper",
-			$osUser,
-			""
-		);
-	}
-
-	#Generate the init.d file
-	print
-"Setting up initd files and run as a service (if configured) please wait...\n\n";
-	$log->info("$subname: Generating init.d file for $application.");
-
-	generateInitD(
-		$lcApplication, $osUser,
-		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"bamboo.sh start",
-		"bamboo.sh stop"
-	);
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
@@ -10120,7 +11267,17 @@ sub getExistingConfluenceConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -10135,7 +11292,7 @@ sub getExistingConfluenceConfig {
 			"confluence.apacheProxyHost",
 "Please enter the base URL Confluence currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -10265,6 +11422,9 @@ sub getExistingConfluenceConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -10504,7 +11664,7 @@ sub getExistingConfluenceConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -10540,7 +11700,25 @@ sub getExistingConfluenceConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
+
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -10605,7 +11783,8 @@ sub generateConfluenceConfig {
 	my $defaultValue;
 	my @parameterNull;
 	my $externalCrowdInstance;
-	my $subname = ( caller(0) )[3];
+	my $application = "Confluence";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -10654,7 +11833,7 @@ sub generateConfluenceConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "confluence.connectorPort", $cfg );
+	checkConfiguredPort( $application, "confluence.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -10666,13 +11845,23 @@ sub generateConfluenceConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "confluence.serverPort", $cfg );
+	checkConfiguredPort( $application, "confluence.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"confluence.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -10717,7 +11906,7 @@ sub generateConfluenceConfig {
 			"confluence.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -10782,10 +11971,18 @@ sub generateConfluenceConfig {
 #Install Confluence                    #
 ########################################
 sub installConfluence {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
 	my $osUser;
+	my $jdbcJAR;
+	my $needJDBC;
+	my $input;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -10821,17 +12018,160 @@ sub installConfluence {
 	}
 
 	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
-	);
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+
+	$initPropertiesFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/confluence/WEB-INF/classes/$lcApplication-init.properties";
 	$javaMemParameterFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
 	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit Confluence config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"confluence.home=",
+		"confluence.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"# confluence.home="
+	);
+
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
+		);
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -10847,7 +12187,107 @@ sub installConfluence {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	postInstallGenericAtlassianBinary($application);
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
+	}
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD(
+		$application,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-confluence.sh",
+		"/bin/stop-confluence.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
+
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
 }
 
 ########################################
@@ -10858,17 +12298,25 @@ sub uninstallConfluence {
 	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	uninstallGenericAtlassianBinary($application);
+	uninstallGeneric($application);
 }
 
 ########################################
 #UpgradeConfluence                     #
 ########################################
 sub upgradeConfluence {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "Confluence";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
 	my $osUser;
+	my $jdbcJAR;
+	my $needJDBC;
+	my $input;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -10903,17 +12351,229 @@ sub upgradeConfluence {
 		}
 	}
 
-	upgradeGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"CONF_USER",  \@requiredConfigItems
-	);
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/confluence/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
+	#Run generic upgrader steps
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+
+	$initPropertiesFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/confluence/WEB-INF/classes/$lcApplication-init.properties";
 	$javaMemParameterFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
+
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
 	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit Confluence config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"confluence.home=",
+		"confluence.home="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"# confluence.home="
+	);
+
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
+		);
+	}
+
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/confluence/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -10929,7 +12589,130 @@ sub upgradeConfluence {
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
-	postUpgradeGenericAtlassianBinary($application);
+#If Oracle is the Database, Confluence does not come with the driver so check for it and copy if we need it
+
+	@parameterNull = $globalConfig->param("general.dbJDBCJar");
+	if ( ( $#parameterNull == -1 ) ) {
+		$jdbcJAR = "";
+		$log->info("$subname: JDBC undefined in settings.cnf");
+	}
+	else {
+		$jdbcJAR = $globalConfig->param("general.dbJDBCJar");
+		$log->info("$subname: JDBC is defined in settings.cnf as $jdbcJAR");
+	}
+
+	if ( $globalConfig->param("general.targetDBType") eq "Oracle" ) {
+		if ( $lcApplication eq "confluence" ) {
+			print
+"Database is configured as Oracle, copying the JDBC connector to $application install if needed.\n\n";
+			if (
+				-e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/lib/ojdbc6.jar"
+				|| -e escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				)
+				. "/confluence/WEB-INF/lib/ojdbc6.jar"
+			  )
+			{
+				$needJDBC = "FALSE";
+				$log->info(
+"$subname: JDBC already exists in $application lib directories"
+				);
+			}
+			else {
+				$needJDBC = "TRUE";
+				$log->info(
+"$subname: JDBC does not exist in $application lib directories"
+				);
+			}
+		}
+
+		if ( $needJDBC eq "TRUE" && $jdbcJAR ne "" ) {
+			$log->info(
+				"$subname: Copying Oracle JDBC to $application lib directory");
+			copyFile(
+				$globalConfig->param("general.dbJDBCJar"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+			#Chown the files again
+			$log->info(
+				"$subname: Chowning "
+				  . escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+				  . " to $osUser following Oracle JDBC install."
+			);
+			chownRecursive(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+				  )
+				  . "/lib/"
+			);
+
+		}
+		elsif ( $needJDBC eq "FALSE" ) {
+			$log->info(
+"$subname: $application already has ojdbc6.jar, no need to copy. "
+			);
+		}
+		elsif ( $needJDBC eq "TRUE" && $jdbcJAR eq "" ) {
+			$log->info(
+"$subname: JDBC needed for Oracle but none defined in settings.cnf. Warning user."
+			);
+			print
+"It appears we need the ojdb6.jar file but you have not set a path to it in settings.cnf. Therefore you will need to manually copy the ojdbc6.jar file to the $application lib directory manually before it will work. Please press enter to continue...";
+			$input = <STDIN>;
+		}
+	}
+
+	#Apply Seraph Config
+	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+		backupFile(
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/seraph-config.xml"
+			),
+			$osUser
+		);
+		updateSeraphConfig(
+			$application,
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/confluence/WEB-INF/classes/seraph-config.xml"
+			),
+			"com.atlassian.confluence.user.ConfluenceCrowdSSOAuthenticator",
+			"com.atlassian.confluence.user.ConfluenceAuthenticator"
+		);
+	}
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD(
+		$application,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-confluence.sh",
+		"/bin/stop-confluence.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
+
+	#Clear confluence plugin cache as per [#ATLASMGR-374]
+	clearConfluencePluginCache();
+
+	#Finally run generic post install tasks
+	postUpgradeGeneric($application);
 }
 
 #######################################################################
@@ -11009,10 +12792,31 @@ sub getExistingCrowdConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.appContext",
+"Enter the context that Crowd currently runs under (i.e. /crowd or /login). Write NULL to blank out the context.",
+		"/crowd",
+		'(?!^.*/$)^(/.*)',
+"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
+		  . "leading '/' and NO trailing '/'.\n\n"
 	);
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
@@ -11024,7 +12828,7 @@ sub getExistingCrowdConfig {
 			"crowd.apacheProxyHost",
 "Please enter the base URL Crowd currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -11096,39 +12900,6 @@ sub getExistingCrowdConfig {
 		);
 	}
 
-	#getContextFromFile
-	$returnValue = "";
-
-	print
-"Please wait, attempting to get the $application context from it's config files...\n\n";
-	$log->info(
-"$subname: Attempting to get $application context from config file $serverConfigFile."
-	);
-	$returnValue =
-	  getXMLAttribute( $serverConfigFile, "//////Context", "path" );
-
-	if ( $returnValue eq "NOTFOUND" ) {
-		$log->info(
-"$subname: Unable to locate $application context. Asking user for input."
-		);
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.appContext",
-"Unable to find the context in the expected location in the $application config. Please enter the context that $application currently runs under (i.e. /confluence or /wiki). Write NULL to blank out the context.",
-			"/jira",
-			'(?!^.*/$)^(/.*)',
-"The input you entered was not in the valid format of '/folder'. Please ensure you enter the path with a "
-			  . "leading '/' and NO trailing '/'.\n\n"
-		);
-	}
-	else {
-		$cfg->param( "$lcApplication.appContext", $returnValue );
-		print
-"$application context has been found successfully and added to the config file...\n\n";
-		$log->info("$subname: $application context found and added to config.");
-	}
-
 	$returnValue = "";
 
 	print
@@ -11139,7 +12910,6 @@ sub getExistingCrowdConfig {
 
 	#Get connector port from file
 	$returnValue = getXMLAttribute( $serverConfigFile, "///Connector", "port" );
-
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
 "$subname: Unable to locate $application connectorPort. Asking user for input."
@@ -11294,8 +13064,8 @@ sub getExistingCrowdConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -11303,8 +13073,10 @@ sub getExistingCrowdConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
@@ -11354,7 +13126,7 @@ sub getExistingCrowdConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -11390,7 +13162,24 @@ sub getExistingCrowdConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -11433,14 +13222,9 @@ sub getExistingCrowdConfig {
 	}
 
 	#Set up some defaults for Crowd
-	$cfg->param( "$lcApplication.tomcatDir",               "/apache-tomcat" );
-	$cfg->param( "$lcApplication.webappDir",               "/crowd-webapp" );
-	$cfg->param( "$lcApplication.processSearchParameter1", "java" );
-	$cfg->param( "$lcApplication.processSearchParameter2",
-		    "Dcatalina.base="
-		  . $cfg->param("$lcApplication.installDir")
-		  . $cfg->param("$lcApplication.tomcatDir") );
-	$cfg->param( "$lcApplication.enable", "TRUE" );
+	$cfg->param( "$lcApplication.tomcatDir", "/apache-tomcat" );
+	$cfg->param( "$lcApplication.webappDir", "/crowd-webapp" );
+	$cfg->param( "$lcApplication.enable",    "TRUE" );
 
 	$cfg->write($configFile);
 	loadSuiteConfig();
@@ -11457,7 +13241,8 @@ sub generateCrowdConfig {
 	my $cfg;
 	my $mode;
 	my $defaultValue;
-	my $subname = ( caller(0) )[3];
+	my $application = "Crowd";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -11519,7 +13304,7 @@ sub generateCrowdConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "crowd.connectorPort", $cfg );
+	checkConfiguredPort( $application, "crowd.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -11530,13 +13315,23 @@ sub generateCrowdConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "crowd.serverPort", $cfg );
+	checkConfiguredPort( $application, "crowd.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"crowd.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"crowd.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -11581,7 +13376,7 @@ sub generateCrowdConfig {
 			"crowd.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -11607,9 +13402,9 @@ sub generateCrowdConfig {
 	$cfg->param( "crowd.webappDir",               "/crowd-webapp" );
 	$cfg->param( "crowd.processSearchParameter1", "java" );
 	$cfg->param( "crowd.processSearchParameter2",
-		    "Dcatalina.base="
-		  . $cfg->param("crowd.installDir")
-		  . $cfg->param("crowd.tomcatDir") );
+		    $cfg->param("crowd.installDir")
+		  . $cfg->param("crowd.tomcatDir")
+		  . "/bin/bootstrap.jar" );
 
 	$cfg->param( "crowd.enable", "TRUE" );
 }
@@ -11628,6 +13423,7 @@ sub installCrowd {
 	my $javaMemParameterFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -11655,6 +13451,29 @@ sub installCrowd {
 			push( @requiredConfigItems, "crowd.apacheProxyHost" );
 		}
 	}
+
+	#bugFix for versions prior to v0.1.6 see [#ATLASMGR-265]
+	if ( $globalConfig->param("crowd.processSearchParameter2") eq
+		"Dcatalina.base=/drive2/opt/crowd/apache-tomcat" )
+	{
+
+		#force the value to NULL so that config will need to be regenerated.
+		$globalConfig->param( "crowd.processSearchParameter2", "" );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		    "Dcatalina.base="
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -11777,7 +13596,31 @@ sub installCrowd {
 			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -11802,9 +13645,15 @@ sub installCrowd {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"start_crowd.sh", "stop_crowd.sh" );
+		"start_crowd.sh",
+		"stop_crowd.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -11832,6 +13681,7 @@ sub upgradeCrowd {
 	my $javaMemParameterFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -11859,6 +13709,29 @@ sub upgradeCrowd {
 			push( @requiredConfigItems, "crowd.apacheProxyHost" );
 		}
 	}
+
+	#bugFix for versions prior to v0.1.6 see [#ATLASMGR-265]
+	if ( $globalConfig->param("crowd.processSearchParameter2") eq
+		"Dcatalina.base=/drive2/opt/crowd/apache-tomcat" )
+	{
+
+		#force the value to NULL so that config will need to be regenerated.
+		$globalConfig->param( "crowd.processSearchParameter2", "" );
+
+		#Write config and reload
+		$log->info("Writing out config file to disk.");
+		$globalConfig->write($configFile);
+		loadSuiteConfig();
+	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		    "Dcatalina.base="
+		  . $globalConfig->param("$lcApplication.installDir")
+		  . $globalConfig->param("$lcApplication.tomcatDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -11987,7 +13860,31 @@ sub upgradeCrowd {
 			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
 			  . "/bin/setenv.sh",
 			"JAVA_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . $globalConfig->param( $lcApplication . ".tomcatDir" )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -12011,9 +13908,15 @@ sub upgradeCrowd {
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"start_crowd.sh", "stop_crowd.sh" );
+		"start_crowd.sh",
+		"stop_crowd.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
@@ -12098,7 +14001,7 @@ sub getExistingFisheyeConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -12113,7 +14016,7 @@ sub getExistingFisheyeConfig {
 			"fisheye.apacheProxyHost",
 "Please enter the base URL Fisheye currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -12234,6 +14137,9 @@ sub getExistingFisheyeConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -12412,8 +14318,8 @@ sub getExistingFisheyeConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -12421,8 +14327,10 @@ sub getExistingFisheyeConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
@@ -12471,7 +14379,7 @@ sub getExistingFisheyeConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -12507,7 +14415,24 @@ sub getExistingFisheyeConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -12576,7 +14501,8 @@ sub generateFisheyeConfig {
 	my $defaultValue;
 	my $externalCrowdInstance;
 	my @parameterNull;
-	my $subname = ( caller(0) )[3];
+	my $application = "Fisheye";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 
@@ -12638,7 +14564,7 @@ sub generateFisheyeConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "fisheye.connectorPort", $cfg );
+	checkConfiguredPort( $application, "fisheye.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -12649,13 +14575,13 @@ sub generateFisheyeConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "fisheye.serverPort", $cfg );
+	checkConfiguredPort( $application, "fisheye.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"fisheye.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
 		"",
 		"",
 		""
@@ -12700,7 +14626,7 @@ sub generateFisheyeConfig {
 			"fisheye.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -12805,6 +14731,13 @@ sub installFisheye {
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"Dfisheye.inst=" . $globalConfig->param("fisheye.dataDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Perform application specific configuration
 	print "Copying example config file, please wait...\n\n";
@@ -12918,7 +14851,7 @@ sub installFisheye {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/fisheyectl.sh",
 			"FISHEYE_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 
 	}
@@ -12957,12 +14890,14 @@ sub installFisheye {
 	$log->info("$subname: Generating init.d file for $application.");
 
 	generateInitD(
-		$lcApplication,
+		$application,
 		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/",
 		"start.sh",
-		"stop.sh"
+		"stop.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
 	postInstallGeneric($application);
@@ -13059,6 +14994,13 @@ sub upgradeFisheye {
 		  . "/fisheye Config updated and now ready to upgrade.\n\n";
 	}
 
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"Dfisheye.inst=" . $globalConfig->param("fisheye.dataDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
+
 	#Run generic upgrader steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
@@ -13105,7 +15047,7 @@ sub upgradeFisheye {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/fisheyectl.sh",
 			"FISHEYE_OPTS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 	}
 
@@ -13142,12 +15084,14 @@ sub upgradeFisheye {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 	generateInitD(
-		$lcApplication,
+		$application,
 		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 		  . "/bin/",
 		"start.sh",
-		"stop.sh"
+		"stop.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
 	);
 
 	#Finally run generic post install tasks
@@ -13233,7 +15177,17 @@ sub getExistingJiraConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -13248,7 +15202,7 @@ sub getExistingJiraConfig {
 			"jira.apacheProxyHost",
 "Please enter the base URL JIRA currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -13378,6 +15332,9 @@ sub getExistingJiraConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -13617,7 +15574,7 @@ sub getExistingJiraConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -13653,7 +15610,24 @@ sub getExistingJiraConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -13718,7 +15692,8 @@ sub generateJiraConfig {
 	my $defaultValue;
 	my $externalCrowdInstance;
 	my @parameterNull;
-	my $subname = ( caller(0) )[3];
+	my $application = "JIRA";
+	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
 	$mode = $_[0];
@@ -13770,7 +15745,7 @@ sub generateJiraConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "jira.connectorPort", $cfg );
+	checkConfiguredPort( $application, "jira.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -13782,13 +15757,23 @@ sub generateJiraConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "jira.serverPort", $cfg );
+	checkConfiguredPort( $application, "jira.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"jira.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -13833,7 +15818,7 @@ sub generateJiraConfig {
 			"jira.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -13897,6 +15882,11 @@ sub generateJiraConfig {
 #Install Jira                          #
 ########################################
 sub installJira {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -13930,18 +15920,160 @@ sub installJira {
 	}
 
 	#Run generic installer steps
-	installGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"JIRA_USER",  \@requiredConfigItems
-	);
+	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	#Force update config items for search parameters
+	$globalConfig->param( "jira.processSearchParameter1", "java" );
+	$globalConfig->param( "jira.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+
+	$initPropertiesFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/atlassian-jira/WEB-INF/classes/$lcApplication-application.properties";
 	$javaMemParameterFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
 
-#backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit JIRA config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"jira.home =",
+		"jira.home ="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"# jira.home ="
+	);
+
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
+		);
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -13973,7 +16105,23 @@ sub installJira {
 		"#JIRA_MAX_PERM_SIZE="
 	);
 
-	postInstallGenericAtlassianBinary($application);
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD(
+		$application,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-jira.sh",
+		"/bin/stop-jira.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
+
+	#Finally run generic post install tasks
+	postInstallGeneric($application);
 }
 
 ########################################
@@ -13984,13 +16132,18 @@ sub uninstallJira {
 	my $subname     = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
-	uninstallGenericAtlassianBinary($application);
+	uninstallGeneric($application);
 }
 
 ########################################
 #UpgradeJira                          #
 ########################################
 sub upgradeJira {
+	my $serverXMLFile;
+	my $initPropertiesFile;
+	my @parameterNull;
+	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $application   = "JIRA";
 	my $lcApplication = lc($application);
 	my $javaMemParameterFile;
@@ -14023,18 +16176,229 @@ sub upgradeJira {
 		}
 	}
 
-	upgradeGenericAtlassianBinary(
-		$application, $downloadArchivesUrl,
-		"JIRA_USER",  \@requiredConfigItems
-	);
+	#Back up the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Backing up Crowd configuration files.");
+		print "Backing up the Crowd configuration files...\n\n";
+		if ( -e $globalConfig->param("$lcApplication.installDir")
+			. "/atlassian-jira/WEB-INF/classes/crowd.properties" )
+		{
+			copyFile(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/crowd.properties",
+				"$Bin/working/crowd.properties.$lcApplication"
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application, will not copy.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application, will not copy."
+			);
+		}
+	}
 
-	$osUser = $globalConfig->param("$lcApplication.osUser");
+	#Force update config items for search parameters
+	$globalConfig->param( "jira.processSearchParameter1", "java" );
+	$globalConfig->param( "jira.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
+	#Run generic installer steps
+	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
+	$osUser = $globalConfig->param("$lcApplication.osUser")
+	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Perform application specific configuration
+	print "Applying configuration settings to the install, please wait...\n\n";
+
+	$serverXMLFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/conf/server.xml";
+
+	$initPropertiesFile =
+	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+	  . "/atlassian-jira/WEB-INF/classes/$lcApplication-application.properties";
 	$javaMemParameterFile =
 	  escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 	  . "/bin/setenv.sh";
 
-#backupFile( $javaOptsFile, $osUser ); # This will already have been backed up as part of install for Jira
+	print "Creating backup of config files...\n\n";
+	$log->info("$subname: Backing up config files.");
+
+	backupFile( $serverXMLFile, $osUser );
+
+	backupFile( $initPropertiesFile, $osUser );
+
+	backupFile( $javaMemParameterFile, $osUser );
+
+	print "Applying port numbers to server config...\n\n";
+
+	#Update the server config with the configured connector port
+	$log->info( "$subname: Updating the connector port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "///Connector", "port",
+		$globalConfig->param("$lcApplication.connectorPort") );
+
+	#Update the server config with the configured server port
+	$log->info( "$subname: Updating the server port in " . $serverXMLFile );
+	updateXMLAttribute( $serverXMLFile, "/Server", "port",
+		$globalConfig->param("$lcApplication.serverPort") );
+
+	#Apply application context
+	$log->info( "$subname: Applying application context to " . $serverXMLFile );
+	print "Applying application context to config...\n\n";
+	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
+		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
+
+	print "Applying home directory location to config...\n\n";
+
+	#Update the server config with reverse proxy configuration
+	$log->info( "$subname: Updating the reverse proxy configuration in "
+		  . $serverXMLFile );
+	print "Applying Apache proxy parameters to config...\n\n";
+	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
+		if ( $globalConfig->param("general.apacheProxySingleDomain") eq "TRUE" )
+		{
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("general.apacheProxyHost") );
+
+			if ( $globalConfig->param("general.apacheProxySSL") eq "TRUE" ) {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("general.apacheProxyPort") );
+		}
+		else {
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyName",
+				$globalConfig->param("$lcApplication.apacheProxyHost") );
+			if ( $globalConfig->param("$lcApplication.apacheProxySSL") eq
+				"TRUE" )
+			{
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"https" );
+			}
+			else {
+				updateXMLAttribute( $serverXMLFile, "///Connector", "scheme",
+					"http" );
+			}
+			updateXMLAttribute( $serverXMLFile, "///Connector", "secure",
+				"false" );
+			updateXMLAttribute( $serverXMLFile, "///Connector", "proxyPort",
+				$globalConfig->param("$lcApplication.apacheProxyPort") );
+		}
+	}
+
+	#Edit JIRA config file to reference homedir
+	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
+	print "Applying home directory to config...\n\n";
+	updateLineInFile(
+		$initPropertiesFile,
+		"jira.home =",
+		"jira.home ="
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ),
+		"# jira.home ="
+	);
+
+	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.javaParams") eq ""
+		|| $globalConfig->param("$lcApplication.javaParams") eq "default" )
+	{
+		$javaOptsValue = "NOJAVAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$javaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	#Apply the JavaOpts configuration (if any)
+	print "Applying Java_Opts configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
+		updateJavaOpts(
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"JAVA_OPTS",
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
+		);
+	}
+
+	#Restore the Crowd configuration files
+	if ( $globalConfig->param("$lcApplication.crowdIntegration") eq "TRUE" ) {
+		$log->info("$subname: Restoring Crowd configuration files.");
+		print "Restoring the Crowd configuration files...\n\n";
+		if (
+			-e escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+			)
+		  )
+		{
+			backupFile(
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				),
+				$osUser
+			);
+		}
+		if ( -e escapeFilePath("$Bin/working/crowd.properties.$lcApplication") )
+		{
+			copyFile(
+				escapeFilePath("$Bin/working/crowd.properties.$lcApplication"),
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+
+			chownFile(
+				$osUser,
+				escapeFilePath(
+					$globalConfig->param("$lcApplication.installDir")
+					  . "/atlassian-jira/WEB-INF/classes/crowd.properties"
+				)
+			);
+		}
+		else {
+			print
+"No crowd.properties currently exists for $application that has been backed up, will not restore.\n\n";
+			$log->info(
+"$subname: No crowd.properties currently exists for $application that has been backed up, will not restore."
+			);
+		}
+	}
+
+	print "Configuration settings have been applied successfully.\n\n";
 
 	#Run any additional steps
 
@@ -14066,7 +16430,46 @@ sub upgradeJira {
 		"#JIRA_MAX_PERM_SIZE="
 	);
 
-	postUpgradeGenericAtlassianBinary($application);
+	#Apply Seraph Config
+	if ( $globalConfig->param("$lcApplication.crowdSSO") eq "TRUE" ) {
+		backupFile(
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+			),
+			$osUser
+		);
+		updateSeraphConfig(
+			$application,
+			escapeFilePath(
+				$globalConfig->param("$lcApplication.installDir")
+				  . "/atlassian-jira/WEB-INF/classes/seraph-config.xml"
+			),
+			"com.atlassian.jira.security.login.SSOSeraphAuthenticator",
+			"com.atlassian.jira.security.login.JiraSeraphAuthenticator"
+		);
+	}
+
+	#Generate the init.d file
+	print
+"Setting up initd files and run as a service (if configured) please wait...\n\n";
+	$log->info("$subname: Generating init.d file for $application.");
+
+	generateInitD(
+		$application,
+		$osUser,
+		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
+		"/bin/start-jira.sh",
+		"/bin/stop-jira.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
+
+	#clear the JIRA plugin cache for good measure (see [#ATLASMGR-341])
+	clearJIRAPluginCache();
+
+	#Finally run generic post install tasks
+	postUpgradeGeneric($application);
 }
 
 #######################################################################
@@ -14148,7 +16551,17 @@ sub getExistingStashConfig {
 		$mode,
 		$cfg,
 		"$lcApplication.javaParams",
-"Enter any additional paramaters currently add to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+"Enter any additional parameters currently added to the JAVA RUN_OPTS for your $application install. Just press enter if you have none.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.catalinaOpts",
+"Enter any additional currently added to the Java CATALINA_OPTS for your $application install. Just press enter if you have none.",
 		"",
 		"",
 		""
@@ -14163,7 +16576,7 @@ sub getExistingStashConfig {
 			"stash.apacheProxyHost",
 "Please enter the base URL Stash currently runs on (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -14288,6 +16701,9 @@ sub getExistingStashConfig {
 		);
 	}
 	else {
+		if ( $returnValue eq "" ) {
+			$returnValue = "NULL";
+		}
 		$cfg->param( "$lcApplication.appContext", $returnValue );
 		print
 "$application context has been found successfully and added to the config file...\n\n";
@@ -14463,8 +16879,8 @@ sub getExistingStashConfig {
 	$returnValue = "";
 
 	#getOSuser
-	open( WORKING_DIR_HANDLE,
-		escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
 	  or $log->logdie(
 "Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
 	  );
@@ -14472,8 +16888,10 @@ sub getExistingStashConfig {
 		$dev,   $ino,     $fileMode, $nlink, $uid,
 		$gid,   $rdev,    $size,     $atime, $mtime,
 		$ctime, $blksize, $blocks
-	) = stat(WORKING_DIR_HANDLE);
+	) = stat($inputFileHandle);
 	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
 
 	#confirmWithUserThatIsTheCorrectOSUser
 	$input = getBooleanInput(
@@ -14523,7 +16941,7 @@ sub getExistingStashConfig {
 				"$lcApplication.apacheProxyHost",
 "Unable to find the base hostname attribute in the expected location in the $application config. Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 				"",
-				'^([a-zA-Z0-9\.]*)$',
+				$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 			);
 		}
@@ -14559,7 +16977,24 @@ sub getExistingStashConfig {
 			);
 		}
 		else {
-			$cfg->param( "$lcApplication.apacheProxySSL", $returnValue );
+			if ( $returnValue eq "http" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "FALSE" );
+			}
+			elsif ( $returnValue eq "https" ) {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'http'."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "TRUE" );
+			}
+			else {
+				$log->info(
+"$subname: return value for Apache Proxy Scheme config is 'UNKNOWN' This is not good."
+				);
+				$cfg->param( "$lcApplication.apacheProxySSL", "UNKNOWN" );
+			}
 			print
 "$application Apache Proxy scheme has been found successfully and added to the config file...\n\n";
 			$log->info(
@@ -14625,6 +17060,7 @@ sub generateStashConfig {
 	my $defaultValue;
 	my $subname = ( caller(0) )[3];
 	my $externalCrowdInstance;
+	my $application = "Stash";
 	my @parameterNull;
 
 	$log->info("BEGIN: $subname");
@@ -14686,7 +17122,7 @@ sub generateStashConfig {
 		'^([0-9]*)$',
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
-	checkConfiguredPort( "stash.connectorPort", $cfg );
+	checkConfiguredPort( $application, "stash.connectorPort", $cfg );
 
 	genConfigItem(
 		$mode,
@@ -14698,13 +17134,23 @@ sub generateStashConfig {
 "The port number you entered contained invalid characters. Please ensure you enter only digits.\n\n"
 	);
 
-	checkConfiguredPort( "stash.serverPort", $cfg );
+	checkConfiguredPort( $application, "stash.serverPort", $cfg );
 
 	genConfigItem(
 		$mode,
 		$cfg,
 		"stash.javaParams",
-"Enter any additional paramaters you would like to add to the Java RUN_OPTS.",
+"Enter any additional parameters you would like to add to the Java RUN_OPTS.",
+		"",
+		"",
+		""
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"stash.catalinaOpts",
+"Enter any additional parameters you would like to add to the Java CATALINA_OPTS.",
 		"",
 		"",
 		""
@@ -14749,7 +17195,7 @@ sub generateStashConfig {
 			"stash.apacheProxyHost",
 "Please enter the base URL that will be serving the site (i.e. the proxyName such as yourdomain.com).",
 			"",
-			'^([a-zA-Z0-9\.]*)$',
+			$hostnameRegex,
 "The input you entered was not in the valid format of 'yourdomain.com' or 'subdomain.yourdomain.com'. Please try again.\n\n"
 		);
 
@@ -14820,6 +17266,7 @@ sub installStash {
 	my $javaMemParameterFile;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
@@ -14852,6 +17299,13 @@ sub installStash {
 	installGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
 	$osUser = $globalConfig->param("$lcApplication.osUser")
 	  ; #we get this after install in CASE the installer changes the configured user in future
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Perform application specific configuration
 	print "Applying configuration settings to the install, please wait...\n\n";
@@ -14964,7 +17418,30 @@ sub installStash {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JVM_REQUIRED_ARGS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -15005,9 +17482,15 @@ sub installStash {
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
 
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
+		"/bin/start-stash.sh",
+		"/bin/stop-stash.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postInstallGeneric($application);
@@ -15036,6 +17519,7 @@ sub upgradeStash {
 	my @requiredConfigItems;
 	my @parameterNull;
 	my $javaOptsValue;
+	my $catalinaOptsValue;
 	my $subname = ( caller(0) )[3];
 
 	$log->info("BEGIN: $subname");
@@ -15062,6 +17546,13 @@ sub upgradeStash {
 			push( @requiredConfigItems, "stash.apacheProxyHost" );
 		}
 	}
+
+	#Force update config items for search parameters
+	$globalConfig->param( "$lcApplication.processSearchParameter1", "java" );
+	$globalConfig->param( "$lcApplication.processSearchParameter2",
+		"classpath " . $globalConfig->param("$lcApplication.installDir") );
+	$globalConfig->write($configFile);
+	loadSuiteConfig();
 
 	#Run generic installer steps
 	upgradeGeneric( $application, $downloadArchivesUrl, \@requiredConfigItems );
@@ -15180,7 +17671,30 @@ sub upgradeStash {
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
 			"JVM_REQUIRED_ARGS",
-			$globalConfig->param( $lcApplication . ".javaParams" )
+			getConfigItem( "$lcApplication.javaParams", $globalConfig )
+		);
+	}
+
+	#Apply Catalina Opts to Install
+	@parameterNull = $globalConfig->param("$lcApplication.catalinaOpts");
+	if (   ( $#parameterNull == -1 )
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq ""
+		|| $globalConfig->param("$lcApplication.catalinaOpts") eq "default" )
+	{
+		$catalinaOptsValue = "NOCATALINAOPTSCONFIGSPECIFIED";
+	}
+	else {
+		$catalinaOptsValue = "CONFIGSPECIFIED";
+	}
+
+	print "Applying CATALINA_OPTS configuration to install...\n\n";
+	if ( $javaOptsValue ne "NOCATALINAOPTSCONFIGSPECIFIED" ) {
+		updateCatalinaOpts(
+			$application,
+			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
+			  . "/bin/setenv.sh",
+			"CATALINA_OPTS=",
+			getConfigItem( "$lcApplication.catalinaOpts", $globalConfig )
 		);
 	}
 
@@ -15220,9 +17734,15 @@ sub upgradeStash {
 	print
 "Setting up initd files and run as a service (if configured) please wait...\n\n";
 	$log->info("$subname: Generating init.d file for $application.");
-	generateInitD( $lcApplication, $osUser,
+	generateInitD(
+		$application,
+		$osUser,
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ),
-		"/bin/start-stash.sh", "/bin/stop-stash.sh" );
+		"/bin/start-stash.sh",
+		"/bin/stop-stash.sh",
+		$globalConfig->param("$lcApplication.processSearchParameter1"),
+		$globalConfig->param("$lcApplication.processSearchParameter2")
+	);
 
 	#Finally run generic post install tasks
 	postUpgradeGeneric($application);
