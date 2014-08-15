@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.3
+#    Version: 0.2.4
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -67,7 +67,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-2-3"
+my $scriptVersion = "0-2-4"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -125,7 +125,7 @@ sub backupApplication {
 	my $compressBackups = $globalConfig->param("general.compressBackups");
 	my $subname         = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application   = $_[0];
 	$lcApplication = lc($application);
@@ -177,10 +177,10 @@ sub backupApplication {
 
 	#Check that we have enough disk space
 	$installDirSize =
-	  dirSize(
+	  getDirSize(
 		escapeFilePath( $globalConfig->param("$lcApplication.installDir") ) );
 	$dataDirSize =
-	  dirSize(
+	  getDirSize(
 		escapeFilePath( $globalConfig->param("$lcApplication.dataDir") ) );
 
 	$installDirRef =
@@ -341,7 +341,7 @@ sub backupApplication {
 	$globalConfig->write($configFile);
 	loadSuiteConfig();
 
-	$log->debug(
+	$log->info(
 "$subname: Doing recursive chown of $applicationDirBackupDirName and $dataDirBackupDirName to "
 		  . $globalConfig->param("$lcApplication.osUser")
 		  . "." );
@@ -366,7 +366,7 @@ sub backupDirectoryAndChown {
 	my $backupDirName;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$originalDir = $_[0];
 	$osUser      = $_[1];
@@ -381,7 +381,7 @@ sub backupDirectoryAndChown {
 
 	moveDirectory( $originalDir, $backupDirName );
 	print "Folder moved to " . $backupDirName . "\n\n";
-	$log->debug("$subname: Doing recursive chown of $backupDirName to $osUser");
+	$log->info("$subname: Doing recursive chown of $backupDirName to $osUser");
 	chownRecursive( $osUser, $backupDirName );
 }
 
@@ -394,7 +394,7 @@ sub backupFile {
 	my $date = strftime "%Y%m%d_%H%M%S", localtime;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile = $_[0];
 	$osUser    = $_[1];
@@ -430,7 +430,7 @@ sub checkASMPatchLevel {
 
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#check if there is a corresponding version in settings.cfg
 
@@ -438,7 +438,7 @@ sub checkASMPatchLevel {
 	if ( ( $#parameterNull == -1 )
 		|| $globalConfig->param("general.asmPatchLevel") eq "" )
 	{
-		$log->debug(
+		$log->info(
 "$subname: No ASM patch level currently exists in the settings file."
 		);
 		$patchLevel =
@@ -450,6 +450,7 @@ sub checkASMPatchLevel {
 
 	if ( compareTwoVersions( $patchLevel, $scriptVersion ) eq "LESS" ) {
 		if ( compareTwoVersions( $patchLevel, "0-2-3" ) eq "LESS" ) {
+			$log->info("$subname: Applying patchlevel 0.2.3 to current config");
 
 			#previous bugfixes being migrated into this new tool
 			#Apply fix for [#ATLASMGR-317]
@@ -537,7 +538,7 @@ sub checkConfiguredPort {
 	my $lcApplication;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$application = $_[0];
 	$configItem  = $_[1];
 
@@ -581,7 +582,7 @@ sub checkConfiguredPort {
 				@portTestReturn =
 				  isPortDefinedElsewhere( $application, $configValue );
 				if ( scalar @portTestReturn == 0 ) {
-					$log->debug("Port is available.");
+					$log->info("Port is available.");
 					$LOOP = 0;
 				}
 				else {
@@ -592,7 +593,7 @@ sub checkConfiguredPort {
 					}
 					print "\n";
 
-					$log->debug("Port is in use.");
+					$log->info("Port is in use.");
 
 					$input = getBooleanInput(
 "Would you like to configure a different port? yes/no [yes]: "
@@ -601,7 +602,7 @@ sub checkConfiguredPort {
 					if (   $input eq "yes"
 						|| $input eq "default" )
 					{
-						$log->debug("User selected to configure new port.");
+						$log->info("User selected to configure new port.");
 						genConfigItem(
 							"UPDATE",
 							$cfg,
@@ -614,12 +615,12 @@ sub checkConfiguredPort {
 					}
 					elsif ( $input eq "no" ) {
 						$LOOP = 0;
-						$log->debug("User selected to keep existing port.");
+						$log->info("User selected to keep existing port.");
 					}
 				}
 			}
 			else {
-				$log->debug("Port is in use.");
+				$log->info("Port is in use.");
 
 				$input = getBooleanInput(
 "The port you have configured ($configValue) for $configItem is currently in use, this may be expected if you are already running the application."
@@ -629,7 +630,7 @@ sub checkConfiguredPort {
 				if (   $input eq "yes"
 					|| $input eq "default" )
 				{
-					$log->debug("User selected to configure new port.");
+					$log->info("User selected to configure new port.");
 					genConfigItem(
 						"UPDATE",
 						$cfg,
@@ -643,7 +644,7 @@ sub checkConfiguredPort {
 				}
 				elsif ( $input eq "no" ) {
 					$LOOP = 0;
-					$log->debug("User selected to keep existing port.");
+					$log->info("User selected to keep existing port.");
 				}
 			}
 		}
@@ -660,7 +661,7 @@ sub checkCrowdConfig {
 	my @requiredCrowdConfigItems;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application = $_[0];
 	$mode        = $_[1];
@@ -681,7 +682,7 @@ sub checkCrowdConfig {
 				if ( checkRequiredConfigItems(@requiredCrowdConfigItems) eq
 					"FAIL" )
 				{
-					$log->info(
+					$log->warn(
 "$subname: $application has been configured for Crowd integration but Crowd does not appear to be installed yet. Cancelling $mode of $application."
 					);
 					print
@@ -703,7 +704,7 @@ sub checkCrowdConfig {
 #Iterate through required config items, if any are missing install cannot continue and user will have to re-run config generation.
 			if ( checkRequiredConfigItems(@requiredCrowdConfigItems) eq "FAIL" )
 			{
-				$log->info(
+				$log->warn(
 "$subname: $application has been configured for Crowd integration with an external Crowd instance. However external Crowd instance parameters have not been defined in our config. Cancelling $mode of $application."
 				);
 				print
@@ -740,7 +741,7 @@ sub checkForAvailableUpdates {
 	#undefine any previous details in the hash in case we are re-running:
 	undef(%appsWithUpdates);
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	foreach (@suiteApplications) {
 
 		$application   = $_;
@@ -789,7 +790,7 @@ sub checkRequiredConfigItems {
 	my $failureCount = 0;
 	my $subname      = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	@requiredConfigItems = @_;
 
@@ -802,7 +803,7 @@ sub checkRequiredConfigItems {
 		}
 	}
 
-	$log->info("Failure count of required config items: $failureCount");
+	$log->debug("Failure count of required config items: $failureCount");
 	if ( $failureCount > 0 ) {
 		return "FAIL";
 	}
@@ -820,7 +821,7 @@ sub chownRecursive {
 	my @uidGid;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$osUser    = $_[0];
 	$directory = $_[1];
@@ -833,7 +834,7 @@ sub chownRecursive {
 	@uidGid = getUserUidGid($osUser);
 
 	print "Chowning files to correct user. Please wait.\n\n";
-	$log->info("CHOWNING: $directory");
+	$log->debug("CHOWNING: $directory");
 
 	find(
 		sub {
@@ -856,7 +857,7 @@ sub chownFile {
 	my $file;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$osUser = $_[0];
 	$file   = $_[1];
@@ -890,7 +891,7 @@ sub clearConfluencePluginCache {
 	);
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#remove init.d file
 	print "Clearing Confluence Plugin Cache, please wait...\n\n";
@@ -910,7 +911,7 @@ sub clearJIRAPluginCache {
 	);
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#remove init.d file
 	print "Clearing JIRA Plugin Cache... please wait...\n\n";
@@ -936,7 +937,7 @@ sub compareTwoVersions {
 	my $version2Delim;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$version1 = $_[0];
 	$version2 = $_[1];
@@ -1031,57 +1032,57 @@ sub compareTwoVersions {
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "GREATER" ) {
-		$log->info("$subname: Newer version is greater than old version.");
+		$log->debug("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "LESS" ) {
-		$log->info("$subname: Newer version is less than old version.");
+		$log->debug("$subname: Newer version is less than old version.");
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "GREATER" ) {
-		$log->info("$subname: Newer version is greater than old version.");
+		$log->debug("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		!defined($minVersionStatus) )
 	{
-		$log->info("$subname: Newer version is equal to old version.");
+		$log->debug("$subname: Newer version is equal to old version.");
 		return "EQUAL";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "LESS" )
 	{
-		$log->info("$subname: Newer version is less than old version.");
+		$log->debug("$subname: Newer version is less than old version.");
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "GREATER" )
 	{
-		$log->info("$subname: Newer version is greater than old version.");
+		$log->debug("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "EQUAL" )
 	{
-		$log->info("$subname: Newer version is equal to old version.");
+		$log->debug("$subname: Newer version is equal to old version.");
 		return "EQUAL";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "NEWERNULL" )
 	{
-		$log->info("$subname: Newer version is greater than old version.");
+		$log->debug("$subname: Newer version is greater than old version.");
 		return "GREATER";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "CURRENTNULL" )
 	{
-		$log->info("$subname: Newer version is less than old version.");
+		$log->debug("$subname: Newer version is less than old version.");
 		return "LESS";
 	}
 	elsif ( $majorVersionStatus eq "EQUAL" & $midVersionStatus eq "EQUAL" &
 		$minVersionStatus eq "BOTHNULL" )
 	{
-		$log->info("$subname: Newer version is equal to old version.");
+		$log->debug("$subname: Newer version is equal to old version.");
 		return "EQUAL";
 	}
 }
@@ -1094,7 +1095,7 @@ sub copyDirectory {
 	my $newDirectory;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$origDirectory = $_[0];
 	$newDirectory  = $_[1];
@@ -1103,7 +1104,7 @@ sub copyDirectory {
 	dumpSingleVarToLog( "$subname" . "_origDirectory", $origDirectory );
 	dumpSingleVarToLog( "$subname" . "_newDirectory",  $newDirectory );
 
-	$log->info("$subname: Copying $origDirectory to $newDirectory.");
+	$log->debug("$subname: Copying $origDirectory to $newDirectory.");
 
 	if ( dircopy( $origDirectory, $newDirectory ) == 0 ) {
 		$log->logdie(
@@ -1120,7 +1121,7 @@ sub copyFile {
 	my $outputFile;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile  = $_[0];
 	$outputFile = $_[1];    #can also be a directory
@@ -1130,10 +1131,10 @@ sub copyFile {
 	dumpSingleVarToLog( "$subname" . "_outputFile", $outputFile );
 
 	#Create copy of input file to output file
-	$log->info("$subname: Copying $inputFile to $outputFile");
+	$log->debug("$subname: Copying $inputFile to $outputFile");
 	copy( $inputFile, $outputFile )
 	  or $log->logdie("File copy failed for $inputFile to $outputFile: $!");
-	$log->info("$subname: Input file '$inputFile' copied to $outputFile");
+	$log->debug("$subname: Input file '$inputFile' copied to $outputFile");
 }
 
 ########################################
@@ -1145,7 +1146,7 @@ sub createAndChownDirectory {
 	my @uidGid;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$directory = $_[0];
 	$osUser    = $_[1];
@@ -1159,14 +1160,14 @@ sub createAndChownDirectory {
 
 	#Check if the directory exists if so just chown it
 	if ( -d $directory ) {
-		$log->info("Directory $directory exists, just chowning.");
+		$log->debug("Directory $directory exists, just chowning.");
 		print "Directory exists...\n\n";
 		chownRecursive( $osUser, $directory );
 	}
 
 #If the directory doesn't exist make the path to the directory (including any missing folders)
 	else {
-		$log->info(
+		$log->debug(
 			"Directory $directory does not exist, creating and chowning.");
 		print "Directory does not exist, creating...\n\n";
 		make_path(
@@ -1190,7 +1191,7 @@ sub createDirectory {
 	my $directory;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$directory = $_[0];
 
@@ -1226,7 +1227,7 @@ sub createOrUpdateLineInFile {
 	my @data;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile      = $_[0];
 	$lineReference  = $_[1];    #the line we are looking for
@@ -1251,9 +1252,9 @@ sub createOrUpdateLineInFile {
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
-		$log->info("$subname: First search term $lineReference not found.");
+		$log->debug("$subname: First search term $lineReference not found.");
 		if ( defined($lineReference2) ) {
-			$log->info("$subname: Trying to search for $lineReference2.");
+			$log->debug("$subname: Trying to search for $lineReference2.");
 			my ($index1) =
 			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
 			if ( !defined($index1) ) {
@@ -1264,7 +1265,7 @@ sub createOrUpdateLineInFile {
 
 			#Otherwise add the new line after the found line
 			else {
-				$log->info(
+				$log->debug(
 					"$subname: Adding '$newLine' after $data[$index1]'.");
 				splice( @data, $index1 + 1, 0, $newLine );
 			}
@@ -1276,7 +1277,7 @@ sub createOrUpdateLineInFile {
 		}
 	}
 	else {
-		$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
+		$log->debug("$subname: Replacing '$data[$index1]' with $newLine.");
 		$data[$index1] = $newLine . "\n";
 	}
 
@@ -1301,7 +1302,7 @@ sub createOrUpdateLineInXML {
 	my @data;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile     = $_[0];
 	$lineReference = $_[1];    #the line we are looking for
@@ -1325,14 +1326,14 @@ sub createOrUpdateLineInXML {
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
-		$log->info("$subname: First search term $lineReference not found.");
+		$log->debug("$subname: First search term $lineReference not found.");
 		$log->logdie(
 			"No line containing \"$lineReference\" found in file $inputFile\n\n"
 		);
 	}
 	else {
 		if ( !defined($index2) ) {
-			$log->info("$subname: Adding '$newLine' after $data[$index1]'.");
+			$log->debug("$subname: Adding '$newLine' after $data[$index1]'.");
 			splice( @data, $index1 + 1, 0, $newLine );
 		}
 	}
@@ -1358,21 +1359,11 @@ sub createOSUser {
 	my $lcApplication;
 	my $subname = ( caller(0) )[3];
 
-	#	my @chars = ("A".."Z", "a".."z", "0".."9");
-	#	my $password;
-	#	my $salt;
-	#	my $hashedPass;
-
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$osUser        = $_[0];
 	$application   = $_[1];
 	$lcApplication = lc($application);
-
-	#	#Create random password and salt
-	#	$password .= $chars[rand @chars] for 1..16;
-	#	$salt     .= $chars[rand @chars] for 1..16;
-	#	$hashedPass = crypt("$password", "$salt");
 
 	#LogInputParams if in Debugging Mode
 	dumpSingleVarToLog( "$subname" . "_osUser", $osUser );
@@ -1387,7 +1378,7 @@ sub createOSUser {
 		@gidParameterNull = $globalConfig->param("$lcApplication.osUserGID");
 
 		if ( $#uidParameterNull == -1 ) {
-			$log->info("$subname: No GID specified in config for $osUser.");
+			$log->debug("$subname: No GID specified in config for $osUser.");
 			$osUserUID = "";
 		}
 		else {
@@ -1397,7 +1388,7 @@ sub createOSUser {
 		}
 
 		if ( $#gidParameterNull == -1 ) {
-			$log->info("$subname: No UID specified in config for $osUser.");
+			$log->debug("$subname: No UID specified in config for $osUser.");
 			$osUserGID = "";
 		}
 		else {
@@ -1409,7 +1400,7 @@ sub createOSUser {
 		#Check if group exists
 		system("grep $osUser /etc/group");
 		if ( $? != 0 ) {
-			$log->info(
+			$log->debug(
 				"$subname: System group $osUser does not exist. Adding.");
 			print
 "The system group '$osUser' does not yet exist. Creating the group now: \n\n";
@@ -1424,7 +1415,7 @@ sub createOSUser {
 						"$subname: Could not create system group '$osUser'");
 				}
 				else {
-					$log->info(
+					$log->debug(
 						"$subname: System group '$osUser' created successfully"
 					);
 				}
@@ -1438,14 +1429,14 @@ sub createOSUser {
 						"$subname: Could not create system group '$osUser'");
 				}
 				else {
-					$log->info(
+					$log->debug(
 						"$subname: System group '$osUser' created successfully"
 					);
 				}
 			}
 		}
 		else {
-			$log->info("$subname: System group $osUser already exists.");
+			$log->debug("$subname: System group $osUser already exists.");
 		}
 
 		if ( $osUserUID eq "" ) {
@@ -1457,7 +1448,7 @@ sub createOSUser {
 					"$subname: Could not create system user '$osUser'");
 			}
 			else {
-				$log->info(
+				$log->debug(
 					"$subname: System user '$osUser' created successfully.");
 			}
 		}
@@ -1470,7 +1461,7 @@ sub createOSUser {
 					"$subname: Could not create system user '$osUser'");
 			}
 			else {
-				$log->info(
+				$log->debug(
 					"$subname: System user '$osUser' created successfully.");
 			}
 		}
@@ -1479,30 +1470,29 @@ sub createOSUser {
 "The system account '$osUser' has been created successfully. You must now enter a password for the new '$osUser' system account to be used if you wish to log in to it later: \n\n";
 		system("passwd $osUser");
 		if ( $? == -1 ) {
-			$log->info("$subname: Password creation failed for $osUser");
+			$log->warn("$subname: Password creation failed for $osUser");
 			print
 "Password creation for '$osUser' has failed, as this is not fatal we will continue, however you will need to create a password manually later: \n\n";
 		}
 		else {
-			$log->info("$subname: Password created for $osUser successfully.");
+			$log->debug("$subname: Password created for $osUser successfully.");
 		}
 	}
 	else {
-		$log->info("$subname: System user $osUser already exists.");
+		$log->debug("$subname: System user $osUser already exists.");
 	}
 }
 
 ########################################
-#dirSize - Calculate Directory Size    #
+#getDirSize - Calculate Directory Size    #
 ########################################
-sub dirSize {
+sub getDirSize {
 
 #code written by docsnider on http://bytes.com/topic/perl/answers/603354-calculate-size-all-files-directory
 	my ($dir)  = $_[0];
 	my ($size) = 0;
 	my ($fd);
 	my $subname = ( caller(0) )[3];
-
 	opendir( $fd, $dir )
 	  or $log->logdie(
 "Unable to open directory to calculate the directory size. Unable to continue: $!"
@@ -1515,13 +1505,12 @@ sub dirSize {
 
 		$size += (
 			( -d $path )
-			? dirSize($path)
+			? getDirSize($path)
 			: ( -f $path ? ( stat($path) )[7] : 0 )
 		);
 	}
 
 	closedir($fd);
-
 	return ($size);
 }
 
@@ -1635,7 +1624,7 @@ sub downloadAtlassianInstaller {
 	my $absoluteFilePath;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$type          = $_[0];
 	$application   = $_[1];
@@ -1690,7 +1679,7 @@ sub downloadAtlassianInstaller {
 				);
 			}
 			else {
-				$log->info(
+				$log->warn(
 "$subname: User has opted to download $version of $application even though it has not been tested with this script."
 				);
 			}
@@ -1782,7 +1771,7 @@ sub downloadFileAndChown {
 	my $osUser;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$destinationDir = $_[0];
 	$downloadURL    = $_[1];
@@ -1870,7 +1859,7 @@ sub downloadJDBCConnector {
 	my $cfg;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$dbType = $_[0];
 	$cfg    = $_[1];
@@ -1886,14 +1875,14 @@ sub downloadJDBCConnector {
 		print "Enter the version number displayed on the page above: ";
 		while ( $LOOP == 1 ) {
 			$input = getGenericInput();
-			$log->info("MYSQL JDBC version number entered: $input");
+			$log->debug("MYSQL JDBC version number entered: $input");
 			if ( $input eq "default" ) {
-				$log->info("MYSQL JDBC null version entered.");
+				$log->debug("MYSQL JDBC null version entered.");
 				print
 "You did not enter anything, please enter a valid version number: ";
 			}
 			else {
-				$log->info( "MYSQL JDBC version number entered - $subname"
+				$log->debug( "MYSQL JDBC version number entered - $subname"
 					  . "_input: $input" );
 				$url =
 "http://cdn.mysql.com/Downloads/Connector-J/mysql-connector-java-"
@@ -1931,7 +1920,7 @@ sub downloadJDBCConnector {
 	if ( is_success($downloadResponseCode) ) {
 		print "\n";
 		print "Download completed successfully.\n\n";
-		$log->info("JDBC download succeeded.");
+		$log->debug("JDBC download succeeded.");
 	}
 	else {
 		$log->logdie(
@@ -1951,7 +1940,7 @@ sub downloadJDBCConnector {
 		#Set up extract object
 		$ae = Archive::Extract->new( archive => $archiveFile );
 		print "Extracting $archiveFile. Please wait...\n\n";
-		$log->info("Extracting $archiveFile.");
+		$log->debug("Extracting $archiveFile.");
 
 		#Extract
 		$ae->extract( to => $Bin );
@@ -1962,7 +1951,7 @@ sub downloadJDBCConnector {
 		}
 
 		print "Extracting $archiveFile has been completed.\n\n";
-		$log->info("Extract completed successfully.");
+		$log->debug("Extract completed successfully.");
 
 		$jarFile = $ae->extract_path() . "/mysql-connector-java-$input-bin.jar";
 		dumpSingleVarToLog( "$subname" . "_jarFile", $jarFile );
@@ -1994,7 +1983,7 @@ sub downloadLatestAtlassianSuite {
 	my $downloadResponseCode;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$architecture = $_[0];
 
@@ -2041,7 +2030,7 @@ sub downloadLatestAtlassianSuite {
 sub dumpHashToFile {
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Code thanks go to Kyle on http://www.perlmonks.org/?node_id=704380
 
@@ -2114,7 +2103,7 @@ sub extractAndMoveFile {
 	my $mode;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile          = $_[0];
 	$expectedFolderName = $_[1];    #MustBeAbsolute
@@ -2149,7 +2138,7 @@ sub extractAndMoveFile {
 	my $ae = Archive::Extract->new( archive => $inputFile );
 
 	print "Extracting $inputFile. Please wait...\n\n";
-	$log->info("$subname: Extracting $inputFile");
+	$log->debug("$subname: Extracting $inputFile");
 
 	#Extract
 	$ae->extract(
@@ -2162,7 +2151,7 @@ sub extractAndMoveFile {
 	}
 
 	print "Extracting $inputFile has been completed.\n\n";
-	$log->info("$subname: Extract completed.");
+	$log->debug("$subname: Extract completed.");
 
 	#Check for existing folder and provide option to backup
 	if ( -d $expectedFolderName ) {
@@ -2170,16 +2159,16 @@ sub extractAndMoveFile {
 			print "Deleting old install directory please wait...\n\n";
 			rmtree( ["$expectedFolderName"] );
 
-			$log->info(
+			$log->debug(
 				"$subname: Moving $ae->extract_path() to $expectedFolderName");
 			moveDirectory( $ae->extract_path(), $expectedFolderName );
-			$log->info("$subname: Chowning $expectedFolderName to $osUser");
+			$log->debug("$subname: Chowning $expectedFolderName to $osUser");
 			chownRecursive( $osUser, $expectedFolderName );
 		}
 		else {
 			my $LOOP = 1;
 			my $input;
-			$log->info("$subname: $expectedFolderName already exists.");
+			$log->debug("$subname: $expectedFolderName already exists.");
 			print "The destination directory '"
 			  . $expectedFolderName
 			  . " already exists. Would you like to overwrite or move to a backup? o=overwrite\\b=backup [b]\n";
@@ -2195,23 +2184,23 @@ sub extractAndMoveFile {
 					|| ( lc $input ) eq "b"
 					|| $input eq "" )
 				{
-					$log->info("$subname: User opted to backup directory");
+					$log->debug("$subname: User opted to backup directory");
 					$LOOP = 0;
 					moveDirectory( $expectedFolderName,
 						$expectedFolderName . $date );
 					print "Folder backed up to "
 					  . $expectedFolderName
 					  . $date . "\n\n";
-					$log->info( "$subname: Folder backed up to "
+					$log->debug( "$subname: Folder backed up to "
 						  . $expectedFolderName
 						  . $date );
 
-					$log->info(
+					$log->debug(
 "$subname: Moving $ae->extract_path() to $expectedFolderName"
 					);
 					moveDirectory( $ae->extract_path(), $expectedFolderName );
 
-					$log->info(
+					$log->debug(
 						"$subname: Chowning $expectedFolderName to $osUser");
 					chownRecursive( $osUser, $expectedFolderName );
 				}
@@ -2220,25 +2209,25 @@ sub extractAndMoveFile {
 				elsif (( lc $input ) eq "overwrite"
 					|| ( lc $input ) eq "o" )
 				{
-					$log->info("$subname: User opted to overwrite directory");
+					$log->debug("$subname: User opted to overwrite directory");
 					$LOOP = 0;
 
 #Considered failure handling for rmtree however based on http://perldoc.perl.org/File/Path.html used
 #recommended in built error handling.
 					rmtree( ["$expectedFolderName"] );
 
-					$log->info(
+					$log->debug(
 "$subname: Moving $ae->extract_path() to $expectedFolderName"
 					);
 					moveDirectory( $ae->extract_path(), $expectedFolderName );
-					$log->info(
+					$log->debug(
 						"$subname: Chowning $expectedFolderName to $osUser");
 					chownRecursive( $osUser, $expectedFolderName );
 				}
 
 				#Input was not recognised, ask user for input again
 				else {
-					$log->info(
+					$log->debug(
 "$subname: User input not recognised, getting input again."
 					);
 					print "Your input '" . $input
@@ -2250,10 +2239,10 @@ sub extractAndMoveFile {
 
 	#Directory does not exist, move new directory in place.
 	else {
-		$log->info(
+		$log->debug(
 			"$subname: Moving $ae->extract_path() to $expectedFolderName");
 		moveDirectory( $ae->extract_path(), $expectedFolderName );
-		$log->info("$subname: Chowning $expectedFolderName to $osUser");
+		$log->debug("$subname: Chowning $expectedFolderName to $osUser");
 		chownRecursive( $osUser, $expectedFolderName );
 	}
 }
@@ -2265,7 +2254,7 @@ sub findDistro {
 	my $distribution;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Test for debian
 	if ( -e "/etc/debian_version" ) {
@@ -2298,7 +2287,7 @@ sub generateApplicationConfig {
 	my $cfg;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application   = $_[0];
 	$mode          = $_[1];
@@ -2341,19 +2330,10 @@ sub generateApplicationConfig {
 #Generate Available Updates String     #
 ########################################
 sub generateAvailableUpdatesString {
-	my $cfg;
-	my $configItem;
-	my $availCode;
-	my $configValue;
-	my $application;
-	my $lcApplication;
-	my $versionCompareResult;
-	my @parameterNull;
 	my $returnString;
-	my $input;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$returnString =
 "      There are updates available for one or more of your installed applications:\n";
 
@@ -2364,69 +2344,6 @@ sub generateAvailableUpdatesString {
 
 	}
 	$availableUpdatesString = $returnString;
-}
-
-########################################
-#Generate crowd.properties file        #
-########################################
-sub generateCrowdPropertiesFile {
-	my $filename;    #Must contain absolute path
-	my $application;
-	my $lcApplication;
-	my $protocol;
-	my $subname = ( caller(0) )[3];
-
-	$log->info("BEGIN: $subname");
-
-	$filename      = $_[0];
-	$application   = $_[1];
-	$lcApplication = lc($application);
-
-	#LogInputParams if in Debugging Mode
-	dumpSingleVarToLog( "$subname" . "_filename",    $filename );
-	dumpSingleVarToLog( "$subname" . "_application", $application );
-
-	open( my $outputFileHandle, '>', "$filename" )
-	  or $log->logdie("Unable to open $filename for writing.");
-	print $outputFileHandle "session.lastvalidation		session.lastvalidation\n";
-	print $outputFileHandle
-	  "session.isauthenticated		session.isauthenticated\n";
-	print $outputFileHandle "application.password		"
-	  . $globalConfig->param("$lcApplication.crowdApplicationPassword") . "\n";
-	print $outputFileHandle "application.name		"
-	  . $globalConfig->param("$lcApplication.crowdApplicationName") . "\n";
-	print $outputFileHandle "session.validationinterval		10\n";
-	print $outputFileHandle "session.tokenkey		session.tokenkey\n";
-
-	if ( $globalConfig->param("general.externalCrowdPort") eq "443" ) {
-		$protocol = "https";
-	}
-	else {
-		$protocol = "http";
-	}
-	if ( $globalConfig->param("general.externalCrowdInstance") eq "TRUE" ) {
-		print $outputFileHandle "crowd.server.url		$protocol\://"
-		  . $globalConfig->param("general.externalCrowdHostname") . ":"
-		  . $globalConfig->param("general.externalCrowdPort")
-		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
-		  . "/services/\n";
-		print $outputFileHandle "application.login.url		$protocol\://"
-		  . $globalConfig->param("general.externalCrowdHostname") . ":"
-		  . $globalConfig->param("general.externalCrowdPort")
-		  . getConfigItem( "general.externalCrowdContext", $globalConfig )
-		  . "/services/\n";
-	}
-	else {
-		print $outputFileHandle "crowd.server.url		http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig )
-		  . "/services/\n";
-		print $outputFileHandle "application.login.url		http://localhost:"
-		  . $globalConfig->param("crowd.connectorPort")
-		  . getConfigItem( "crowd.appContext", $globalConfig ) . "/\n";
-
-	}
-	close $outputFileHandle;
 }
 
 ########################################
@@ -2445,7 +2362,7 @@ sub generateInitD {
 	my $grep2ndParam;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application  = $_[0];
 	$runUser      = $_[1];
@@ -2556,14 +2473,14 @@ sub generateInitD {
 	push( @initSpecific, @initGeneric );
 
 	#Write out file to /etc/init.d
-	$log->info("$subname: Writing out init.d file for $application.");
+	$log->debug("$subname: Writing out init.d file for $application.");
 	open( my $outputFileHandle, '>', "/etc/init.d/$lcApplication" )
 	  or $log->logdie("Unable to open file /etc/init.d/$lcApplication: $!");
 	print $outputFileHandle @initSpecific;
 	close $outputFileHandle;
 
 	#Make the new init.d file executable
-	$log->info("$subname: Chmodding init.d file for $lcApplication.");
+	$log->debug("$subname: Chmodding init.d file for $lcApplication.");
 	chmod 0755, "/etc/init.d/$lcApplication"
 	  or $log->logdie("Couldn't chmod /etc/init.d/$lcApplication: $!");
 
@@ -2595,7 +2512,7 @@ sub generateInitDforSuite {
 	my $application;
 	my $input;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Get current suite install status
 	@parameterNull = $globalConfig->param("bamboo.installedVersion");
@@ -2776,14 +2693,14 @@ sub generateInitDforSuite {
 	push( @initSpecific, @initGeneric );
 
 	#Write out file to /etc/init.d
-	$log->info("$subname: Writing out init.d file for atlassian.");
+	$log->debug("$subname: Writing out init.d file for atlassian.");
 	open( my $outputFileHandle, '>', "/etc/init.d/atlassian" )
 	  or $log->logdie("Unable to open file /etc/init.d/atlassian: $!");
 	print $outputFileHandle @initSpecific;
 	close $outputFileHandle;
 
 	#Make the new init.d file executable
-	$log->info("$subname: Chmodding init.d file for atlassian.");
+	$log->debug("$subname: Chmodding init.d file for atlassian.");
 	chmod 0755, "/etc/init.d/atlassian"
 	  or $log->logdie("Couldn't chmod /etc/init.d/atlassian: $!");
 }
@@ -2813,7 +2730,7 @@ sub generateMenuHeader {
 	dumpSingleVarToLog( "$subname" . "_inputTitle",    $inputTitle );
 	dumpSingleVarToLog( "$subname" . "_inputBodyText", $inputBodyText );
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#MenuHead will always display as will MenuFooter and MenuTitle
 	#MenuBodyText is optional and will display based on input to this function
@@ -2888,7 +2805,7 @@ sub genBooleanConfigItem {
 	my @parameterNull;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode              = $_[0];
 	$cfg               = $_[1];
@@ -2985,7 +2902,7 @@ sub genConfigItem {
 	my $LOOP    = 1;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode                     = $_[0];
 	$cfg                      = $_[1];
@@ -3080,11 +2997,11 @@ sub generateSuiteConfig {
 	my $oldConfig;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Check if we have a valid config file already, if so we are updating it
 	if ($globalConfig) {
-		$log->info(
+		$log->debug(
 "$subname: globalConfig is defined therefore we are performing an update."
 		);
 		$mode      = "UPDATE";
@@ -3094,7 +3011,7 @@ sub generateSuiteConfig {
 
 	#Otherwise we are creating a new file
 	else {
-		$log->info(
+		$log->debug(
 "$subname: globalConfig is undefined therefore we are creating a new config file from scratch."
 		);
 		$mode = "NEW";
@@ -3104,19 +3021,6 @@ sub generateSuiteConfig {
 	#Generate Main Suite Configuration
 	print
 "This will guide you through the generation of the config required for the management of the Atlassian suite.\n\n";
-
-	#Check for 64Bit Override
-	if ( testOSArchitecture() eq "64" ) {
-		genBooleanConfigItem(
-			$mode,
-			$cfg,
-			"general.force32Bit",
-			"Your operating system architecture has been detected as "
-			  . testOSArchitecture()
-			  . "bit. Would you prefer to override this and force 32 bit installs (not recommended)? yes/no",
-			"no"
-		);
-	}
 
 	#Get root installation directory
 	genConfigItem(
@@ -3373,7 +3277,7 @@ sub generateSuiteConfig {
 		if (   ( lc $input ) eq "1"
 			|| ( lc $input ) eq "mysql" )
 		{
-			$log->info("$subname: Database arch selected is MySQL");
+			$log->debug("$subname: Database arch selected is MySQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "MySQL" );
 		}
@@ -3382,14 +3286,14 @@ sub generateSuiteConfig {
 			|| ( lc $input ) eq "postgres"
 			|| ( lc $input ) eq "postgre" )
 		{
-			$log->info("$subname: Database arch selected is PostgreSQL");
+			$log->debug("$subname: Database arch selected is PostgreSQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "PostgreSQL" );
 		}
 		elsif (( lc $input ) eq "3"
 			|| ( lc $input ) eq "oracle" )
 		{
-			$log->info("$subname: Database arch selected is Oracle");
+			$log->debug("$subname: Database arch selected is Oracle");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "Oracle" );
 			print
@@ -3400,7 +3304,7 @@ sub generateSuiteConfig {
 			|| ( lc $input ) eq "microsoft sql server"
 			|| ( lc $input ) eq "mssql" )
 		{
-			$log->info("$subname: Database arch selected is MSSQL");
+			$log->debug("$subname: Database arch selected is MSSQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "MSSQL" );
 		}
@@ -3408,7 +3312,7 @@ sub generateSuiteConfig {
 			|| ( lc $input ) eq "hsqldb"
 			|| ( lc $input ) eq "hsql" )
 		{
-			$log->info("$subname: Database arch selected is HSQLDB");
+			$log->debug("$subname: Database arch selected is HSQLDB");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "HSQLDB" );
 		}
@@ -3420,7 +3324,7 @@ sub generateSuiteConfig {
 			  "You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
 		}
 		elsif ( ( lc $input ) eq "" & !( $#parameterNull == -1 ) ) {
-			$log->info(
+			$log->debug(
 "$subname: User just pressed return therefore existing datbase selection will be kept."
 			);
 
@@ -3428,7 +3332,7 @@ sub generateSuiteConfig {
 			$LOOP = 0;
 		}
 		else {
-			$log->info(
+			$log->debug(
 "$subname: User did not enter valid input for database selection. Asking for input again."
 			);
 			print "Your input '" . $input
@@ -3447,7 +3351,7 @@ sub generateSuiteConfig {
 		if ( $cfg->param("general.targetDBType") ne
 			$oldConfig->param("general.targetDBType") )
 		{
-			$log->info(
+			$log->debug(
 "$subname: Database selection has changed from previous config. Nulling out JDBC config option to ensure it gets set correctly if needed."
 			);
 
@@ -3461,7 +3365,7 @@ sub generateSuiteConfig {
 		( ( $#parameterNull == -1 ) || $cfg->param("general.dbJDBCJar") eq "" )
 	  )
 	{
-		$log->info(
+		$log->debug(
 "$subname: MySQL has been selected and no valid JDBC entry defined in config. Download MySQL JDBC driver."
 		);
 		downloadJDBCConnector( "MySQL", $cfg );
@@ -3500,7 +3404,7 @@ sub getAllLatestDownloadURLs {
 	system 'clear';
 	print $menuText;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	if ( -e $latestVersionsCacheFile ) {
 
@@ -3572,7 +3476,7 @@ sub getBooleanInput {
 			return "default";
 		}
 		else {
-			$log->info(
+			$log->debug(
 				"$subname: Input not recognised, asking user for input again."
 			);
 			print "Your input '" . $input
@@ -3692,9 +3596,9 @@ sub getEnvironmentDebugInfo {
 }
 
 ########################################
-#getEnvironmentVars                    #
+#getEnvironmentVarsFromConfigFile                    #
 ########################################
-sub getEnvironmentVars {
+sub getEnvironmentVarsFromConfigFile {
 	my $inputFile;    #Must Be Absolute Path
 	my $searchFor;
 	my @data;
@@ -3702,7 +3606,7 @@ sub getEnvironmentVars {
 	my $returnValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile    = $_[0];
 	$referenceVar = $_[1];
@@ -3726,7 +3630,7 @@ sub getEnvironmentVars {
 
 #If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
 	if ( !defined($index1) ) {
-		$log->info("$subname: $referenceVar= not found. Returning NOTFOUND.");
+		$log->debug("$subname: $referenceVar= not found. Returning NOTFOUND.");
 		return "NOTFOUND";
 	}
 
@@ -3757,7 +3661,7 @@ sub getExistingSuiteConfig {
 	my $oldConfig;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode = "NEW";
 	$cfg = new Config::Simple( syntax => 'ini' );
@@ -3765,19 +3669,6 @@ sub getExistingSuiteConfig {
 	#Generate Main Suite Configuration
 	print
 "This will guide you through the generation of the config required for the management of your existing Atlassian suite. Many of the options will gather automagically however some will require manual input. This wizard will guide you through the process.\n\n";
-
-	#Check for 64Bit Override
-	if ( testOSArchitecture() eq "64" ) {
-		genBooleanConfigItem(
-			$mode,
-			$cfg,
-			"general.force32Bit",
-			"Your operating system architecture has been detected as "
-			  . testOSArchitecture()
-			  . "bit. Do you currently use 32 bit installs (not recommended)? yes/no",
-			"no"
-		);
-	}
 
 	#Get root installation directory
 	genConfigItem(
@@ -3968,7 +3859,7 @@ sub getExistingSuiteConfig {
 		if (   ( lc $input ) eq "1"
 			|| ( lc $input ) eq "mysql" )
 		{
-			$log->info("$subname: Database arch selected is MySQL");
+			$log->debug("$subname: Database arch selected is MySQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "MySQL" );
 		}
@@ -3977,14 +3868,14 @@ sub getExistingSuiteConfig {
 			|| ( lc $input ) eq "postgres"
 			|| ( lc $input ) eq "postgre" )
 		{
-			$log->info("$subname: Database arch selected is PostgreSQL");
+			$log->debug("$subname: Database arch selected is PostgreSQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "PostgreSQL" );
 		}
 		elsif (( lc $input ) eq "3"
 			|| ( lc $input ) eq "oracle" )
 		{
-			$log->info("$subname: Database arch selected is Oracle");
+			$log->debug("$subname: Database arch selected is Oracle");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "Oracle" );
 		}
@@ -3992,7 +3883,7 @@ sub getExistingSuiteConfig {
 			|| ( lc $input ) eq "microsoft sql server"
 			|| ( lc $input ) eq "mssql" )
 		{
-			$log->info("$subname: Database arch selected is MSSQL");
+			$log->debug("$subname: Database arch selected is MSSQL");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "MSSQL" );
 		}
@@ -4000,7 +3891,7 @@ sub getExistingSuiteConfig {
 			|| ( lc $input ) eq "hsqldb"
 			|| ( lc $input ) eq "hsql" )
 		{
-			$log->info("$subname: Database arch selected is HSQLDB");
+			$log->debug("$subname: Database arch selected is HSQLDB");
 			$LOOP = 0;
 			$cfg->param( "general.targetDBType", "HSQLDB" );
 		}
@@ -4012,7 +3903,7 @@ sub getExistingSuiteConfig {
 			  "You did not make a selection please enter 1, 2, 3, 4 or 5. \n\n";
 		}
 		else {
-			$log->info(
+			$log->debug(
 "$subname: User did not enter valid input for database selection. Asking for input again."
 			);
 			print "Your input '" . $input
@@ -4025,7 +3916,7 @@ sub getExistingSuiteConfig {
 		( ( $#parameterNull == -1 ) || $cfg->param("general.dbJDBCJar") eq "" )
 	  )
 	{
-		$log->info(
+		$log->warn(
 "$subname: MySQL has been selected and no valid JDBC entry defined in config. Download MySQL JDBC driver."
 		);
 		downloadJDBCConnector( "MySQL", $cfg );
@@ -4062,6 +3953,7 @@ sub getGenericInput {
 		return "default";
 	}
 	else {
+		$log->debug("$subname: Input entered was: $input");
 		return $input;
 	}
 }
@@ -4078,7 +3970,7 @@ sub getJavaMemParameter {
 	my @data;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile          = $_[0];
 	$referenceVariable  = $_[1];    #such as JAVA_OPTS
@@ -4109,7 +4001,7 @@ sub getJavaMemParameter {
 	dumpSingleVarToLog( "$subname" . " ORIGINAL LINE=", $data[$index1] );
 
 	if ( $count == 1 ) {
-		$log->info("$subname: Splitting string to update the memory value.");
+		$log->debug("$subname: Splitting string to update the memory value.");
 		if (
 			$data[$index1] =~ /^(.*?)($referenceParameter)(.*?)([a-zA-Z])(.*)/ )
 		{
@@ -4133,7 +4025,7 @@ sub getJavaMemParameter {
 		}
 	}
 	else {
-		$log->info(
+		$log->debug(
 			"$subname: $referenceParameter does not exist, returning NOTFOUND."
 		);
 		return "NOTFOUND";
@@ -4155,7 +4047,7 @@ sub getLatestDownloadURL {
 	my $urlSearchString;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application  = $_[0];
 	$architecture = $_[1];
@@ -4258,7 +4150,7 @@ sub getLineFromFile {
 	my $valueRegex;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile     = $_[0];
 	$lineReference = $_[1];
@@ -4282,7 +4174,7 @@ sub getLineFromFile {
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
-		$log->info("$subname: First search term $lineReference not found.");
+		$log->debug("$subname: First search term $lineReference not found.");
 		return "NOTFOUND";
 	}
 	else {
@@ -4295,7 +4187,7 @@ sub getLineFromFile {
 			return $returnValue;
 		}
 		else {
-			$log->info("$subname: Search regex not found in line.");
+			$log->debug("$subname: Search regex not found in line.");
 			return "NOTFOUND2";
 		}
 	}
@@ -4320,7 +4212,7 @@ sub getLineFromBambooWrapperConf {
 	my $count   = 0;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile          = $_[0];
 	$variableReference  = $_[1];
@@ -4343,15 +4235,13 @@ sub getLineFromBambooWrapperConf {
 	($index1) =
 	  grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
 	if ( !defined($index1) ) {
-		$log->info(
+		$log->debug(
 "$subname: Line with $parameterReference not found. Returning NOTFOUND."
 		);
 
 		return "NOTFOUND";
 	}
 	else {
-
-		#$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
 
 		if ( $data[$index1] =~
 			/^($variableReference)(.*)(=)($parameterReference)(.*)/ )
@@ -4387,7 +4277,7 @@ sub getPIDList {
 	my $grep2ndParam;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$grep1stParam = $_[0];
 	$grep2ndParam = $_[1];
 	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
@@ -4410,7 +4300,7 @@ sub getUserUidGid {
 	my @return;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$osUser = $_[0];
 
@@ -4442,7 +4332,7 @@ sub getVersionDownloadURL {
 	my $versionurl;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application   = $_[0];
 	$architecture  = $_[1];
@@ -4510,7 +4400,7 @@ sub getXMLAttribute {
 	my $attributeReturnValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$xmlFile            = $_[0];
 	$searchString       = $_[1];
@@ -4530,7 +4420,7 @@ sub getXMLAttribute {
 
 	#Find the node we are looking for based on the provided search string
 	for my $node ( $twig->findnodes($searchString) ) {
-		$log->info(
+		$log->debug(
 "$subname: Found $searchString in $xmlFile. Getting the attribute value."
 		);
 
@@ -4570,7 +4460,7 @@ sub installGeneric {
 	my $removeDownloadedDataAnswer;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application         = $_[0];
 	$downloadArchivesUrl = $_[1];
@@ -4774,7 +4664,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 	}
 
 	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
+	$log->debug("$subname: Writing new installed version to the config file.");
 	$globalConfig->param( "$lcApplication.installedVersion", $version );
 	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
@@ -4829,7 +4719,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 
 		#Chown the files again
 		if ( $tomcatDir eq "" ) {
-			$log->info( "$subname: Chowning "
+			$log->debug( "$subname: Chowning "
 				  . $globalConfig->param( $lcApplication . ".installDir" )
 				  . "/lib/"
 				  . " to $osUser following MySQL JDBC install." );
@@ -4842,7 +4732,7 @@ is currently in use. We will continue however there is a good chance $applicatio
 			);
 		}
 		else {
-			$log->info( "$subname: Chowning "
+			$log->debug( "$subname: Chowning "
 				  . $globalConfig->param( $lcApplication . ".installDir" )
 				  . $tomcatDir . "/lib/"
 				  . " to $osUser following MySQL JDBC install." );
@@ -4884,7 +4774,7 @@ sub isPortDefinedElsewhere {
 	my $port;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application   = $_[0];
 	$port          = $_[1];
@@ -4899,7 +4789,7 @@ sub isPortDefinedElsewhere {
 				@parameterNull =
 				  $globalConfig->param("$lcApplicationToCheck.$portType");
 				if ( $#parameterNull == -1 ) {
-					$log->info(
+					$log->debug(
 "$subname: Port $port is not in use by $application. Continuing..."
 					);
 				}
@@ -4907,7 +4797,7 @@ sub isPortDefinedElsewhere {
 					if ( $globalConfig->param("$lcApplicationToCheck.$portType")
 						eq "$port" )
 					{
-						$log->info(
+						$log->debug(
 "$subname: Port $port is already defined for use by $lcApplication.$portType."
 						);
 						push( @returnDetails,
@@ -4960,7 +4850,7 @@ sub isSupportedVersion {
 	my $versionReturn;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application   = $_[0];
 	$version       = $_[1];
@@ -5013,13 +4903,13 @@ sub isSupportedVersion {
 
 	#If the version is supported return true
 	if ( $versionReturn eq "LESS" || $versionReturn eq "EQUAL" ) {
-		$log->info(
+		$log->debug(
 "$subname: Version provided ($version) of $application is supported (max supported version is $productVersion)."
 		);
 		return "yes";
 	}
 	else {
-		$log->info(
+		$log->debug(
 "$subname: Version provided ($version) of $application is NOT supported (max supported version is $productVersion)."
 		);
 		return "no";
@@ -5052,7 +4942,7 @@ sub manageService {
 	my $mode;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application   = $_[0];
 	$mode          = $_[1];
@@ -5068,11 +4958,11 @@ sub manageService {
 		print "Installing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --add $lcApplication") == 0
-			  or $log->logdie("Adding $application as a service failed: $?");
+			  or $log->warn("Adding $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
 			system("update-rc.d $lcApplication defaults") == 0
-			  or $log->logdie("Adding $application as a service failed: $?");
+			  or $log->warn("Adding $application as a service failed: $?");
 		}
 		print "Service installed successfully...\n\n";
 	}
@@ -5083,11 +4973,11 @@ sub manageService {
 		print "Removing Service for $application...\n\n";
 		if ( $distro eq "redhat" ) {
 			system("chkconfig --del $lcApplication") == 0
-			  or $log->logdie("Removing $application as a service failed: $?");
+			  or $log->warn("Removing $application as a service failed: $?");
 		}
 		elsif ( $distro eq "debian" ) {
 			system("update-rc.d -f $lcApplication remove") == 0
-			  or $log->logdie("Removing $application as a service failed: $?");
+			  or $log->warn("Removing $application as a service failed: $?");
 
 		}
 		print "Service removed successfully...\n\n";
@@ -5102,7 +4992,7 @@ sub moveDirectory {
 	my $newDirectory;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$origDirectory = $_[0];
 	$newDirectory  = $_[1];
@@ -5111,7 +5001,7 @@ sub moveDirectory {
 	dumpSingleVarToLog( "$subname" . "_origDirectory", $origDirectory );
 	dumpSingleVarToLog( "$subname" . "_newDirectory",  $newDirectory );
 
-	$log->info("$subname: Moving $origDirectory to $newDirectory.");
+	$log->debug("$subname: Moving $origDirectory to $newDirectory.");
 
 	if ( move( $origDirectory, $newDirectory ) == 0 ) {
 		$log->logdie(
@@ -5128,7 +5018,7 @@ sub moveFile {
 	my $newFile;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$origFile = $_[0];
 	$newFile  = $_[1];
@@ -5137,7 +5027,7 @@ sub moveFile {
 	dumpSingleVarToLog( "$subname" . "_origFile", $origFile );
 	dumpSingleVarToLog( "$subname" . "_newFile",  $newFile );
 
-	$log->info("$subname: Moving $origFile to $newFile.");
+	$log->debug("$subname: Moving $origFile to $newFile.");
 
 	if ( move( $origFile, $newFile ) == 0 ) {
 		$log->logdie(
@@ -5157,7 +5047,7 @@ sub postInstallGeneric {
 	my $url;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application = $_[0];
 
@@ -5283,7 +5173,7 @@ sub postUpgradeGeneric {
 	my $url;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application = $_[0];
 
@@ -5404,7 +5294,7 @@ sub postUpgradeGeneric {
 sub readHashFromFile {
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Code below - thanks go to Kyle on http://www.perlmonks.org/?node_id=704380
 
@@ -5431,7 +5321,7 @@ sub removeDirs {
 	my $subname = ( caller(0) )[3];
 	my @directoryList;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	@directoryList = @_;
 
@@ -5440,12 +5330,12 @@ sub removeDirs {
 		$escapedDirectory = escapeFilePath($directory);
 
 		#removeDirectories
-		$log->info( "$subname: Removing " . $escapedDirectory );
+		$log->debug( "$subname: Removing " . $escapedDirectory );
 		if ( -d $escapedDirectory ) {
 			rmtree( [$escapedDirectory] );
 		}
 		else {
-			$log->info( "$subname: Unable to remove "
+			$log->debug( "$subname: Unable to remove "
 				  . $escapedDirectory
 				  . ". Directory does not exist." );
 		}
@@ -5465,7 +5355,7 @@ sub restartService {
 	my $startReturn;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$application   = $_[0];
 	$lcApplication = lc($application);
 	$grep1stParam  = $_[1];
@@ -5519,7 +5409,7 @@ sub restoreApplicationBackup {
 	my $installDirBackupLocation;
 	my $dataDirBackupLocation;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$application   = $_[0];
 	$lcApplication = lc($application);
 
@@ -5662,9 +5552,9 @@ sub restoreApplicationBackup {
 sub setCustomCrowdContext {
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
-	$log->info("$subname: Setting custom Crowd context");
+	$log->debug("$subname: Setting custom Crowd context");
 	if ( $globalConfig->param("crowd.appContext") eq "/crowd" ) {
 
 		#do nothing, as no custom context is required, this is the default
@@ -5753,7 +5643,7 @@ sub startService {
 	my $serviceName;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$application   = $_[0];
 	$lcApplication = lc($application);
 	$grep1stParam  = $_[1];
@@ -5765,12 +5655,7 @@ sub startService {
 	#first make sure service is not already started
 	@pidList = getPIDList( $grep1stParam, $grep2ndParam );
 
-	if ( $lcApplication eq 'jira' or $lcApplication eq 'confluence' ) {
-		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
-	}
-	else {
-		$serviceName = $lcApplication;
-	}
+	$serviceName = $lcApplication;
 
 	if ( @pidList > 0 ) {
 
@@ -5837,7 +5722,7 @@ sub stopService {
 	my $serviceName;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$application   = $_[0];
 	$lcApplication = lc($application);
 	$grep1stParam  = $_[1];
@@ -5845,13 +5730,7 @@ sub stopService {
 	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
-
-	if ( $lcApplication eq 'jira' or $lcApplication eq 'confluence' ) {
-		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
-	}
-	else {
-		$serviceName = $lcApplication;
-	}
+	$serviceName = $lcApplication;
 
 	while ( $LOOP == 1 ) {
 
@@ -5861,7 +5740,7 @@ sub stopService {
 		if ( @pidList == 0 ) {
 
 			#Service is not running... no need to stop it
-			$log->info(
+			$log->debug(
 "$subname: $application is not running. There is no need to stop."
 			);
 			print "The $application service is already stopped.\n\n";
@@ -6067,7 +5946,7 @@ sub updateCatalinaOpts {
 	my $application;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application       = $_[0];
 	$inputFile         = $_[1];
@@ -6117,7 +5996,7 @@ sub updateCatalinaOpts {
 	my ($index1) = grep { $data[$_] =~ /^$searchFor.*/ } 0 .. $#data;
 
 	if ( !defined($index1) ) {
-		$log->info("$subname: $searchFor not found. Adding it in.");
+		$log->debug("$subname: $searchFor not found. Adding it in.");
 		my ($index0) =
 		  grep { $data[$_] =~ /^$baseReferenceLine.*/ } 0 .. $#data;
 
@@ -6132,7 +6011,7 @@ sub updateCatalinaOpts {
 #If it doesn't exist this splits up the string so that we can insert it as a new variable
 	my $count = grep( /.*ATLASMGR_CATALINA_OPTS.*/, $data[$index1] );
 	if ( $count == 0 ) {
-		$log->info(
+		$log->debug(
 "$subname: ATLASMGR_CATALINA_OPTS does not yet exist, splitting string to insert it."
 		);
 		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
@@ -6165,7 +6044,7 @@ sub updateCatalinaOpts {
 #If no result is found insert a new line before the line found above which contains the CATALINA_OPTS variable
 	my ($index3) = grep { $data[$_] =~ /^$referenceVariable.*/ } 0 .. $#data;
 	if ( !defined($index2) ) {
-		$log->info(
+		$log->debug(
 			"$subname: ATLASMGR_CATALINA_OPTS= not found. Adding it in.");
 
 		splice( @data, $index3, 0,
@@ -6174,7 +6053,7 @@ sub updateCatalinaOpts {
 
 	#Else update the line to have the new parameters that have been specified
 	else {
-		$log->info(
+		$log->debug(
 "$subname: ATLASMGR_CATALINA_OPTS= exists, adding new javaOpts parameters."
 		);
 		$data[$index2] = "ATLASMGR_CATALINA_OPTS=\"" . $catalinaOpts . "\"\n";
@@ -6199,7 +6078,7 @@ sub updateEnvironmentVars {
 	my $newValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile    = $_[0];
 	$referenceVar = $_[1];
@@ -6225,14 +6104,14 @@ sub updateEnvironmentVars {
 
 #If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
 	if ( !defined($index2) ) {
-		$log->info("$subname: $referenceVar= not found. Adding it in.");
+		$log->debug("$subname: $referenceVar= not found. Adding it in.");
 
 		push( @data, $referenceVar . "=\"" . $newValue . "\"\n" );
 	}
 
 	#Else update the line to have the new parameters that have been specified
 	else {
-		$log->info(
+		$log->debug(
 "$subname: $referenceVar= exists, updating to have new value: $newValue."
 		);
 		$data[$index2] = $referenceVar . "=\"" . $newValue . "\"\n";
@@ -6257,7 +6136,7 @@ sub updateJavaMemParameter {
 	my @data;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile          = $_[0];
 	$referenceVariable  = $_[1];    #such as JAVA_OPTS
@@ -6290,7 +6169,7 @@ sub updateJavaMemParameter {
 	dumpSingleVarToLog( "$subname" . " ORIGINAL LINE=", $data[$index1] );
 
 	if ( $count == 1 ) {
-		$log->info("$subname: Splitting string to update the memory value.");
+		$log->debug("$subname: Splitting string to update the memory value.");
 		if (
 			$data[$index1] =~ /^(.*?)($referenceParameter)(.*?)([a-zA-Z])(.*)/ )
 		{
@@ -6313,7 +6192,7 @@ sub updateJavaMemParameter {
 		}
 	}
 	else {
-		$log->info(
+		$log->debug(
 "$subname: $referenceParameter does not yet exist, splitting string to insert it."
 		);
 		if ( $data[$index1] =~ /^(.*?=)(['"`])(.*?)(['"`])/ ) {
@@ -6347,7 +6226,7 @@ sub updateJavaMemParameter {
 		}
 	}
 
-	$log->info(
+	$log->debug(
 		"$subname: Value updated, outputting new line to file $inputFile.");
 
 	#Try to open file, output the lines that are in memory and close
@@ -6368,7 +6247,7 @@ sub updateJavaOpts {
 	my @data;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile         = $_[0];
 	$referenceVariable = $_[1];
@@ -6402,7 +6281,7 @@ sub updateJavaOpts {
 #If it doesn't exist this splits up the string so that we can insert it as a new variable
 	my $count = grep( /.*ATLASMGR_JAVA_OPTS.*/, $data[$index1] );
 	if ( $count == 0 ) {
-		$log->info(
+		$log->debug(
 "$subname: ATLASMGR_JAVA_OPTS does not yet exist, splitting string to insert it."
 		);
 		if ( $data[$index1] =~ /(.*?)\"(.*?)\"(.*?)/ ) {
@@ -6434,7 +6313,7 @@ sub updateJavaOpts {
 
 #If no result is found insert a new line before the line found above which contains the JAVA_OPTS variable
 	if ( !defined($index2) ) {
-		$log->info("$subname: ATLASMGR_JAVA_OPTS= not found. Adding it in.");
+		$log->debug("$subname: ATLASMGR_JAVA_OPTS= not found. Adding it in.");
 
 		splice( @data, $index1, 0,
 			"ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n" );
@@ -6442,7 +6321,7 @@ sub updateJavaOpts {
 
 	#Else update the line to have the new parameters that have been specified
 	else {
-		$log->info(
+		$log->debug(
 "$subname: ATLASMGR_JAVA_OPTS= exists, adding new javaOpts parameters."
 		);
 		$data[$index2] = "ATLASMGR_JAVA_OPTS=\"" . $javaOpts . "\"\n";
@@ -6467,7 +6346,7 @@ sub updateXMLAttribute {
 	my $attributeValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$xmlFile            = $_[0];
 	$searchString       = $_[1];
@@ -6489,7 +6368,7 @@ sub updateXMLAttribute {
 
 	#Find the node we are looking for based on the provided search string
 	for my $node ( $twig->findnodes($searchString) ) {
-		$log->info(
+		$log->debug(
 "$subname: Found $searchString in $xmlFile. Setting $referenceAttribute to $attributeValue"
 		);
 
@@ -6498,7 +6377,7 @@ sub updateXMLAttribute {
 	}
 
 	#Print the new XML tree back to the original file
-	$log->info("$subname: Writing out updated xmlFile: $xmlFile.");
+	$log->debug("$subname: Writing out updated xmlFile: $xmlFile.");
 	$twig->print_to_file($xmlFile);
 }
 
@@ -6512,7 +6391,7 @@ sub updateXMLTextValue {
 	my $attributeValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$xmlFile        = $_[0];
 	$searchString   = $_[1];
@@ -6531,7 +6410,7 @@ sub updateXMLTextValue {
 
 	#Find the node we are looking for based on the provided search string
 	for my $node ( $twig->findnodes($searchString) ) {
-		$log->info(
+		$log->debug(
 "$subname: Found $searchString in $xmlFile. Setting element to $attributeValue"
 		);
 
@@ -6540,7 +6419,7 @@ sub updateXMLTextValue {
 	}
 
 	#Print the new XML tree back to the original file
-	$log->info("$subname: Writing out updated xmlFile: $xmlFile.");
+	$log->debug("$subname: Writing out updated xmlFile: $xmlFile.");
 	$twig->print_to_file($xmlFile);
 }
 
@@ -6563,7 +6442,7 @@ sub updateLineInBambooWrapperConf {
 	my $count   = 0;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile          = $_[0];
 	$variableReference  = $_[1];
@@ -6588,7 +6467,7 @@ sub updateLineInBambooWrapperConf {
 	($index1) =
 	  grep { $data[$_] =~ /.*$parameterReference.*/ } 0 .. $#data;
 	if ( !defined($index1) ) {
-		$log->info(
+		$log->debug(
 "$subname: Line with $parameterReference not found. Going to add it."
 		);
 
@@ -6620,9 +6499,6 @@ sub updateLineInBambooWrapperConf {
 
 	}
 	else {
-
-		#$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
-
 		if ( $data[$index1] =~
 			/^($variableReference)(.*)(=)($parameterReference)(.*)/ )
 		{
@@ -6665,7 +6541,7 @@ sub updateLineInFile {
 	my @data;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$inputFile      = $_[0];
 	$lineReference  = $_[1];
@@ -6691,9 +6567,9 @@ sub updateLineInFile {
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
-		$log->info("$subname: First search term $lineReference not found.");
+		$log->debug("$subname: First search term $lineReference not found.");
 		if ( defined($lineReference2) ) {
-			$log->info("$subname: Trying to search for $lineReference2.");
+			$log->debug("$subname: Trying to search for $lineReference2.");
 			my ($index1) =
 			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
 			if ( !defined($index1) ) {
@@ -6704,7 +6580,7 @@ sub updateLineInFile {
 
 			#Otherwise replace the line with the new provided line
 			else {
-				$log->info(
+				$log->debug(
 					"$subname: Replacing '$data[$index1]' with $newLine.");
 				$data[$index1] = $newLine . "\n";
 			}
@@ -6716,7 +6592,7 @@ sub updateLineInFile {
 		}
 	}
 	else {
-		$log->info("$subname: Replacing '$data[$index1]' with $newLine.");
+		$log->debug("$subname: Replacing '$data[$index1]' with $newLine.");
 		$data[$index1] = $newLine . "\n";
 	}
 
@@ -6745,7 +6621,7 @@ sub updateSeraphConfig {
 	my $index1;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application    = $_[0];
 	$inputFile      = $_[1];
@@ -6793,7 +6669,7 @@ sub updateSeraphConfig {
 
  #If you cant find the first reference and the second reference output an error.
 	if ( !defined($index1) || !defined($index2) ) {
-		$log->info(
+		$log->debug(
 "$subname: Unable to find both lines to update Seraph config, you may need to update these manually."
 		);
 		$log->debug(
@@ -6808,7 +6684,7 @@ sub updateSeraphConfig {
 	else {
 
 		#do Line 2 first as it may be further down
-		$log->info("$subname: CommentingOut '$data[$index2]'.");
+		$log->debug("$subname: CommentingOut '$data[$index2]'.");
 		if ( $data[$index2] =~ /^(\s*?)(<.*$lineReference2.*)(\s*?)/ ) {
 			$leadingSpace  = $1;
 			$line          = $2;
@@ -6818,7 +6694,7 @@ sub updateSeraphConfig {
 		$data[$index2] =
 		  $leadingSpace . "<!-- " . $line . " -->" . $trailingSpace . "\n";
 
-		$log->info("$subname: Uncommenting '$data[$index1]'.");
+		$log->debug("$subname: Uncommenting '$data[$index1]'.");
 		if ( $lcApplication eq "confluence" || $lcApplication eq "bamboo" ) {
 			if ( $data[$index1] =~
 				/^(.*)<!--\s*?(.*$lineReference.*)(\s*?)-->.*/ )
@@ -6854,7 +6730,7 @@ sub uninstallGeneric {
 	my $lcApplication;
 	my $processReturnCode;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application   = $_[0];
 	$lcApplication = lc($application);
@@ -7015,7 +6891,7 @@ sub upgradeGeneric {
 	my $webappDir;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$application         = $_[0];
 	$downloadArchivesUrl = $_[1];
@@ -7025,7 +6901,8 @@ sub upgradeGeneric {
 
 #Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info(
+		$log->info
+		(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
 		);
 		print
@@ -7267,7 +7144,7 @@ sub upgradeGeneric {
 	}
 
 	#Update config to reflect new version that is installed
-	$log->info("$subname: Writing new installed version to the config file.");
+	$log->debug("$subname: Writing new installed version to the config file.");
 	$globalConfig->param( "$lcApplication.installedVersion", $version );
 	$log->info("Writing out config file to disk.");
 	$globalConfig->write($configFile);
@@ -7320,7 +7197,7 @@ sub upgradeGeneric {
 
 		#Chown the files again
 		if ( $tomcatDir eq "" ) {
-			$log->info(
+			$log->debug(
 				"$subname: Chowning "
 				  . escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
@@ -7337,7 +7214,7 @@ sub upgradeGeneric {
 			);
 		}
 		else {
-			$log->info(
+			$log->debug(
 				"$subname: Chowning "
 				  . escapeFilePath(
 					$globalConfig->param("$lcApplication.installDir")
@@ -7356,7 +7233,7 @@ sub upgradeGeneric {
 	}
 
 #Force a re-chowning of the application data directory in case the service user has changed
-	$log->info(
+	$log->debug(
 		"$subname: Checking for and chowning $application home directory.");
 	print "Checking if data directory exists and re-chowning it...\n\n";
 	createAndChownDirectory(
@@ -7405,7 +7282,7 @@ sub bootStrapper {
 	my $configResult;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Check for supported distribution of *nix
 	$distro = findDistro();
@@ -7654,7 +7531,7 @@ sub displayAdvancedMenu {
 	my $menuOptions;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
@@ -7793,7 +7670,7 @@ sub displayInitialConfigMenu {
 	my $menuText;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
@@ -7861,7 +7738,7 @@ sub displayInstallMenu {
 	my $input;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up suite current install status
 	@parameterNull = $globalConfig->param("bamboo.installedVersion");
@@ -8081,7 +7958,7 @@ sub displayMainMenu {
 	my $main_menu;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
@@ -8189,7 +8066,7 @@ sub displayRestoreMenu {
 	my $input;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up suite current install status
 	@parameterNull =
@@ -8413,7 +8290,7 @@ sub displayUninstallMenu {
 	my $input;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up suite current install status
 	@parameterNull = $globalConfig->param("bamboo.installedVersion");
@@ -8648,7 +8525,7 @@ sub displayUpgradeMenu {
 	my $input;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	my $LOOP = 1;
 	while ( $LOOP == 1 ) {
@@ -8805,9 +8682,15 @@ sub displayUpgradeMenu {
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeBamboo();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "2\n" ) {
@@ -8942,7 +8825,7 @@ sub getExistingBambooConfig {
 	my $LOOP = 0;
 	my $returnValue;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$cfg = $_[0];
 
@@ -9729,7 +9612,7 @@ sub generateBambooConfig {
 	my $application = "Bamboo";
 	my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -9956,7 +9839,7 @@ sub installBamboo {
 
 	#End new variables
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
@@ -10469,7 +10352,7 @@ sub upgradeBamboo {
 
 	#End new variables
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
@@ -11214,7 +11097,7 @@ sub getExistingConfluenceConfig {
 	my @parameterNull;
 	my $returnValue;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$cfg = $_[0];
 
@@ -11595,13 +11478,6 @@ sub getExistingConfluenceConfig {
 
 	$returnValue = "";
 
-	#getOSuser
-	$returnValue =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER",
-		$cfg );
-
-	if ( $returnValue eq "NOTFOUND" ) {
-
 		#AskUserToInput
 		genConfigItem(
 			$mode,
@@ -11612,34 +11488,6 @@ sub getExistingConfluenceConfig {
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
-	}
-	else {
-
-		#confirmWithUserThatIsTheCorrectOSUser
-		$input = getBooleanInput(
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$cfg->param( "$lcApplication.osUser", $returnValue );
-			print
-"The osUser $returnValue has been added to the config file...\n\n";
-			$log->info(
-"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
-			);
-		}
-		else {
-			genConfigItem(
-				$mode,
-				$cfg,
-				"$lcApplication.osUser",
-"In that case please enter the user that $application *currently* runs under.",
-				"",
-				'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-			);
-		}
-	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
@@ -11786,7 +11634,7 @@ sub generateConfluenceConfig {
 	my $application = "Confluence";
 	my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -11987,7 +11835,7 @@ sub installConfluence {
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -12297,7 +12145,7 @@ sub uninstallConfluence {
 	my $application = "Confluence";
 	my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	uninstallGeneric($application);
 }
 
@@ -12321,7 +12169,7 @@ sub upgradeConfluence {
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -12739,7 +12587,7 @@ sub getExistingCrowdConfig {
 	my $LOOP = 0;
 	my $returnValue;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$cfg = $_[0];
 
@@ -13244,7 +13092,7 @@ sub generateCrowdConfig {
 	my $application = "Crowd";
 	my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -13427,7 +13275,7 @@ sub installCrowd {
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
@@ -13685,7 +13533,7 @@ sub upgradeCrowd {
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
@@ -13948,7 +13796,7 @@ sub getExistingFisheyeConfig {
 	my $LOOP = 0;
 	my $returnValue;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$cfg = $_[0];
 
@@ -14083,7 +13931,8 @@ sub getExistingFisheyeConfig {
 	);
 
 	#get data/home directory
-	$returnValue = getEnvironmentVars( "/etc/environment", "FISHEYE_INST" );
+	$returnValue =
+	  getEnvironmentVarsFromConfigFile( "/etc/environment", "FISHEYE_INST" );
 
 	if ( $returnValue eq "NOTFOUND" ) {
 		$log->info(
@@ -14504,7 +14353,7 @@ sub generateFisheyeConfig {
 	my $application = "Fisheye";
 	my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -14703,7 +14552,7 @@ sub installFisheye {
 	my $javaOptsValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
@@ -14928,7 +14777,7 @@ sub upgradeFisheye {
 	my $javaOptsValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
@@ -15124,7 +14973,7 @@ sub getExistingJiraConfig {
 	my $LOOP = 0;
 	my $returnValue;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$cfg = $_[0];
 
@@ -15505,13 +15354,6 @@ sub getExistingJiraConfig {
 
 	$returnValue = "";
 
-	#getOSuser
-	$returnValue =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", "JIRA_USER",
-		$cfg );
-
-	if ( $returnValue eq "NOTFOUND" ) {
-
 		#AskUserToInput
 		genConfigItem(
 			$mode,
@@ -15522,34 +15364,6 @@ sub getExistingJiraConfig {
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
-	}
-	else {
-
-		#confirmWithUserThatIsTheCorrectOSUser
-		$input = getBooleanInput(
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$cfg->param( "$lcApplication.osUser", $returnValue );
-			print
-"The osUser $returnValue has been added to the config file...\n\n";
-			$log->info(
-"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
-			);
-		}
-		else {
-			genConfigItem(
-				$mode,
-				$cfg,
-				"$lcApplication.osUser",
-"In that case please enter the user that $application *currently* runs under.",
-				"",
-				'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-			);
-		}
-	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
@@ -15695,7 +15509,7 @@ sub generateJiraConfig {
 	my $application = "JIRA";
 	my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	$mode = $_[0];
 	$cfg  = $_[1];
 
@@ -15895,7 +15709,7 @@ sub installJira {
 	  "http://www.atlassian.com/software/jira/download-archives";
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -16131,7 +15945,7 @@ sub uninstallJira {
 	my $application = "JIRA";
 	my $subname     = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 	uninstallGeneric($application);
 }
 
@@ -16152,7 +15966,7 @@ sub upgradeJira {
 	  "http://www.atlassian.com/software/jira/download-archives";
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	my @requiredConfigItems;
@@ -16498,7 +16312,7 @@ sub getExistingStashConfig {
 	my $LOOP = 0;
 	my $returnValue;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$cfg = $_[0];
 
@@ -17063,7 +16877,7 @@ sub generateStashConfig {
 	my $application = "Stash";
 	my @parameterNull;
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	$mode = $_[0];
 	$cfg  = $_[1];
@@ -17270,7 +17084,7 @@ sub installStash {
 	my @requiredConfigItems;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
@@ -17522,7 +17336,7 @@ sub upgradeStash {
 	my $catalinaOptsValue;
 	my $subname = ( caller(0) )[3];
 
-	$log->info("BEGIN: $subname");
+	$log->debug("BEGIN: $subname");
 
 	#Set up list of config items that are requred for this install to run
 	$lcApplication       = lc($application);
