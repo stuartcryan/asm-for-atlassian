@@ -5765,12 +5765,7 @@ sub startService {
 	#first make sure service is not already started
 	@pidList = getPIDList( $grep1stParam, $grep2ndParam );
 
-	if ( $lcApplication eq 'jira' or $lcApplication eq 'confluence' ) {
-		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
-	}
-	else {
-		$serviceName = $lcApplication;
-	}
+	$serviceName = $lcApplication;
 
 	if ( @pidList > 0 ) {
 
@@ -5845,13 +5840,7 @@ sub stopService {
 	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
-
-	if ( $lcApplication eq 'jira' or $lcApplication eq 'confluence' ) {
-		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
-	}
-	else {
-		$serviceName = $lcApplication;
-	}
+	$serviceName = $lcApplication;
 
 	while ( $LOOP == 1 ) {
 
