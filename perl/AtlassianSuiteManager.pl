@@ -8682,9 +8682,15 @@ sub displayUpgradeMenu {
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeBamboo();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "2\n" ) {
