@@ -11493,7 +11493,6 @@ sub getExistingConfluenceConfig {
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
-	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
@@ -15370,7 +15369,6 @@ sub getExistingJiraConfig {
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
-	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
