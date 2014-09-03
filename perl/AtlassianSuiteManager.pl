@@ -6901,8 +6901,7 @@ sub upgradeGeneric {
 
 #Iterate through required config items, if any are missing force an update of configuration
 	if ( checkRequiredConfigItems(@requiredConfigItems) eq "FAIL" ) {
-		$log->info
-		(
+		$log->info(
 "$subname: Some of the config parameters are invalid or null. Forcing generation"
 		);
 		print
@@ -11478,16 +11477,16 @@ sub getExistingConfluenceConfig {
 
 	$returnValue = "";
 
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.osUser",
+	#AskUserToInput
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.osUser",
 "Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
-			"",
-			'^([a-zA-Z0-9]*)$',
+		"",
+		'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
+	);
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
@@ -11831,6 +11830,7 @@ sub installConfluence {
 	my $jdbcJAR;
 	my $needJDBC;
 	my $input;
+	my $javaParameterName;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -11985,13 +11985,28 @@ sub installConfluence {
 		$javaOptsValue = "CONFIGSPECIFIED";
 	}
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 		updateJavaOpts(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
+			$javaParameterName,
 			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 	}
@@ -12023,15 +12038,30 @@ sub installConfluence {
 
 	#Run any additional steps
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName,
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
@@ -12165,6 +12195,7 @@ sub upgradeConfluence {
 	my $jdbcJAR;
 	my $needJDBC;
 	my $input;
+	my $javaParameterName;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -12341,13 +12372,28 @@ sub upgradeConfluence {
 		$javaOptsValue = "CONFIGSPECIFIED";
 	}
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 		updateJavaOpts(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
+			$javaParameterName,
 			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 	}
@@ -12425,15 +12471,30 @@ sub upgradeConfluence {
 
 	#Run any additional steps
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName,
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
@@ -15354,16 +15415,16 @@ sub getExistingJiraConfig {
 
 	$returnValue = "";
 
-		#AskUserToInput
-		genConfigItem(
-			$mode,
-			$cfg,
-			"$lcApplication.osUser",
+	#AskUserToInput
+	genConfigItem(
+		$mode,
+		$cfg,
+		"$lcApplication.osUser",
 "Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
-			"",
-			'^([a-zA-Z0-9]*)$',
+		"",
+		'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-		);
+	);
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
