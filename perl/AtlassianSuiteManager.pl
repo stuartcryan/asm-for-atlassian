@@ -11477,16 +11477,45 @@ sub getExistingConfluenceConfig {
 
 	$returnValue = "";
 
-	#AskUserToInput
-	genConfigItem(
-		$mode,
-		$cfg,
-		"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
-		"",
-		'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	#getOSuser
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat($inputFileHandle);
+	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
 	);
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
@@ -11661,6 +11690,17 @@ sub generateConfluenceConfig {
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.osUser",
+		"Enter the user that Confluence will run under.",
+		"confluence",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -11852,7 +11892,8 @@ sub installConfluence {
 		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2",
-		"confluence.crowdIntegration"
+		"confluence.crowdIntegration",
+		"confluence.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -12217,7 +12258,7 @@ sub upgradeConfluence {
 		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2",
-		"confluence.crowdIntegration"
+		"confluence.crowdIntegration", "confluence.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -15415,16 +15456,45 @@ sub getExistingJiraConfig {
 
 	$returnValue = "";
 
-	#AskUserToInput
-	genConfigItem(
-		$mode,
-		$cfg,
-		"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
-		"",
-		'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	#getOSuser
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat($inputFileHandle);
+	$returnValue = getpwuid($uid);
+
+	close $inputFileHandle;
+
+	#confirmWithUserThatIsTheCorrectOSUser
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
 	);
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
+		genConfigItem(
+			$mode,
+			$cfg,
+			"$lcApplication.osUser",
+"In that case please enter the user that $application *currently* runs under.",
+			"",
+			'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+		);
+	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
 		&& $cfg->param("general.apacheProxySingleDomain") eq "FALSE" )
@@ -15597,6 +15667,16 @@ sub generateJiraConfig {
 		'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
 		  . "leading '/' and NO trailing '/'.\n\n"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.osUser",
+		"Enter the user that JIRA will run under.",
+		"jira",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 	);
 
 	genConfigItem(
@@ -15781,7 +15861,7 @@ sub installJira {
 		"jira.connectorPort",           "jira.javaMinMemory",
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
 		"jira.processSearchParameter1", "jira.processSearchParameter2",
-		"jira.crowdIntegration"
+		"jira.crowdIntegration",        "jira.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -16038,7 +16118,7 @@ sub upgradeJira {
 		"jira.connectorPort",           "jira.javaMinMemory",
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
 		"jira.processSearchParameter1", "jira.processSearchParameter2",
-		"jira.crowdIntegration"
+		"jira.crowdIntegration",        "jira.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
