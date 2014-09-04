@@ -3,29 +3,28 @@
 #
 #    Copyright 2012-2014 Stuart Ryan
 
-LATESTAVAILABLEVER=0.2.4
+LATESTAVAILABLEVER=0.2.5
 
 #below method has been deprecated due to issues with REGEX in bash
 #***NOTE*** If you have a version prior to v0.2.0 you MAY need to manually download the latest version (See [#ATLASMGR-330])
 #downloadURL in the format URL|destinationPath|lastUpdatedInVer
-downloadURL[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.4"
-downloadURL[1]="http://akamai.technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.4"
+downloadURL[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.5"
+downloadURL[1]="http://akamai.technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.5"
 
 #new method of checking for updates as of v0.2.0
 latestPerlFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/"
 latestPerlFile[1]="AtlassianSuiteManager.pl"
 latestPerlFile[2]="/perl/"
-latestPerlFile[3]="0.2.4"
+latestPerlFile[3]="0.2.5"
 
 latestWrapperFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/"
 latestWrapperFile[1]="atlassianSuiteManager.sh"
 latestWrapperFile[2]="/"
-latestWrapperFile[3]="0.2.4"
+latestWrapperFile[3]="0.2.5"
 
-changeLog="Changes available in the latest version (v0.2.4): 
-     *Fix  - Gathering existing config from Confluence and JIRA broken
-     *Fix  - Services running as root would not stop correctly
-     *Fix  - Menu not reloading following Bamboo upgrade
+changeLog="Changes available in the latest version (v0.2.5): 
+     *Fix  - Changes to support Confluence 5.6+ move from JAVA_OPTS to CATALINA_OPTS
+     *Fix  - Missing osUser functions for new installs of Confluence and JIRA
             
      ***Please Note*** 
      If upgrading from pre 0.2.3 this upgrade will install additional PERL modules that are now required."
