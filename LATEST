@@ -3,38 +3,28 @@
 #
 #    Copyright 2012-2014 Stuart Ryan
 
-LATESTAVAILABLEVER=0.2.3
+LATESTAVAILABLEVER=0.2.5
 
+#below method has been deprecated due to issues with REGEX in bash
 #***NOTE*** If you have a version prior to v0.2.0 you MAY need to manually download the latest version (See [#ATLASMGR-330])
 #downloadURL in the format URL|destinationPath|lastUpdatedInVer
-downloadURL[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.3"
-downloadURL[1]="http://akamai.technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.3"
+downloadURL[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/AtlassianSuiteManager.pl|/perl/|0.2.5"
+downloadURL[1]="http://akamai.technicalnotebook.com/asmGitPublicRepo/atlassianSuiteManager.sh|/|0.2.5"
 
 #new method of checking for updates as of v0.2.0
 latestPerlFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/perl/"
 latestPerlFile[1]="AtlassianSuiteManager.pl"
 latestPerlFile[2]="/perl/"
-latestPerlFile[3]="0.2.3"
+latestPerlFile[3]="0.2.5"
 
 latestWrapperFile[0]="http://akamai.technicalnotebook.com/asmGitPublicRepo/"
 latestWrapperFile[1]="atlassianSuiteManager.sh"
 latestWrapperFile[2]="/"
-latestWrapperFile[3]="0.2.3"
+latestWrapperFile[3]="0.2.5"
 
-changeLog="Changes available in the latest version (v0.2.3): 
-     *Fix  - Init.D permissions incorrect
-     *Fix  - Permissions on directories are sometimes incorrect 
-             (fix submitted by Bradley Baetz)
-     *Fix  - Unable to access https URLs through proxy 
-             (fix submitted by Bradley Baetz)
-     *Fix  - Hyphen's not accepted in hostnames 
-             (fix submitted by Bradley Baetz)
-     *Feat - Clear plugin caches of JIRA and Confluence on upgrades 
-             (to get around occasional cache corruption)
-     *Imp  - Akamai CDN now used for all update URLS for ASM for Atlassian 
-             script to speed up the update process
-     *Imp - Future bug fixes to config files and existing installs will 
-            only be run once. Patch level is now tracked.
+changeLog="Changes available in the latest version (v0.2.5): 
+     *Fix  - Changes to support Confluence 5.6+ move from JAVA_OPTS to CATALINA_OPTS
+     *Fix  - Missing osUser functions for new installs of Confluence and JIRA
             
      ***Please Note*** 
-     This upgrade will install additional PERL modules that are now required."
+     If upgrading from pre 0.2.3 this upgrade will install additional PERL modules that are now required."

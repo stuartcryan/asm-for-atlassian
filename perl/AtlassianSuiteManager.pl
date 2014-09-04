@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.3
+#    Version: 0.2.5
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -67,7 +67,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-2-3"
+my $scriptVersion = "0-2-5"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -5655,12 +5655,7 @@ sub startService {
 	#first make sure service is not already started
 	@pidList = getPIDList( $grep1stParam, $grep2ndParam );
 
-	if ( $lcApplication eq 'jira' or $lcApplication eq 'confluence' ) {
-		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
-	}
-	else {
-		$serviceName = $lcApplication;
-	}
+	$serviceName = $lcApplication;
 
 	if ( @pidList > 0 ) {
 
@@ -5735,13 +5730,7 @@ sub stopService {
 	dumpSingleVarToLog( "$subname" . "_application",  $application );
 	dumpSingleVarToLog( "$subname" . "_grep1stParam", $grep1stParam );
 	dumpSingleVarToLog( "$subname" . "_grep2ndParam", $grep2ndParam );
-
-	if ( $lcApplication eq 'jira' or $lcApplication eq 'confluence' ) {
-		$serviceName = $globalConfig->param( $lcApplication . ".osUser" );
-	}
-	else {
-		$serviceName = $lcApplication;
-	}
+	$serviceName = $lcApplication;
 
 	while ( $LOOP == 1 ) {
 
@@ -8693,9 +8682,15 @@ sub displayUpgradeMenu {
 				print "Please press enter to continue...";
 				$input = <STDIN>;
 				print "/n";
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 			else {
 				upgradeBamboo();
+				system 'clear';
+				$LOOP = 0;
+				displayUpgradeMenu();
 			}
 		}
 		elsif ( lc($choice) eq "2\n" ) {
@@ -11484,49 +11479,43 @@ sub getExistingConfluenceConfig {
 	$returnValue = "";
 
 	#getOSuser
-	$returnValue =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", "CONF_USER",
-		$cfg );
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat($inputFileHandle);
+	$returnValue = getpwuid($uid);
 
-	if ( $returnValue eq "NOTFOUND" ) {
+	close $inputFileHandle;
 
-		#AskUserToInput
+	#confirmWithUserThatIsTheCorrectOSUser
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+	);
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
 		genConfigItem(
 			$mode,
 			$cfg,
 			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
+"In that case please enter the user that $application *currently* runs under.",
 			"",
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
-	}
-	else {
-
-		#confirmWithUserThatIsTheCorrectOSUser
-		$input = getBooleanInput(
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$cfg->param( "$lcApplication.osUser", $returnValue );
-			print
-"The osUser $returnValue has been added to the config file...\n\n";
-			$log->info(
-"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
-			);
-		}
-		else {
-			genConfigItem(
-				$mode,
-				$cfg,
-				"$lcApplication.osUser",
-"In that case please enter the user that $application *currently* runs under.",
-				"",
-				'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-			);
-		}
 	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
@@ -11702,6 +11691,17 @@ sub generateConfluenceConfig {
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
 		  . "leading '/' and NO trailing '/'.\n\n"
 	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"confluence.osUser",
+		"Enter the user that Confluence will run under.",
+		"confluence",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
+	);
+
 	genConfigItem(
 		$mode,
 		$cfg,
@@ -11871,6 +11871,7 @@ sub installConfluence {
 	my $jdbcJAR;
 	my $needJDBC;
 	my $input;
+	my $javaParameterName;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -11892,7 +11893,8 @@ sub installConfluence {
 		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2",
-		"confluence.crowdIntegration"
+		"confluence.crowdIntegration",
+		"confluence.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -12025,13 +12027,28 @@ sub installConfluence {
 		$javaOptsValue = "CONFIGSPECIFIED";
 	}
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 		updateJavaOpts(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
+			$javaParameterName,
 			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 	}
@@ -12063,15 +12080,30 @@ sub installConfluence {
 
 	#Run any additional steps
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName,
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
@@ -12205,6 +12237,7 @@ sub upgradeConfluence {
 	my $jdbcJAR;
 	my $needJDBC;
 	my $input;
+	my $javaParameterName;
 	my $downloadArchivesUrl =
 	  "http://www.atlassian.com/software/confluence/download-archives";
 	my $subname = ( caller(0) )[3];
@@ -12226,7 +12259,7 @@ sub upgradeConfluence {
 		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2",
-		"confluence.crowdIntegration"
+		"confluence.crowdIntegration", "confluence.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -12381,13 +12414,28 @@ sub upgradeConfluence {
 		$javaOptsValue = "CONFIGSPECIFIED";
 	}
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Apply the JavaOpts configuration (if any)
 	print "Applying Java_Opts configuration to install...\n\n";
 	if ( $javaOptsValue ne "NOJAVAOPTSCONFIGSPECIFIED" ) {
 		updateJavaOpts(
 			escapeFilePath( $globalConfig->param("$lcApplication.installDir") )
 			  . "/bin/setenv.sh",
-			"JAVA_OPTS",
+			$javaParameterName,
 			getConfigItem( "$lcApplication.javaParams", $globalConfig )
 		);
 	}
@@ -12465,15 +12513,30 @@ sub upgradeConfluence {
 
 	#Run any additional steps
 
+#Check if we are installing version below 5.6 to maintain backwards compatibility
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "5.5.6" )
+		ne "GREATER"
+	  )
+	{
+		$javaParameterName = "JAVA_OPTS";
+	}
+	else {
+
+	   #newer than 5.5.6 - As of 5.6 Confluence uses CATALINA_OPTS not JAVA_OPTS
+		$javaParameterName = "CATALINA_OPTS";
+	}
+
 	#Update Java Memory Parameters
 	print "Applying Java memory configuration to install...\n\n";
 	$log->info( "$subname: Applying Java memory parameters to "
 		  . $javaMemParameterFile );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xms",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xms",
 		$globalConfig->param("$lcApplication.javaMinMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS", "-Xmx",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName, "-Xmx",
 		$globalConfig->param("$lcApplication.javaMaxMemory") );
-	updateJavaMemParameter( $javaMemParameterFile, "JAVA_OPTS",
+	updateJavaMemParameter( $javaMemParameterFile, $javaParameterName,
 		"-XX:MaxPermSize=",
 		$globalConfig->param("$lcApplication.javaMaxPermSize") );
 
@@ -15395,49 +15458,43 @@ sub getExistingJiraConfig {
 	$returnValue = "";
 
 	#getOSuser
-	$returnValue =
-	  getUserCreatedByInstaller( "$lcApplication.installDir", "JIRA_USER",
-		$cfg );
+	open( my $inputFileHandle,
+		'<', escapeFilePath( $cfg->param("$lcApplication.installDir") ) )
+	  or $log->logdie(
+"Unable to open install dir for $application to test who owns it. Really this should never happen as we have already tested that the directory exists."
+	  );
+	my (
+		$dev,   $ino,     $fileMode, $nlink, $uid,
+		$gid,   $rdev,    $size,     $atime, $mtime,
+		$ctime, $blksize, $blocks
+	) = stat($inputFileHandle);
+	$returnValue = getpwuid($uid);
 
-	if ( $returnValue eq "NOTFOUND" ) {
+	close $inputFileHandle;
 
-		#AskUserToInput
+	#confirmWithUserThatIsTheCorrectOSUser
+	$input = getBooleanInput(
+"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
+	);
+	print "\n";
+	if ( $input eq "default" || $input eq "yes" ) {
+		$cfg->param( "$lcApplication.osUser", $returnValue );
+		print
+		  "The osUser $returnValue has been added to the config file...\n\n";
+		$log->info(
+"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
+		);
+	}
+	else {
 		genConfigItem(
 			$mode,
 			$cfg,
 			"$lcApplication.osUser",
-"Unable to detect what user $application was installed under. Please enter the OS user that $application runs as.",
+"In that case please enter the user that $application *currently* runs under.",
 			"",
 			'^([a-zA-Z0-9]*)$',
 "The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 		);
-	}
-	else {
-
-		#confirmWithUserThatIsTheCorrectOSUser
-		$input = getBooleanInput(
-"We have detected that the user $application runs under is '$returnValue'. Is this correct? yes/no [yes]: "
-		);
-		print "\n";
-		if ( $input eq "default" || $input eq "yes" ) {
-			$cfg->param( "$lcApplication.osUser", $returnValue );
-			print
-"The osUser $returnValue has been added to the config file...\n\n";
-			$log->info(
-"$subname: User confirmed that the user $application runs under is $returnValue. This has been added to the config."
-			);
-		}
-		else {
-			genConfigItem(
-				$mode,
-				$cfg,
-				"$lcApplication.osUser",
-"In that case please enter the user that $application *currently* runs under.",
-				"",
-				'^([a-zA-Z0-9]*)$',
-"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
-			);
-		}
 	}
 
 	if (   $cfg->param("general.apacheProxy") eq "TRUE"
@@ -15611,6 +15668,16 @@ sub generateJiraConfig {
 		'(?!^.*/$)^(/.*)',
 "The input you entered was not in the valid format of '/folder'. Please ensure you enter the absolute path with a "
 		  . "leading '/' and NO trailing '/'.\n\n"
+	);
+
+	genConfigItem(
+		$mode,
+		$cfg,
+		"jira.osUser",
+		"Enter the user that JIRA will run under.",
+		"jira",
+		'^([a-zA-Z0-9]*)$',
+"The user you entered was in an invalid format. Please ensure you enter only letters and numbers without any spaces or other characters.\n\n"
 	);
 
 	genConfigItem(
@@ -15795,7 +15862,7 @@ sub installJira {
 		"jira.connectorPort",           "jira.javaMinMemory",
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
 		"jira.processSearchParameter1", "jira.processSearchParameter2",
-		"jira.crowdIntegration"
+		"jira.crowdIntegration",        "jira.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -16052,7 +16119,7 @@ sub upgradeJira {
 		"jira.connectorPort",           "jira.javaMinMemory",
 		"jira.javaMaxMemory",           "jira.javaMaxPermSize",
 		"jira.processSearchParameter1", "jira.processSearchParameter2",
-		"jira.crowdIntegration"
+		"jira.crowdIntegration",        "jira.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
