@@ -1,3 +1,13 @@
 perl/mysql-connector-java-5.1.22
 perl/mysql-connector-java-5.1.22.tar.gz
 /settings.cfg
+asmScriptForAtlassian_v0.2.5
+asmScriptForAtlassian_v0.2.5.tar.gz
+perl/.AtlassianSuiteManager.pl.OLD
+perl/.DS_Store
+perl/mysql-connector-java-5.1.30
+perl/working
+.atlassianSuiteManager.sh.OLD
+.DS_Store
+.LATEST.OLD
+.supportedVersions.cfg.OLD
