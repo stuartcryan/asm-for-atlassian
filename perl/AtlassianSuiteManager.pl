@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.5
+#    Version: 0.2.6
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -67,7 +67,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-2-5"
+my $scriptVersion = "0-2-6"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -6563,7 +6563,7 @@ sub updateLineInFile {
 
 	#Search for reference line
 	my ($index1) =
-	  grep { $data[$_] =~ /^$lineReference.*/ } 0 .. $#data;
+	  grep { $data[$_] =~ /^([\s]*)$lineReference.*/ } 0 .. $#data;
 
 	#If you cant find the first reference try for the second reference
 	if ( !defined($index1) ) {
@@ -6571,7 +6571,7 @@ sub updateLineInFile {
 		if ( defined($lineReference2) ) {
 			$log->debug("$subname: Trying to search for $lineReference2.");
 			my ($index1) =
-			  grep { $data[$_] =~ /^$lineReference2.*/ } 0 .. $#data;
+			  grep { $data[$_] =~ /^([\s]*)$lineReference2.*/ } 0 .. $#data;
 			if ( !defined($index1) ) {
 				$log->logdie(
 "No line containing \"$lineReference\" found in file $inputFile\n\n"
@@ -6582,7 +6582,8 @@ sub updateLineInFile {
 			else {
 				$log->debug(
 					"$subname: Replacing '$data[$index1]' with $newLine.");
-				$data[$index1] = $newLine . "\n";
+				my ($spaceReturn) = $data[$index1] =~ /^(\s*)$lineReference2.*/;
+				$data[$index1] = $spaceReturn . $newLine . "\n";
 			}
 		}
 		else {
@@ -6593,7 +6594,8 @@ sub updateLineInFile {
 	}
 	else {
 		$log->debug("$subname: Replacing '$data[$index1]' with $newLine.");
-		$data[$index1] = $newLine . "\n";
+		my ($spaceReturn) = $data[$index1] =~ /^(\s*)$lineReference.*/;
+		$data[$index1] = $spaceReturn . $newLine . "\n";
 	}
 
 	#Write out the updated file
@@ -12258,7 +12260,8 @@ sub upgradeConfluence {
 		"confluence.javaMaxPermSize",
 		"confluence.processSearchParameter1",
 		"confluence.processSearchParameter2",
-		"confluence.crowdIntegration", "confluence.osUser"
+		"confluence.crowdIntegration",
+		"confluence.osUser"
 	);
 
 	if ( $globalConfig->param("general.apacheProxy") eq "TRUE" ) {
@@ -17223,6 +17226,8 @@ sub installStash {
 	my $javaOptsValue;
 	my $catalinaOptsValue;
 	my @requiredConfigItems;
+	my $homeSearchParam;
+	my $homeSearchReplace;
 	my $subname = ( caller(0) )[3];
 
 	$log->debug("BEGIN: $subname");
@@ -17298,7 +17303,7 @@ sub installStash {
 	updateXMLAttribute( $serverXMLFile, "//////Context", "path",
 		getConfigItem( "$lcApplication.appContext", $globalConfig ) );
 
-	print "Applying home directory location to config...\n\n";
+	print "Applying Apache Proxy parameters to config...\n\n";
 
 	#Update the server config with reverse proxy configuration
 	$log->info( "$subname: Updating the reverse proxy configuration in "
@@ -17343,16 +17348,35 @@ sub installStash {
 		}
 	}
 
+	print "Applying home directory location to config...\n\n";
+
+#Check if we are installing version below 3.4.3 to maintain backwards compatibility see [#ATLASMGR-397]
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "3.4.3" )
+		ne "GREATER"
+	  )
+	{
+		$homeSearchParam = "STASH_HOME=";
+		$homeSearchReplace =
+		    "STASH_HOME=\""
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  . "\"";
+	}
+	else {
+		$homeSearchParam = "export STASH_HOME=";
+		$homeSearchReplace =
+		    "export STASH_HOME=\""
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  . "\"";
+	}
+
 	#Edit Stash config file to reference homedir
 	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
-		$initPropertiesFile,
-		"STASH_HOME=",
-		"STASH_HOME=\""
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-		  . "\"",
-		"#STASH_HOME="
+		$initPropertiesFile, $homeSearchParam,
+		$homeSearchReplace,  "#STASH_HOME="
 	);
 
 	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
@@ -17475,6 +17499,8 @@ sub upgradeStash {
 	my @parameterNull;
 	my $javaOptsValue;
 	my $catalinaOptsValue;
+	my $homeSearchParam;
+	my $homeSearchReplace;
 	my $subname = ( caller(0) )[3];
 
 	$log->debug("BEGIN: $subname");
@@ -17596,16 +17622,33 @@ sub upgradeStash {
 
 	print "Applying home directory location to config...\n\n";
 
+#Check if we are installing version below 3.4.3 to maintain backwards compatibility see [#ATLASMGR-397]
+	if (
+		compareTwoVersions(
+			$globalConfig->param("$lcApplication.installedVersion"), "3.4.3" )
+		ne "GREATER"
+	  )
+	{
+		$homeSearchParam = "STASH_HOME=";
+		$homeSearchReplace =
+		    "STASH_HOME=\""
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  . "\"";
+	}
+	else {
+		$homeSearchParam = "export STASH_HOME=";
+		$homeSearchReplace =
+		    "export STASH_HOME=\""
+		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
+		  . "\"";
+	}
+
 	#Edit Stash config file to reference homedir
 	$log->info( "$subname: Applying homedir in " . $initPropertiesFile );
 	print "Applying home directory to config...\n\n";
 	updateLineInFile(
-		$initPropertiesFile,
-		"STASH_HOME=",
-		"STASH_HOME=\""
-		  . escapeFilePath( $globalConfig->param("$lcApplication.dataDir") )
-		  . "\"",
-		"#STASH_HOME="
+		$initPropertiesFile, $homeSearchParam,
+		$homeSearchReplace,  "#STASH_HOME="
 	);
 
 	@parameterNull = $globalConfig->param("$lcApplication.javaParams");
