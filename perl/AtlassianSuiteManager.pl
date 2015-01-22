@@ -5,7 +5,7 @@
 #
 #    Application Name: ASM Script for Atlassian(R)
 #    Application URI: http://technicalnotebook.com/wiki/display/ATLASSIANMGR
-#    Version: 0.2.6
+#    Version: 0.2.7
 #    Author: Stuart Ryan
 #    Author URI: http://stuartryan.com
 #
@@ -67,7 +67,7 @@ Log::Log4perl->init("log4j.conf");
 #Set Up Variables                      #
 ########################################
 my $globalConfig;
-my $scriptVersion = "0-2-6"
+my $scriptVersion = "0-2-7"
   ; #we use a dash here to replace .'s as Config::Simple kinda cries with a . in the group name
 my $supportedVersionsConfig;
 my $configFile                  = "settings.cfg";
@@ -9435,10 +9435,10 @@ sub getExistingBambooConfig {
 			print
 "Please wait, attempting to get the Apache proxy base hostname configuration for $application from the configuration files...\n\n";
 			$log->info(
-"$subname: Attempting to get $application proxyName from config file $serverConfigFile."
+"$subname: Attempting to get $application proxyName from config file $serverXMLFile."
 			);
 			$returnValue =
-			  getXMLAttribute( $serverConfigFile, "///Connector", "proxyName" );
+			  getXMLAttribute( $serverXMLFile, "///Connector", "proxyName" );
 
 			if ( $returnValue eq "NOTFOUND" ) {
 				$log->info(
@@ -9468,10 +9468,10 @@ sub getExistingBambooConfig {
 			print
 "Please wait, attempting to get the Apache proxy scheme configuration for $application from the configuration files...\n\n";
 			$log->info(
-"$subname: Attempting to get $application proxy scheme from config file $serverConfigFile."
+"$subname: Attempting to get $application proxy scheme from config file $serverXMLFile."
 			);
 			$returnValue =
-			  getXMLAttribute( $serverConfigFile, "///Connector", "scheme" );
+			  getXMLAttribute( $serverXMLFile, "///Connector", "scheme" );
 
 			if ( $returnValue eq "NOTFOUND" ) {
 				$log->info(
@@ -9517,10 +9517,10 @@ sub getExistingBambooConfig {
 			print
 "Please wait, attempting to get the Apache proxy port configuration for $application from the configuration files...\n\n";
 			$log->info(
-"$subname: Attempting to get $application proxyPort from config file $serverConfigFile."
+"$subname: Attempting to get $application proxyPort from config file $serverXMLFile."
 			);
 			$returnValue =
-			  getXMLAttribute( $serverConfigFile, "///Connector", "proxyPort" );
+			  getXMLAttribute( $serverXMLFile, "///Connector", "proxyPort" );
 
 			if ( $returnValue eq "NOTFOUND" ) {
 				$log->info(
